@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
-  BurnDownChart, Change, CommitmentGauge, Legend, RankedBars, StackedMonthsChart, TrendChart,
+  BurnDownChart, Change, CommitmentGauge, RankedBars, StackedMonthsChart, TrendChart,
 } from './charts';
 import {
   fetchAnalysis, fetchConsumption, fetchSignIn, fetchTracked, refreshAccount,
@@ -176,11 +176,6 @@ function AccountView({ account }: { account: TrackedAccount }) {
           <section className="card azure-cost-card">
             <h3>Monthly spend</h3>
             <TrendChart months={analysis.months} forecast={analysis.forecast.months} currency={analysis.currency} />
-            <Legend items={[
-              { label: 'Actual', color: 'var(--azure-cost-series-1)' },
-              { label: 'Amortized', color: 'var(--azure-cost-series-2)' },
-              { label: 'Forecast', color: 'var(--azure-cost-series-1)', dashed: true },
-            ]} />
           </section>
           <section className="card azure-cost-card">
             <div className="azure-cost-card-head">

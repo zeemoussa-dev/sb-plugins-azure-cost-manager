@@ -18,8 +18,9 @@ a Settings page. `PLAN.md` holds the three phases and the decisions behind them.
   `az account get-access-token`; it sees what the operator sees in the portal.
 - **A plugin imports only `app.plugin_api`.** Nothing else from the framework may
   be imported, and no framework file copied in. Screens import only their own
-  files, `src/pluginHost/` and React / react-router -- which is why the charts
-  are hand-drawn SVG (`ui/charts.tsx`): the host ships no chart library.
+  files, `src/pluginHost/`, React / react-router and the host's `echarts` /
+  `echarts-for-react` (framework_api 8). Import `echarts/core` and only the
+  pieces a chart draws (`ui/charts.tsx`), never the whole `echarts` package.
 - **A missing framework capability is logged in the framework repository** and
   fixed there. Installing a Workflow from this plugin (Phase 3) is one.
 - **Never query a settled month twice.** Cost Management throttles per scope.

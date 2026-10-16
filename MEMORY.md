@@ -16,7 +16,8 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 
 - **[2026-10-16] The current month is never evidence.** It is partial: no month-over-month change, no run rate, no anomaly is computed from it.
 - **[2026-10-16] An anomaly must be sharp and material**: at least 50% off its trailing three-month baseline and at least 2% of the month's total.
-- **[2026-10-16] Charts are SVG drawn in the plugin.** The host has no chart library, and a screen may not bring one.
+- **[2026-10-16] Charts are SVG drawn in the plugin.** The host has no chart library, and a screen may not bring one. *Superseded below.*
+- **[2026-10-16] Charts are the host's `echarts`, imported piece by piece** (framework_api 8, `ADR-039`): `echarts/core` plus the chart types and components used, through `echarts-for-react/lib/core`. A canvas cannot resolve CSS variables, so colours are read from the stylesheet when a chart renders.
 
 ## Constraints
 
