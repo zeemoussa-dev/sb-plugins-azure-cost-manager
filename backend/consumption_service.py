@@ -65,6 +65,8 @@ class ConsumptionService:
         accounts = [{"name": name,
                      "display_name": visible[name]["display_name"],
                      "agreement_type": visible[name]["agreement_type"],
+                     "term_start": visible[name].get("term_start"),
+                     "term_end": visible[name].get("term_end"),
                      "customer": (previous.get(name) or {}).get("customer")}
                     for name in dict.fromkeys(account_names)]
         self._store.save_tracked_accounts(accounts)
@@ -123,7 +125,8 @@ class ConsumptionService:
 
     def _commitment(self, account: dict) -> dict | None:
         if account["agreement_type"] == ENTERPRISE_AGREEMENT:
-            return {"kind": "ea-prepayment", "balance": self._azure().enterprise_agreement_balance(account["name"])}
+            return {"kind": "ea-prepayment", "balance": self._azure().enterprise_agreement_balance(account["name"]),
+                    "start": account.get("term_start"), "end": account.get("term_end")}
         if account["agreement_type"] == CUSTOMER_AGREEMENT:
             lots = self._azure().consumption_commitment_lots(account["name"])
             return {"kind": "macc", "lots": lots} if lots else None

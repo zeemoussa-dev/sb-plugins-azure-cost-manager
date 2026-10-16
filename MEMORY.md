@@ -22,5 +22,7 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 ## Constraints
 
 - **[2026-10-16] A Cost Management query covers at most a year**; history is twelve months.
+- **[2026-10-16] Billing accounts are listed on API `2020-05-01`, never newer.** For a partner's sign-in on indirect EA, `2021-10-01` onwards list none of the enrollments (0 against 135, `includeAll` makes no difference). Cost Management, forecast and balances work on current versions at the same scope.
+- **[2026-10-16] Through `az.cmd`, an `&` in a URL is eaten by cmd.** When probing Azure by hand, pass query parameters with `az rest --url-parameters`, not in `--url`.
 - **[2026-10-16] A month is settled five days after it ends**; until then it is fetched again on refresh, after that never.
 - **[2026-10-16] `az` must be on the backend's PATH and signed in as the operator.** A backend run as a service account would not see the operator's billing accounts.

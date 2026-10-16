@@ -133,7 +133,11 @@ def burn_down(commitment: dict | None, trend: list[dict], today: date) -> dict |
         balance = commitment.get("balance") or {}
         original = balance.get("beginning_balance", 0.0) + balance.get("new_purchases", 0.0)
         remaining = balance.get("ending_balance", 0.0)
-        start = end = None
+        # An enrollment without an Azure Prepayment bills everything as overage:
+        # there is no commitment to burn down, rather than one fully consumed.
+        if original <= 0 and remaining <= 0:
+            return None
+        start, end = commitment.get("start"), commitment.get("end")
         currency = balance.get("currency")
     consumed = original - remaining
     result = {

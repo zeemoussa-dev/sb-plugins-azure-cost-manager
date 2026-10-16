@@ -13,6 +13,9 @@ export interface BillingAccount {
   display_name: string;
   agreement_type: string;
   account_type?: string | null;
+  /** An EA enrollment's term, when Azure reports one. */
+  term_start?: string | null;
+  term_end?: string | null;
   tracked?: boolean;
 }
 

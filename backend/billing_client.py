@@ -14,7 +14,10 @@ from . import months
 from .azure_token import AzureCliToken
 
 API_ROOT = "https://management.azure.com"
-BILLING_API = "2024-04-01"
+# Pinned old on purpose: 2021-10-01 and later list no indirect EA enrollments for a
+# partner's sign-in (checked live 2026-10-16: 135 accounts on 2020-05-01, 0 on
+# 2024-04-01), and 2020-05-01 also returns each enrollment's term.
+BILLING_API = "2020-05-01"
 COST_MANAGEMENT_API = "2023-11-01"
 CONSUMPTION_API = "2023-05-01"
 
@@ -123,12 +126,21 @@ class BillingClient:
     def list_billing_accounts(self) -> list[dict]:
         accounts = self._get_all("/providers/Microsoft.Billing/billingAccounts",
                                  {"api-version": BILLING_API})
-        return [{
-            "name": account.get("name"),
-            "display_name": (account.get("properties") or {}).get("displayName") or account.get("name"),
-            "agreement_type": (account.get("properties") or {}).get("agreementType") or "Unknown",
-            "account_type": (account.get("properties") or {}).get("accountType"),
-        } for account in accounts if account.get("name")]
+        listed = []
+        for account in accounts:
+            if not account.get("name"):
+                continue
+            properties = account.get("properties") or {}
+            enrollment = properties.get("enrollmentDetails") or {}
+            listed.append({
+                "name": account["name"],
+                "display_name": properties.get("displayName") or account["name"],
+                "agreement_type": properties.get("agreementType") or "Unknown",
+                "account_type": properties.get("accountType"),
+                "term_start": _day(enrollment.get("startDate")),
+                "term_end": _day(enrollment.get("endDate")),
+            })
+        return listed
 
     def query_monthly_cost(self, account_name: str, cost_type: str,
                            first_month: str, last_month: str) -> list[dict]:

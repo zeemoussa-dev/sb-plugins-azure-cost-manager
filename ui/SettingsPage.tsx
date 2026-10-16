@@ -61,13 +61,14 @@ export function SettingsPage() {
           <input type="search" placeholder="Filter accounts" value={filter}
                  onChange={(event) => setFilter(event.target.value)} className="azure-cost-filter" />
           <table className="azure-cost-table">
-            <thead><tr><th /><th>Billing account</th><th>Agreement</th><th>Id</th></tr></thead>
+            <thead><tr><th /><th>Billing account</th><th>Agreement</th><th>Term ends</th><th>Id</th></tr></thead>
             <tbody>
               {shown.map((account) => (
                 <tr key={account.name} onClick={() => toggle(account.name)} className="azure-cost-clickable">
                   <td><input type="checkbox" checked={chosen.has(account.name)} readOnly aria-label={account.display_name} /></td>
                   <td>{account.display_name}</td>
                   <td><span className="badge">{agreementLabel(account.agreement_type)}</span></td>
+                  <td className="text-muted">{account.term_end ?? '—'}</td>
                   <td className="text-muted azure-cost-id">{account.name}</td>
                 </tr>
               ))}

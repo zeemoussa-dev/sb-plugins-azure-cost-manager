@@ -95,6 +95,15 @@ def test_ea_burn_down_reads_the_prepayment_balance():
     assert result["projected_exhaustion"] == "2027-01"
 
 
+def test_an_enrollment_without_prepayment_has_no_commitment_rather_than_a_consumed_one():
+    trend = [{"month": "2026-09", "actual": 8_000, "partial": False}]
+    commitment = {"kind": "ea-prepayment", "start": "2022-04-14", "end": "2027-04-30",
+                  "balance": {"beginning_balance": 0, "new_purchases": 0, "ending_balance": 0,
+                              "service_overage": 8_644.46, "currency": "USD"}}
+
+    assert analysis.burn_down(commitment, trend, TODAY) is None
+
+
 def test_forecast_prefers_azure_and_adds_what_is_already_billed_this_month():
     trend = [{"month": "2026-09", "actual": 900, "partial": False},
              {"month": "2026-10", "actual": 400, "partial": True}]

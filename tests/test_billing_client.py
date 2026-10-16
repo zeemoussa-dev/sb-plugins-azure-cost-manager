@@ -69,14 +69,17 @@ def test_a_401_forgets_the_token_and_tries_once_more():
         calls.append(1)
         if len(calls) == 1:
             return httpx.Response(401, json={"error": {"message": "expired"}})
+        assert request.url.params["api-version"] == "2020-05-01"
         return httpx.Response(200, json={"value": [{"name": "123", "properties": {
-            "displayName": "Contoso", "agreementType": "EnterpriseAgreement"}}]})
+            "displayName": "Contoso", "agreementType": "EnterpriseAgreement",
+            "enrollmentDetails": {"startDate": "2022-04-14T00:00:00+00:00", "endDate": "2027-04-30T00:00:00+00:00"}}}]})
 
     accounts = client_answering(handler, token).list_billing_accounts()
 
     assert token.forgotten == 1
     assert accounts[0]["display_name"] == "Contoso"
     assert accounts[0]["agreement_type"] == "EnterpriseAgreement"
+    assert (accounts[0]["term_start"], accounts[0]["term_end"]) == ("2022-04-14", "2027-04-30")
 
 
 def test_a_long_throttle_goes_back_to_the_operator():
