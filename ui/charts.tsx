@@ -6,7 +6,7 @@ import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } f
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { ReactNode } from 'react';
-import type { BreakdownRow, Commitment, ConsumptionRow, ForecastMonth, MonthTotal } from './client';
+import type { BreakdownRow, BurnDown, ConsumptionRow, ForecastMonth, MixGroup, MonthTotal } from './client';
 import { formatMoney, formatMonth } from './format';
 
 // The host provides echarts (framework_api 8); importing `echarts/core` plus the
@@ -126,25 +126,20 @@ export function TrendChart({ months, forecast, currency }: {
   );
 }
 
-/** Each month split into the biggest series plus "Other", to see the mix move. */
+/** Each month split into the biggest series plus "Other", to see the mix move.
+ *  By enrollment it shows a renewal as one colour handing over to another. */
 export function StackedMonthsChart({ rows, groupKey, currency, series = 6 }: {
-  rows: ConsumptionRow[]; groupKey: 'service' | 'subscription'; currency: string | null; series?: number;
+  rows: ConsumptionRow[]; groupKey: MixGroup; currency: string | null; series?: number;
 }) {
-  if (!rows.length) return <p className="text-muted">No consumption cached yet.</p>;
+  if (!rows.length) return <p className="text-muted">No consumption synced yet.</p>;
   const { colors, option } = baseOption(currency);
   const totalsByName = new Map<string, number>();
-  for (const row of rows) {
-    const name = row[groupKey] ?? 'Unassigned';
-    totalsByName.set(name, (totalsByName.get(name) ?? 0) + row.cost);
-  }
+  for (const row of rows) totalsByName.set(row.name, (totalsByName.get(row.name) ?? 0) + row.cost);
   const named = [...totalsByName.entries()].sort((a, b) => b[1] - a[1]).slice(0, series).map(([name]) => name);
   const months = [...new Set(rows.map((row) => row.month))].sort();
   const valueOf = (month: string, key: string) => rows
     .filter((row) => row.month === month)
-    .filter((row) => {
-      const name = row[groupKey] ?? 'Unassigned';
-      return key === 'Other' ? !named.includes(name) : name === key;
-    })
+    .filter((row) => key === 'Other' ? !named.includes(row.name) : row.name === key)
     .reduce((sum, row) => sum + row.cost, 0);
   const keys = [...named, ...(totalsByName.size > named.length ? ['Other'] : [])];
 
@@ -193,54 +188,61 @@ export function Change({ pct }: { pct: number | null }): ReactNode {
   return <span className={`azure-cost-change ${direction}`}>{pct > 0 ? '+' : ''}{pct}%</span>;
 }
 
-const DAY_MS = 864e5;
+function endOfMonth(month: string): number {
+  const [year, number] = month.split('-').map(Number);
+  return Date.UTC(year, number, 0);
+}
 
-/** The commitment: consumed so far against the whole, and where the run rate
- *  takes it -- a straight projection from today, with the term's end marked. */
-export function BurnDownChart({ commitment, today }: { commitment: Commitment; today: Date }) {
+/** Consumption since the term began, month by month, against what the customer
+ *  signed: the even pace that would land exactly on it, and where the run rate
+ *  takes consumption by the end of the term. */
+export function BurnDownChart({ commitment, today }: { commitment: BurnDown; today: Date }) {
   const currency = commitment.currency;
   const { colors, option } = baseOption(currency);
-  const start = commitment.start ? new Date(commitment.start) : null;
-  const end = commitment.end ? new Date(commitment.end) : null;
-  const horizonEnd = end ?? new Date(today.getFullYear() + 1, today.getMonth(), 1);
-  const monthsToEnd = Math.max((horizonEnd.getTime() - today.getTime()) / (30.4375 * DAY_MS), 0);
-  const projectedAtEnd = commitment.consumed + (commitment.run_rate ?? 0) * monthsToEnd;
-  const consumedLine = [...(start ? [[start.getTime(), 0]] : []), [today.getTime(), commitment.consumed]];
-  const projectionLine = commitment.run_rate
-    ? [[today.getTime(), commitment.consumed], [horizonEnd.getTime(), Math.round(projectedAtEnd)]]
+  const start = Date.parse(commitment.start);
+  const end = Date.parse(commitment.end);
+  const consumed = [[start, 0], ...commitment.cumulative.map((point) =>
+    [point.partial ? today.getTime() : endOfMonth(point.month), point.consumed])];
+  const projection = commitment.run_rate
+    ? [[today.getTime(), commitment.consumed], [end, Math.round(commitment.projected_at_end)]]
     : [];
 
   return (
-    <Chart label="Commitment consumed and projected" height={260} option={{
+    <Chart label="Consumption against the signed value" height={300} option={{
       ...option,
-      color: [colors.series[1], colors.series[1]],
+      color: [colors.series[1], colors.series[1], colors.muted],
       tooltip: { ...option.tooltip, trigger: 'item',
         formatter: (item: { seriesName: string; value: [number, number] }) =>
           `${item.seriesName}<br/>${new Date(item.value[0]).toISOString().slice(0, 10)}: <b>${formatMoney(item.value[1], currency)}</b>` },
-      xAxis: { type: 'time', min: (start ?? new Date(today.getTime() - 180 * DAY_MS)).getTime(), max: horizonEnd.getTime(),
-        axisLabel: { color: colors.muted }, axisLine: { lineStyle: { color: colors.border } }, splitLine: { show: false } },
-      yAxis: { ...option.yAxis, max: (value: { max: number }) => Math.max(value.max, commitment.original) * 1.05 },
+      xAxis: { type: 'time', min: start, max: end, axisLabel: { color: colors.muted },
+        axisLine: { lineStyle: { color: colors.border } }, splitLine: { show: false } },
+      yAxis: { ...option.yAxis, max: (value: { max: number }) => Math.max(value.max, commitment.amount) * 1.05 },
       series: [
-        { name: 'Consumed', type: 'line', data: consumedLine, symbolSize: 7, lineStyle: { width: 2 },
+        { name: 'Consumed', type: 'line', data: consumed, symbolSize: 5, lineStyle: { width: 2.5 },
+          areaStyle: { opacity: 0.12 },
           markLine: { silent: true, symbol: 'none', label: { color: colors.muted },
             lineStyle: { color: colors.muted, type: 'dashed' },
             data: [
-              { yAxis: commitment.original, label: { formatter: `Commitment ${formatMoney(commitment.original, currency, true)}`, position: 'insideEndTop' } },
+              { yAxis: commitment.amount, label: { formatter: `Signed ${formatMoney(commitment.amount, currency, true)}`, position: 'insideEndTop' } },
               { xAxis: today.getTime(), label: { formatter: 'Today', position: 'end' } },
             ] } },
-        { name: 'Projected at run rate', type: 'line', data: projectionLine, symbolSize: 5,
+        { name: 'Projected at run rate', type: 'line', data: projection, symbolSize: 5,
           lineStyle: { width: 2, type: 'dashed' } },
+        { name: 'Even pace', type: 'line', data: [[start, 0], [end, commitment.amount]], symbol: 'none',
+          lineStyle: { width: 1, type: 'dotted' } },
       ],
     }} />
   );
 }
 
-/** Consumed share of the commitment as one bar. */
-export function CommitmentGauge({ commitment }: { commitment: Commitment }) {
-  const pct = Math.min(Math.max(commitment.consumed_pct ?? 0, 0), 100);
+/** Consumed share of the commitment as one bar, with where an even pace would be. */
+export function CommitmentGauge({ commitment }: { commitment: BurnDown }) {
+  const pct = Math.min(Math.max(commitment.consumed_pct, 0), 100);
+  const pace = Math.min(Math.max(commitment.elapsed_pct, 0), 100);
   return (
-    <div className="azure-cost-gauge" title={`${pct}% consumed`}>
+    <div className="azure-cost-gauge" title={`${pct}% consumed, ${pace}% of the term elapsed`}>
       <span style={{ width: `${pct}%` }} />
+      <i style={{ left: `${pace}%` }} />
     </div>
   );
 }
