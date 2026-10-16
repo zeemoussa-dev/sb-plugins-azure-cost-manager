@@ -22,6 +22,7 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 ## Constraints
 
 - **[2026-10-16] A Cost Management query covers at most a year**; history is twelve months.
+- **[2026-10-16] A refresh waits out throttling of up to a minute.** Each twelve-month query costs about twelve query units of the scope's budget, so a refresh's second query is routinely throttled 15-45 seconds on a large EA enrollment. A shorter inline limit made every first refresh fail.
 - **[2026-10-16] Billing accounts are listed on API `2020-05-01`, never newer.** For a partner's sign-in on indirect EA, `2021-10-01` onwards list none of the enrollments (0 against 135, `includeAll` makes no difference). Cost Management, forecast and balances work on current versions at the same scope.
 - **[2026-10-16] Import the chart wrapper from `echarts-for-react/esm/core`, never `lib/core`.** `lib/` is CommonJS; under the Vite dev server its default import is the module object and React fails with "Element type is invalid". The publish gate builds but never renders, so only opening the page catches it.
 - **[2026-10-16] Through `az.cmd`, an `&` in a URL is eaten by cmd.** When probing Azure by hand, pass query parameters with `az rest --url-parameters`, not in `--url`.

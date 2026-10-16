@@ -21,9 +21,13 @@ BILLING_API = "2020-05-01"
 COST_MANAGEMENT_API = "2023-11-01"
 CONSUMPTION_API = "2023-05-01"
 
-# Cost Management throttles per scope and says how long to wait. A short wait is
-# absorbed; a long one goes back to the operator rather than holding a request open.
-_LONGEST_INLINE_WAIT_SECONDS = 10
+# Cost Management throttles per scope and says how long to wait. A twelve-month
+# query costs about twelve of the scope's query units, and a refresh makes two, so
+# on a large EA enrollment the second is routinely told to wait 15-45 seconds
+# (seen live 2026-10-16). A refresh is something the operator clicked and is
+# watching, so waits up to a minute are absorbed; longer goes back to them.
+_LONGEST_INLINE_WAIT_SECONDS = 60
+_ATTEMPTS = 4
 
 COST_TYPES = ("ActualCost", "AmortizedCost")
 
@@ -98,7 +102,7 @@ class BillingClient:
 
     def _request(self, method: str, url: str, *, params: dict | None = None,
                  body: dict | None = None) -> dict:
-        for attempt in range(3):
+        for attempt in range(_ATTEMPTS):
             response = self._http.request(method, url, params=params, json=body,
                                           headers={"Authorization": f"Bearer {self._token.get()}"})
             if response.status_code == 401 and attempt == 0:
@@ -106,7 +110,7 @@ class BillingClient:
                 continue
             if response.status_code == 429:
                 wait = _retry_after(response)
-                if wait > _LONGEST_INLINE_WAIT_SECONDS or attempt == 2:
+                if wait > _LONGEST_INLINE_WAIT_SECONDS or attempt == _ATTEMPTS - 1:
                     raise AzureThrottled(wait)
                 self._sleep(wait)
                 continue

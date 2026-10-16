@@ -82,14 +82,29 @@ def test_a_401_forgets_the_token_and_tries_once_more():
     assert (accounts[0]["term_start"], accounts[0]["term_end"]) == ("2022-04-14", "2027-04-30")
 
 
+def test_a_throttle_of_under_a_minute_is_waited_out():
+    waits, calls = [], []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(429, headers={"x-ms-ratelimit-microsoft.costmanagement-entity-retry-after": "42"})
+        return httpx.Response(200, json=query_page([], ["Cost", "BillingMonth"]))
+
+    client = BillingClient(StubToken(), transport=httpx.MockTransport(handler), sleep=waits.append)
+    client.query_monthly_cost("acct", "ActualCost", "2026-09", "2026-09")
+
+    assert waits == [42]
+
+
 def test_a_long_throttle_goes_back_to_the_operator():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(429, headers={"x-ms-ratelimit-microsoft.costmanagement-entity-retry-after": "45"})
+        return httpx.Response(429, headers={"x-ms-ratelimit-microsoft.costmanagement-entity-retry-after": "300"})
 
     with pytest.raises(AzureThrottled) as raised:
         client_answering(handler).query_monthly_cost("acct", "ActualCost", "2026-09", "2026-09")
 
-    assert raised.value.retry_after_seconds == 45
+    assert raised.value.retry_after_seconds == 300
 
 
 def test_macc_lots_are_read_as_original_and_remaining():
