@@ -2,6 +2,17 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.2.0] - 2026-10-16
+
+What the first live run showed, and the change it forced (operator, 2026-10-16: a customer can have several tenants, data "cuts in the middle", and one customer read zero consumption for six months, which was wrong).
+
+- feat: **a customer is a group of enrollments.** The customer reading zero had moved to a new enrollment mid-year, so its old one read zero from then on -- the "cut in the middle" was the renewal. Another is a parent enrollment plus two linked ones. Settings now builds customers from billing accounts, listing related enrollments (same name, or linked under the same parent) once one is picked; the operator decides. Every view merges a customer's enrollments, and the spend mix gains an **Enrollments** split that shows a renewal handing over.
+- feat: **the signed value, entered per customer** -- type (MACC / EA commitment / Azure Prepayment / Other), amount, currency, term. Azure cannot say it here: indirect EA shows no prepayment, and the commitment lots answer 401 to a partner's sign-in. The burn-down is rebuilt on it: real cumulative consumption since term start, an even-pace line to the signed value, the run-rate projection to term end, ahead/behind pace, and any projected shortfall.
+- feat: **local data, loaded by a background sync.** Cost Management throttles per sign-in, not per scope -- after a few page refreshes even an untouched enrollment answered 429 -- so pages no longer query Azure at all. `POST /sync` starts a background sync (every customer, or one) from each enrollment's term start, a year per query, waiting out throttling, saving after every window so a stopped sync resumes; a settled month is never fetched again. A weekly Hermes cron job calls it; the Sync buttons follow its progress.
+- refactor: cached months are stored as service and subscription maps instead of the service × subscription cross product, which would run to megabytes for three years of a large customer. Months cached by 0.1.x are dropped and fetched again; 0.1.x's tracked accounts are carried over as one-enrollment customers.
+- removed: the per-account refresh routes, and the prepayment-balance and commitment-lots calls -- the signed value now comes from the operator.
+- chore: `framework_api` 9 -- the host provides `openpyxl` to plugin backends (framework `ADR-040`), which the per-customer Excel export will use.
+
 ## [0.1.5] - 2026-10-16
 
 - fix: **a refresh on a large EA enrollment failed on Cost Management's throttling.** A twelve-month query costs about twelve of the scope's query units, so the second of a refresh's two queries was routinely told to wait 15-45 seconds, and anything over 10 failed the whole refresh. Waits of up to a minute are now absorbed, up to four attempts; a longer one still goes back to the operator with the wait Azure asked for.

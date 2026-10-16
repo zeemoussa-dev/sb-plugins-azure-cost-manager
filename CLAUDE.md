@@ -12,8 +12,10 @@ a Settings page. `PLAN.md` holds the three phases and the decisions behind them.
 
 ## Boundaries
 
-- **Phase 1 is display only.** Nothing is written to the vault until a billing
-  account is linked to a Customer (Phase 2).
+- **Nothing is written to the vault yet.** Consumption lives in the plugin's
+  local data until a customer is linked to an Entities Customer (Phase 2).
+- **Pages never query Azure.** Only the background sync does (`POST /sync`):
+  Cost Management throttles per sign-in, and a page view must not spend it.
 - **The operator's own sign-in, never a stored secret.** The backend borrows
   `az account get-access-token`; it sees what the operator sees in the portal.
 - **A plugin imports only `app.plugin_api`.** Nothing else from the framework may
@@ -23,7 +25,7 @@ a Settings page. `PLAN.md` holds the three phases and the decisions behind them.
   pieces a chart draws (`ui/charts.tsx`), never the whole `echarts` package.
 - **A missing framework capability is logged in the framework repository** and
   fixed there. Installing a Workflow from this plugin (Phase 3) is one.
-- **Never query a settled month twice.** Cost Management throttles per scope.
+- **Never query a settled month twice.** Cost Management throttles per sign-in.
 
 ## Layout
 
@@ -32,11 +34,13 @@ a Settings page. `PLAN.md` holds the three phases and the decisions behind them.
 | `plugin.json` | id, version, `framework_api`, what it requires |
 | `backend/azure_token.py` | the token from `az` |
 | `backend/billing_client.py` | the Azure calls, raw rows only |
-| `backend/consumption_store.py` | the two data files: tracked accounts, the per-month cache |
-| `backend/consumption_analysis.py` | pure analysis: trend, breakdowns, anomalies, burn-down, forecast |
-| `backend/consumption_service.py` | tracking, refreshing, answering from the cache |
+| `backend/consumption_store.py` | the local data: customers, and per-account monthly spend maps |
+| `backend/customers.py` | customers as groups of enrollments, their signed value, related-enrollment suggestions |
+| `backend/consumption_sync.py` | the background sync from Azure into local data |
+| `backend/consumption_analysis.py` | pure analysis: merge, trend, breakdowns, anomalies, burn-down, forecast |
+| `backend/consumption_service.py` | answering for a customer from local data |
 | `backend/routes.py` | the HTTP surface |
-| `ui/` | the Azure Cost page, its charts, the Settings page |
+| `ui/` | the Azure Cost page, its charts, the sync control, the Settings page |
 | `tests/` | the backend's tests, against a fake Plugin API and a mock Azure |
 
 ## Commands

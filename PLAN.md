@@ -71,6 +71,32 @@ query a month that is already closed twice.
 There is no in-process scheduler in the framework; a monthly schedule is a
 Phase 3 Pipeline.
 
+## Phase 1b — customers and local data (decided 2026-10-16, after the first live run)
+
+What the first live run against 135 indirect EA enrollments showed:
+
+- **A customer is several enrollments.** One customer is a parent enrollment
+  plus two linked ones; another moved to a new enrollment mid-year, so the old one
+  reads zero from then on — "data cut in the middle" was the renewal, not lost data.
+- **The signed value is not readable.** Indirect EA shows no Azure Prepayment
+  (all usage is overage) and the commitment lots answer 401 to a partner's sign-in.
+- **Throttling is per sign-in, not per scope.** After a few page refreshes even an
+  untouched enrollment answered 429. Live querying from the page cannot scale.
+
+Decisions (operator, 2026-10-16):
+
+| Topic | Decision |
+|---|---|
+| Customer | A named group of billing accounts (enrollments), across renewals and linked enrollments. Settings suggests related enrollments by name; the operator confirms |
+| Loading | The plugin syncs into **local data**: one account at a time, month by month, at most twelve months per query, waiting out throttling, saving after every window so a stopped sync resumes. A settled month is never fetched again. Pages read local data only |
+| Trigger | A **weekly Hermes cron job** calls `POST /plugins/azure-cost-manager/sync` (the operator creates it once; a plugin cannot). The Sync buttons call the same route |
+| History | From the earliest term start among the customer's enrollments, or the signed commitment's start if earlier |
+| Signed value | **Entered per customer** in Settings: commitment type, amount, currency, term start and end. The burn-down compares consumption since term start against it |
+| Storage shape | Per account per month: spend by service and by subscription, actual and amortized, as name → cost maps — not the service × subscription cross product, which runs to megabytes for a large customer over three years |
+
+**Later:** overlay the customer's sales pipeline (Opportunities) on the trend and
+the burn-down, to see an opportunity's effect on consumption.
+
 ## Phase 2 — link and store
 
 - Settings: link a tracked account to an Entities Customer, using

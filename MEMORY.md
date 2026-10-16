@@ -12,6 +12,9 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 - **[2026-10-16] Vault notes will be written directly**, as `sb-plugins-action-center` does -- the Plugin API has no vault write (operator's choice over adding one).
 - **[2026-10-16] Questions are answered through an ADR-032 Workflow** installed from this plugin's Settings: an `.sbf` through the framework's artifact import for now, a Plugin API layer for Hermes content later.
 
+- **[2026-10-16] A customer is a group of enrollments, synced into local data weekly.** One enrollment per customer was wrong on first contact: one customer was a parent plus two linked enrollments, and another's consumption moved to a new enrollment mid-year, so the old one read zero. Pages read local data only; a weekly Hermes cron job calls the sync route. *Supersedes the display-only, refresh-on-open model of 0.1.x.*
+- **[2026-10-16] The signed value is entered by the operator.** Indirect EA shows no prepayment and the commitment lots answer 401 to a partner's sign-in, so Azure cannot say what the customer signed for.
+
 ## Patterns
 
 - **[2026-10-16] The current month is never evidence.** It is partial: no month-over-month change, no run rate, no anomaly is computed from it.
@@ -22,6 +25,7 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 ## Constraints
 
 - **[2026-10-16] A Cost Management query covers at most a year**; history is twelve months.
+- **[2026-10-16] Cost Management throttles per sign-in, not only per scope.** After a few refreshes, an enrollment nothing had touched answered 429. Never query Azure from a page view; only the sync does.
 - **[2026-10-16] A refresh waits out throttling of up to a minute.** Each twelve-month query costs about twelve query units of the scope's budget, so a refresh's second query is routinely throttled 15-45 seconds on a large EA enrollment. A shorter inline limit made every first refresh fail.
 - **[2026-10-16] Billing accounts are listed on API `2020-05-01`, never newer.** For a partner's sign-in on indirect EA, `2021-10-01` onwards list none of the enrollments (0 against 135, `includeAll` makes no difference). Cost Management, forecast and balances work on current versions at the same scope.
 - **[2026-10-16] Import the chart wrapper from `echarts-for-react/esm/core`, never `lib/core`.** `lib/` is CommonJS; under the Vite dev server its default import is the module object and React fails with "Element type is invalid". The publish gate builds but never renders, so only opening the page catches it.
