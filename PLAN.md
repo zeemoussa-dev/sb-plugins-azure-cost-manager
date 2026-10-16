@@ -95,7 +95,61 @@ Decisions (operator, 2026-10-16):
 | Storage shape | Per account per month: spend by service and by subscription, actual and amortized, as name → cost maps — not the service × subscription cross product, which runs to megabytes for a large customer over three years |
 
 **Later:** overlay the customer's sales pipeline (Opportunities) on the trend and
-the burn-down, to see an opportunity's effect on consumption.
+the burn-down, to see an opportunity's effect on consumption. *Taken up in 0.3.0.*
+
+## Phase 1c — the operator's workbook, per customer (0.3.0, decided 2026-10-16)
+
+The operator built a consumption workbook by hand from partner exports: a
+dashboard of KPIs and charts, an automatic forecast, a driver-based forecast
+with scenarios, and a pipeline of engagements with expected $ per month. The
+plugin is to show the same for every customer and export it. The export's
+column layout is not a contract (operator: it existed to build the sheet).
+
+What the data showed: the export's monthly figures equal the **EA billing-period
+balance** to the cent — Azure usage = `totalUsage`, Marketplace =
+`azureMarketplaceServiceCharges`, Charges against Credit = `adjustments`
+(e.g. a Contract Price Match Credit) — and Cost Management `ActualCost` equals
+usage + marketplace, credits not subtracted. GPU SKUs show at meter level
+(`MeterSubCategory`, e.g. `NDsr H100 v5 Series`); PTU shows as Azure OpenAI
+reservations (`PricingModel = Reservation`).
+
+| Topic | Decision |
+|---|---|
+| Measures | **Switchable.** Marketplace and credits each on/off for the dashboard's totals — Marketplace does not count toward the seller's quota, but it does burn the customer's MACC. The signed-value burn-down has its own two switches, stored with the commitment, defaulting to *include marketplace, subtract credits* |
+| Balances | The sync also reads each enrollment's balance per billing period (Consumption API, a different throttle from Cost Management): usage, marketplace, credits and their named adjustments. A settled period is never read again |
+| GPU / AI detail | "The more detail the better": a second Cost Management query per window, grouped by `MeterSubCategory` × `PricingModel`, classified into GPU by SKU (H100, H200, A100, A10, …), Azure OpenAI PTU (reservations) vs tokens (on-demand), and other AI — each split usage vs reservation vs savings plan |
+| Dashboard | The workbook's KPIs and charts: all-time, YTD vs last year, latest month MoM/YoY, by year, YTD by year, by enrollment, quarterly by enrollment, this year vs last by month, MoM growth this vs last year, service mix by month, MACC consumed / remaining / burn / runway / exhaustion |
+| Forecasts | **Automatic** — linear trend on actuals (zero months excluded) × month-of-year seasonal index, with R² and a backtest MAPE; next 12 months and next calendar year. **Scenarios** — Base / Upside / Downside monthly growth, seasonality on/off, extra uplift from a month; stored per customer. The **pipeline** adds on top |
+| Export | **Values and charts only**, one `.xlsx` per customer, built by the backend with the host's `openpyxl` (framework API 9): Dashboard, Monthly, Services, Subscriptions, Enrollments, GPU & AI, Forecast, Scenarios, Pipeline |
+| Pipeline | The customer's **Opportunity notes** in the vault, including its affiliates'. The plugin lists, creates and edits them — status, stage, partner, billing profile, start month and a month-by-month ramp — and the ramp feeds the forecast and the burn-down projection |
+| Who writes Opportunity notes | **The Entities plugin**, which owns the `opportunity` Template. It provides the service below; this plugin calls it at request time and never writes those notes itself. Without Entities ≥ 1.1 the Pipeline tab says so and the rest works |
+
+### The `entities.opportunities` service (provided by `sb-plugins-entities` ≥ 1.1)
+
+Asked for with `api.get_service("entities.opportunities")` at call time.
+
+- `customers() -> list[dict]` — every Customer hub: `{name, stem, tag, affiliates: [{name, stem, tag}]}`.
+- `list_for_customer(customer_stem, include_affiliates=True) -> list[dict]` — each:
+  `{id, title, stem, customer, affiliate (name | None), status, stage, product,
+  route, partner, billing_profile, consumption_start, expected_monthly_usd,
+  plan: [{month: "YYYY-MM", usd: int}], updated}`.
+- `create(owner_stem, title, fields, plan) -> dict` — `owner_stem` is the
+  Customer's or an affiliate's hub. Writes the note the way the Template says:
+  own folder, frontmatter defaults and enums, `customer/{slug}` tag, the link in
+  the owner's `## Opportunities`, History and Captures children. `ValueError`
+  for a rule it breaks (title taken, value not allowed).
+- `update(opportunity_id, fields, plan=None) -> dict` — the allowed frontmatter
+  fields, and when `plan` is given, the `## Consumption Plan` table; appends a
+  line to the note's History.
+
+### Opportunity Template v3 (in `sb-plugins-entities`)
+
+- Frontmatter adds `billing_profile` (an enrollment / billing account number, or
+  `""`) and `consumption_start` (`YYYY-MM`, or `""`).
+- A `## Consumption Plan` section: a table `| Month | USD |`, one row per month.
+- `expected_monthly_usd` stays, and means the plan's steady state: its last month.
+- An install keeps the Template it has (the Marketplace never overwrites one), so
+  the upgrade path for an existing install is that plugin's to provide.
 
 ## Phase 2 — link and store
 
