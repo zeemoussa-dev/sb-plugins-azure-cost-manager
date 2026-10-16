@@ -17,12 +17,13 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 - **[2026-10-16] The current month is never evidence.** It is partial: no month-over-month change, no run rate, no anomaly is computed from it.
 - **[2026-10-16] An anomaly must be sharp and material**: at least 50% off its trailing three-month baseline and at least 2% of the month's total.
 - **[2026-10-16] Charts are SVG drawn in the plugin.** The host has no chart library, and a screen may not bring one. *Superseded below.*
-- **[2026-10-16] Charts are the host's `echarts`, imported piece by piece** (framework_api 8, `ADR-039`): `echarts/core` plus the chart types and components used, through `echarts-for-react/lib/core`. A canvas cannot resolve CSS variables, so colours are read from the stylesheet when a chart renders.
+- **[2026-10-16] Charts are the host's `echarts`, imported piece by piece** (framework_api 8, `ADR-039`): `echarts/core` plus the chart types and components used, through `echarts-for-react/esm/core`. A canvas cannot resolve CSS variables, so colours are read from the stylesheet when a chart renders.
 
 ## Constraints
 
 - **[2026-10-16] A Cost Management query covers at most a year**; history is twelve months.
 - **[2026-10-16] Billing accounts are listed on API `2020-05-01`, never newer.** For a partner's sign-in on indirect EA, `2021-10-01` onwards list none of the enrollments (0 against 135, `includeAll` makes no difference). Cost Management, forecast and balances work on current versions at the same scope.
+- **[2026-10-16] Import the chart wrapper from `echarts-for-react/esm/core`, never `lib/core`.** `lib/` is CommonJS; under the Vite dev server its default import is the module object and React fails with "Element type is invalid". The publish gate builds but never renders, so only opening the page catches it.
 - **[2026-10-16] Through `az.cmd`, an `&` in a URL is eaten by cmd.** When probing Azure by hand, pass query parameters with `az rest --url-parameters`, not in `--url`.
 - **[2026-10-16] A month is settled five days after it ends**; until then it is fetched again on refresh, after that never.
 - **[2026-10-16] `az` must be on the backend's PATH and signed in as the operator.** A backend run as a service account would not see the operator's billing accounts.

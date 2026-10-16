@@ -1,4 +1,6 @@
-import ReactEChartsCore from 'echarts-for-react/lib/core';
+// `esm/`, not `lib/`: lib/core is CommonJS, and the Vite dev server hands its
+// default import over as the module object, which React refuses to render.
+import ReactEChartsCore from 'echarts-for-react/esm/core';
 import { BarChart, LineChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';

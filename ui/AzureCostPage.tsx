@@ -34,7 +34,7 @@ function Kpis({ analysis }: { analysis: Analysis }) {
     <div className="azure-cost-kpis">
       <Kpi label={`Last month (${formatMonth(analysis.last_closed_month)})`}
            value={lastClosed ? formatMoney(lastClosed.actual, currency) : '—'}
-           detail={lastClosed ? <Change pct={lastClosed.mom_pct} /> : null} />
+           detail={lastClosed && lastClosed.mom_pct != null ? <Change pct={lastClosed.mom_pct} /> : null} />
       <Kpi label="This month so far" value={current ? formatMoney(current.actual, currency) : '—'} />
       <Kpi label="Run rate (3 closed months)" value={runRate != null ? formatMoney(runRate, currency) : '—'} />
       <Kpi label={`${analysis.forecast.year} forecast`}
@@ -152,6 +152,9 @@ function AccountView({ account }: { account: TrackedAccount }) {
   }, [account.name, mixBy, fetchedAt]);
 
   const hasData = analysis && analysis.months.length > 0;
+  // An enrollment can be active with nothing billed on it; twelve empty bars would
+  // read as a chart that failed to load.
+  const nothingBilled = hasData && analysis.months.every((month) => !month.actual && !month.amortized);
 
   return (
     <div className="azure-cost-account">
@@ -170,6 +173,8 @@ function AccountView({ account }: { account: TrackedAccount }) {
       ) : null}
       {!hasData ? (
         !error && !refreshing ? <p className="empty-state">No consumption cached for this account yet.</p> : null
+      ) : nothingBilled ? (
+        <p className="empty-state">Nothing was billed on this account in the last {analysis.months.length} months.</p>
       ) : (
         <>
           <Kpis analysis={analysis} />
