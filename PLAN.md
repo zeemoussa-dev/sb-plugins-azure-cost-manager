@@ -132,7 +132,8 @@ Asked for with `api.get_service("entities.opportunities")` at call time.
 - `list_for_customer(customer_stem, include_affiliates=True) -> list[dict]` — each:
   `{id, title, stem, customer, affiliate (name | None), status, stage, product,
   route, partner, billing_profile, consumption_start, expected_monthly_usd,
-  plan: [{month: "YYYY-MM", usd: int}], updated}`.
+  plan: [{month: "YYYY-MM", usd: int}], updated}` — `product` and `partner` are
+  **lists** (as built in Entities 1.1.0), and each partner must name a Partner note.
 - `create(owner_stem, title, fields, plan) -> dict` — `owner_stem` is the
   Customer's or an affiliate's hub. Writes the note the way the Template says:
   own folder, frontmatter defaults and enums, `customer/{slug}` tag, the link in

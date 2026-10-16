@@ -24,6 +24,13 @@ KPI_FONT = Font(bold=True, size=14)
 TOP_NAMES = 15
 
 
+def _joined(value) -> str | None:
+    """A cell takes one value; an opportunity's partners and products are lists."""
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value) or None
+    return value or None
+
+
 def _table(sheet, top_row: int, headers: list[str], rows: list[list], formats: dict[int, str] | None = None) -> int:
     """Writes a header row and rows from `top_row`; returns the last row written."""
     for column, header in enumerate(headers, start=1):
@@ -195,7 +202,7 @@ def build(customer: dict, analysis: dict, merged: dict, today: date) -> bytes:
         pipeline_last = _table(pipeline_sheet, 1, ["Opportunity", "Under", "Status", "Stage", "Partner",
                                                    "Billing profile", "Starts", "Expected monthly"],
                                [[o.get("title"), o.get("affiliate") or o.get("customer"), o.get("status"),
-                                 o.get("stage"), o.get("partner"), o.get("billing_profile"),
+                                 o.get("stage"), _joined(o.get("partner")), o.get("billing_profile"),
                                  o.get("consumption_start"), o.get("expected_monthly_usd")] for o in opportunities],
                                {8: MONEY})
         plan_months = sorted({row["month"] for o in opportunities for row in o.get("plan") or []})

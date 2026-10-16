@@ -128,7 +128,9 @@ class FakeOpportunities:
         return [{"name": "Contoso", "stem": "Contoso", "tag": "customer/contoso", "affiliates": []}]
 
     def list_for_customer(self, stem, include_affiliates=True):
+        # The shape the Entities plugin returns: partner and product are lists.
         return [{"id": "o1", "title": "Data platform", "status": "Open", "customer": "Contoso", "affiliate": None,
+                 "partner": ["Northwind", "Litware"], "product": ["azure"],
                  "plan": [{"month": "2026-11", "usd": 25_000}], "expected_monthly_usd": 25_000}]
 
     def create(self, owner_stem, title, fields, plan):
@@ -187,3 +189,4 @@ def test_the_export_is_a_workbook_with_the_dashboard_and_its_data(fake_api):
     assert len(workbook["Dashboard"]._charts) >= 9
     assert workbook["Monthly"]["A2"].value == "2025-01"
     assert workbook["Pipeline"]["A2"].value == "Data platform"
+    assert workbook["Pipeline"]["E2"].value == "Northwind, Litware"

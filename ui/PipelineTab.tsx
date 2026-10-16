@@ -46,7 +46,7 @@ function draftOf(opportunity: Opportunity | null, owner: string, horizon: string
   const start = opportunity?.consumption_start || plan[0]?.month || addMonths(new Date().toISOString().slice(0, 7), 1);
   return {
     id: opportunity?.id ?? null, owner, title: opportunity?.title ?? '', status: opportunity?.status ?? 'Open',
-    stage: opportunity?.stage ?? 'Identified', partner: opportunity?.partner ?? '',
+    stage: opportunity?.stage ?? 'Identified', partner: (opportunity?.partner ?? []).join(', '),
     billing_profile: opportunity?.billing_profile ?? '', start,
     steady: Number(opportunity?.expected_monthly_usd || plan[plan.length - 1]?.usd || 0), ramp: 3,
     plan: plan.length ? plan : rampPlan(start, 0, 3, horizon),
@@ -70,7 +70,9 @@ function Editor({ analysis, owners, initial, onDone }: {
     setSaving(true);
     setError(null);
     const plan = draft.plan.filter((row) => row.usd);
-    const fields = { status: draft.status, stage: draft.stage, partner: draft.partner,
+    // Each partner must be a Partner note's name; the Entities plugin says which one is not.
+    const partner = draft.partner.split(',').map((name) => name.trim()).filter(Boolean);
+    const fields = { status: draft.status, stage: draft.stage, partner,
       billing_profile: draft.billing_profile, consumption_start: draft.start,
       expected_monthly_usd: plan.length ? plan[plan.length - 1].usd : 0 };
     const request = draft.id
@@ -105,7 +107,7 @@ function Editor({ analysis, owners, initial, onDone }: {
             {STAGES.map((stage) => <option key={stage}>{stage}</option>)}
           </select>
         </label>
-        <label className="field-labeled">Partner
+        <label className="field-labeled">Partners (Partner note names, comma-separated)
           <input value={draft.partner} onChange={(event) => setDraft({ ...draft, partner: event.target.value })} />
         </label>
         <label className="field-labeled">Billing profile
@@ -237,7 +239,7 @@ export function PipelineTab({ analysis, onChanged }: { analysis: Analysis; onCha
                     <td className="text-muted">{opportunity.affiliate ?? opportunity.customer}</td>
                     <td>{opportunity.status}</td>
                     <td>{opportunity.stage}</td>
-                    <td>{opportunity.partner || '—'}</td>
+                    <td>{opportunity.partner?.length ? opportunity.partner.join(', ') : '—'}</td>
                     <td>{opportunity.consumption_start ? formatMonth(opportunity.consumption_start) : '—'}</td>
                     <td>{opportunity.expected_monthly_usd ? formatMoney(Number(opportunity.expected_monthly_usd), currency) : '—'}</td>
                     <td>{next12 ? formatMoney(next12, currency) : '—'}</td>

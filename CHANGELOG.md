@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.3.1] - 2026-10-16
+
+- fix: an opportunity's `partner` and `product` are lists, as Entities 1.1.0 returns them. The export wrote the list into one cell -- which `openpyxl` refuses, so any customer with opportunities could not be exported -- and the Pipeline table ran partner names together. Both now join them; the editor takes partners comma-separated, each the name of a Partner note.
+
 ## [0.3.0] - 2026-10-16
 
 The operator's consumption workbook, for every customer, on screen and as an export (operator, 2026-10-16: "I want the Dashboard to Display Something Similar and Be Able to Export the Same for Every Customer").

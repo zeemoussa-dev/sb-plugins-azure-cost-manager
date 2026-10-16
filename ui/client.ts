@@ -60,9 +60,10 @@ export interface Opportunity {
   affiliate: string | null;
   status: string;
   stage: string;
-  product?: string;
+  /** Lists: an opportunity can carry several products and partners. */
+  product?: string[];
   route?: string;
-  partner?: string;
+  partner?: string[];
   billing_profile?: string;
   consumption_start?: string;
   expected_monthly_usd?: number | string;
