@@ -25,6 +25,9 @@ a Settings page. `PLAN.md` holds the three phases and the decisions behind them.
   pieces a chart draws (`ui/charts.tsx`), never the whole `echarts` package.
 - **A missing framework capability is logged in the framework repository** and
   fixed there. Installing a Workflow from this plugin (Phase 3) is one.
+- **Opportunity notes belong to the Entities plugin.** This plugin reads and
+  writes them only through `entities.opportunities` (contract in `PLAN.md`),
+  asked for at call time; it never writes those files itself.
 - **Never query a settled month twice.** Cost Management throttles per sign-in.
 
 ## Layout
@@ -37,10 +40,15 @@ a Settings page. `PLAN.md` holds the three phases and the decisions behind them.
 | `backend/consumption_store.py` | the local data: customers, and per-account monthly spend maps |
 | `backend/customers.py` | customers as groups of enrollments, their signed value, related-enrollment suggestions |
 | `backend/consumption_sync.py` | the background sync from Azure into local data |
-| `backend/consumption_analysis.py` | pure analysis: merge, trend, breakdowns, anomalies, burn-down, forecast |
+| `backend/consumption_analysis.py` | pure analysis: merge and measures, trend, breakdowns, anomalies, burn-down |
+| `backend/categories.py` | GPU by SKU, Azure OpenAI PTU vs tokens, from meter detail |
+| `backend/forecasting.py` | the automatic trend × seasonality forecast, and the scenarios |
+| `backend/dashboard.py` | the operator's workbook KPIs and chart series |
+| `backend/pipeline.py` | the customer's Opportunity notes, through the Entities plugin's `entities.opportunities` service |
+| `backend/export_xlsx.py` | the per-customer Excel workbook (host `openpyxl`) |
 | `backend/consumption_service.py` | answering for a customer from local data |
 | `backend/routes.py` | the HTTP surface |
-| `ui/` | the Azure Cost page, its charts, the sync control, the Settings page |
+| `ui/` | the Azure Cost page (Overview, Forecast, Pipeline, Breakdown tabs), its charts, the sync control, Settings |
 | `tests/` | the backend's tests, against a fake Plugin API and a mock Azure |
 
 ## Commands

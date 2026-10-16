@@ -2,6 +2,17 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.3.0] - 2026-10-16
+
+The operator's consumption workbook, for every customer, on screen and as an export (operator, 2026-10-16: "I want the Dashboard to Display Something Similar and Be Able to Export the Same for Every Customer").
+
+- feat: **measured as invoiced.** The sync also reads each EA enrollment's billing-period balance -- usage, Marketplace and credits, which match the partner consumption export to the cent -- and the dashboard's total is switchable: **Include Marketplace** (it burns the MACC but not the seller's quota) and **Subtract credits** (e.g. a Contract Price Match Credit). The signed value has its own two switches, defaulting to Marketplace counted and credits subtracted. Enrollments without a balance are measured by Cost Management.
+- feat: **GPU and AI in detail.** Meter detail (`MeterSubCategory` × `PricingModel`) classifies GPU by SKU (H100, H200, A100, A10, …) and Azure OpenAI PTU (reservations) against tokens, each split by how it was bought; the dashboard's mix by month adds up to the measured total.
+- feat: **the workbook's dashboard** -- an Overview of its KPIs (all-time, YTD against last year, latest month MoM/YoY, next 12 months and next year, burn rate, runway, exhaustion, credits, Marketplace) and charts (monthly, mix, by year, YTD by year, MoM %, YoY %, this year against last, MoM growth by year, by enrollment by quarter), plus a Breakdown tab (GPU & AI, services, subscriptions, enrollments, anomalies).
+- feat: **forecasts** -- the automatic trend × month-of-year seasonality model with its R² and backtest MAPE, and Base / Upside / Downside scenarios with an optional uplift, saved per customer.
+- feat: **the pipeline is the customer's Opportunity notes**, its affiliates' included, through the Entities plugin's `entities.opportunities` service: link the customer to its Customer note, then list, create and plan opportunities (status, stage, partner, billing profile, start month and a month-by-month ramp). Open and Won ramps are shown on top of both forecasts and on the burn-down ("run rate + pipeline"). Without Entities ≥ 1.1 the Pipeline tab says so and the rest works.
+- feat: **Export to Excel**, one workbook per customer, values and native charts: Dashboard, Monthly, Mix, Years, Services, Subscriptions, Enrollments, GPU & AI, Forecast, Scenarios, Pipeline, Commitment, Credits -- built with the host's `openpyxl`.
+
 ## [0.2.0] - 2026-10-16
 
 What the first live run showed, and the change it forced (operator, 2026-10-16: a customer can have several tenants, data "cuts in the middle", and one customer read zero consumption for six months, which was wrong).
