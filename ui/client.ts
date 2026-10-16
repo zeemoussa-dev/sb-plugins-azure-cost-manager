@@ -29,6 +29,60 @@ export interface Commitment {
   start: string;
   end: string;
   note?: string;
+  /** Marketplace burns a MACC; a credit lowers what was billed against it. */
+  include_marketplace?: boolean;
+  subtract_credits?: boolean;
+}
+
+export interface Measure {
+  marketplace: boolean;
+  credits: boolean;
+}
+
+export interface ScenarioSettings {
+  growth: { Base: number; Upside: number; Downside: number };
+  seasonality: boolean;
+  active: 'Base' | 'Upside' | 'Downside';
+  uplift_usd: number;
+  uplift_from: string | null;
+}
+
+export interface PlanMonth {
+  month: string;
+  usd: number;
+}
+
+export interface Opportunity {
+  id: string;
+  title: string;
+  stem?: string;
+  customer: string;
+  affiliate: string | null;
+  status: string;
+  stage: string;
+  product?: string;
+  route?: string;
+  partner?: string;
+  billing_profile?: string;
+  consumption_start?: string;
+  expected_monthly_usd?: number | string;
+  plan: PlanMonth[];
+  updated?: string;
+}
+
+export interface PipelineState {
+  available: boolean;
+  reason: string | null;
+  linked?: boolean;
+  opportunities: Opportunity[];
+  by_month: Record<string, number>;
+}
+
+export interface EntityCustomer {
+  name: string;
+  stem: string;
+  tag: string;
+  affiliates: { name: string; stem: string; tag: string }[];
 }
 
 export interface CustomerAccount {
@@ -47,19 +101,29 @@ export interface Customer {
   accounts: CustomerAccount[];
   commitment: Commitment | null;
   synced_at: string | null;
+  /** The Entities Customer note whose Opportunities are this customer's pipeline. */
+  entity_customer?: string | null;
+  scenario?: ScenarioSettings | null;
 }
 
 export interface CustomerDraft {
   name: string;
   accounts: string[];
   commitment: Partial<Commitment> | null;
+  entity_customer?: string | null;
 }
 
 export interface MonthTotal {
   month: string;
+  /** The measured total: what the dashboard means by consumption. */
   actual: number;
   amortized: number;
+  cost_management: number;
+  usage: number;
+  marketplace: number;
+  credits: number;
   mom_pct: number | null;
+  yoy_pct?: number | null;
   /** The current month: still being billed, never compared or used as evidence. */
   partial: boolean;
 }
@@ -99,6 +163,9 @@ export interface BurnDown extends Commitment {
   run_rate: number | null;
   projected_at_end: number;
   projected_shortfall: number;
+  pipeline_in_term: number;
+  projected_with_pipeline: number;
+  shortfall_with_pipeline: number;
   projected_exhaustion: string | null;
   cumulative: { month: string; consumed: number; partial: boolean }[];
   verdict: string;
@@ -118,12 +185,84 @@ export interface Forecast {
   year_end_total: number | null;
 }
 
+export interface AutomaticForecast {
+  method: string;
+  slope: number;
+  intercept: number;
+  r_squared: number;
+  mape: number;
+  months_of_history: number;
+  seasonal_index: Record<string, number>;
+  next_12_months: number;
+  next_12_months_with_pipeline: number;
+  this_year_total: number;
+  next_year: number;
+  next_year_total: number;
+  next_year_with_pipeline: number;
+  next_vs_this_pct: number | null;
+  series: { month: string; actual: number | null; model: number | null; forecast: number | null; pipeline: number }[];
+}
+
+export interface Scenarios {
+  settings: ScenarioSettings;
+  base_month: string;
+  base_total: number;
+  rows: { month: string; Base: number; Upside: number; Downside: number; pipeline: number; active_with_pipeline: number }[];
+  totals: Record<string, number>;
+  next_year: Record<string, number>;
+  pipeline_total: number;
+}
+
+export interface DashboardKpis {
+  all_time: number;
+  months_of_history: number;
+  first_month: string | null;
+  ytd: number | null;
+  ytd_last_year: number | null;
+  ytd_growth_pct: number | null;
+  ytd_through: string | null;
+  latest_month: string | null;
+  latest_total: number | null;
+  latest_mom_pct: number | null;
+  latest_yoy_pct: number | null;
+  current_month: string | null;
+  current_so_far: number | null;
+  active_enrollments: number;
+  largest_enrollment_share_pct: number | null;
+  burn_rate_3m: number | null;
+  next_12_months: number | null;
+  next_year_forecast: number | null;
+  credits_all_time: number;
+  marketplace_all_time: number;
+  commitment_consumed_pct?: number;
+  commitment_remaining?: number;
+  runway_months?: number | null;
+  projected_exhaustion?: string | null;
+}
+
+export interface Dashboard {
+  kpis: DashboardKpis;
+  monthly: MonthTotal[];
+  by_year: { year: number; total: number; partial: boolean }[];
+  ytd_by_year: { year: number; total: number }[];
+  mix: { month: string; lines: Record<string, number> }[];
+  accounts: string[];
+  quarterly: { quarter: string; by_account: Record<string, number> }[];
+  this_vs_last_year: {
+    this_year: number; last_year: number;
+    this: (number | null)[]; last: (number | null)[];
+    this_mom: (number | null)[]; last_mom: (number | null)[];
+  };
+  credit_details: { month: string; name: string; value: number }[];
+}
+
 export interface Analysis {
   customer: Customer;
   synced_at: string | null;
   stale: boolean;
   errors: Record<string, Record<string, string>>;
   currency: string | null;
+  measure: Measure;
   months: MonthTotal[];
   last_closed_month: string;
   top_services: Breakdown;
@@ -132,6 +271,11 @@ export interface Analysis {
   anomalies: Anomaly[];
   commitment: BurnDown | null;
   forecast: Forecast;
+  automatic_forecast: AutomaticForecast | null;
+  scenarios: Scenarios | null;
+  gpu_and_ai: { month: string; lines: { category: string; pricing: string; cost: number }[] }[];
+  dashboard: Dashboard;
+  pipeline: PipelineState;
 }
 
 export interface ConsumptionRow {
@@ -174,7 +318,30 @@ export const saveCustomer = (id: string | null, draft: CustomerDraft) =>
 
 export const deleteCustomer = (id: string) => apiFetch<{ deleted: string }>(customer(id), { method: 'DELETE' });
 
-export const fetchAnalysis = (id: string) => apiFetch<Analysis>(`${customer(id)}/analysis`);
+const measureQuery = (measure: Measure) => `marketplace=${measure.marketplace}&credits=${measure.credits}`;
+
+export const fetchAnalysis = (id: string, measure: Measure) =>
+  apiFetch<Analysis>(`${customer(id)}/analysis?${measureQuery(measure)}`);
+
+/** A path for an `<a href>`: the browser downloads the workbook itself. */
+export const exportPath = (id: string, measure: Measure) => `${customer(id)}/export.xlsx?${measureQuery(measure)}`;
+
+export const saveScenario = (id: string, settings: ScenarioSettings) =>
+  apiFetch<ScenarioSettings>(`${customer(id)}/scenario`, { method: 'PUT', body: JSON.stringify(settings) });
+
+export const fetchEntityCustomers = () =>
+  apiFetch<{ available: boolean; reason?: string; customers: EntityCustomer[] }>(`${BASE}/entity-customers`);
+
+export const createOpportunity = (id: string, ownerStem: string, title: string,
+  fields: Partial<Opportunity>, plan: PlanMonth[]) =>
+  apiFetch<Opportunity>(`${customer(id)}/opportunities`, {
+    method: 'POST', body: JSON.stringify({ owner_stem: ownerStem, title, fields, plan }),
+  });
+
+export const updateOpportunity = (opportunityId: string, fields: Partial<Opportunity>, plan: PlanMonth[] | null) =>
+  apiFetch<Opportunity>(`${BASE}/opportunities/${encodeURIComponent(opportunityId)}`, {
+    method: 'PUT', body: JSON.stringify({ fields, plan }),
+  });
 
 export const fetchConsumption = (id: string, group: MixGroup) =>
   apiFetch<{ rows: ConsumptionRow[] }>(`${customer(id)}/consumption?group=${group}&cost=actual`);

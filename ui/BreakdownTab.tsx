@@ -1,0 +1,114 @@
+import { useEffect, useState } from 'react';
+import { RankedBars, SeriesChart, StackedMonthsChart } from './charts';
+import { fetchConsumption, type Analysis, type ConsumptionRow, type MixGroup } from './client';
+import { formatMoney, formatMonth } from './format';
+
+const MIX_LABELS: Record<MixGroup, string> = { service: 'Services', subscription: 'Subscriptions', account: 'Enrollments' };
+
+function AnomalyList({ analysis }: { analysis: Analysis }) {
+  const label = { spike: 'Spike', drop: 'Drop', new: 'New' } as const;
+  return (
+    <section className="card azure-cost-card">
+      <h3>Anomalies in {formatMonth(analysis.last_closed_month)}</h3>
+      {analysis.anomalies.length === 0 ? (
+        <p className="text-muted">Nothing moved sharply against its last three months.</p>
+      ) : (
+        <table className="azure-cost-table">
+          <thead><tr><th>Service</th><th>Kind</th><th>Month</th><th>3-month baseline</th><th>Change</th></tr></thead>
+          <tbody>
+            {analysis.anomalies.map((anomaly) => (
+              <tr key={anomaly.service}>
+                <td>{anomaly.service}</td>
+                <td><span className={`azure-cost-anomaly ${anomaly.kind}`}>{label[anomaly.kind]}</span></td>
+                <td>{formatMoney(anomaly.cost, analysis.currency)}</td>
+                <td>{formatMoney(anomaly.baseline, analysis.currency)}</td>
+                <td>{anomaly.change > 0 ? '+' : ''}{formatMoney(anomaly.change, analysis.currency)}
+                  {anomaly.change_pct != null ? ` (${anomaly.change_pct > 0 ? '+' : ''}${anomaly.change_pct}%)` : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+/** GPU by SKU and Azure OpenAI PTU against tokens, each by how it was bought. */
+function GpuAndAi({ analysis }: { analysis: Analysis }) {
+  const monthsWithLines = analysis.gpu_and_ai;
+  const keys = [...new Set(monthsWithLines.flatMap((row) => row.lines.map((line) => `${line.category} · ${line.pricing}`)))].sort();
+  const latest = [...monthsWithLines].reverse().find((row) => row.lines.length);
+  if (!keys.length) {
+    return (
+      <section className="card azure-cost-card">
+        <h3>GPU &amp; AI</h3>
+        <p className="text-muted">No GPU or Azure OpenAI spend in the synced months.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="card azure-cost-card">
+      <h3>GPU &amp; AI</h3>
+      <SeriesChart label="GPU and AI by month" currency={analysis.currency} height={320}
+                   categories={monthsWithLines.map((row) => row.month)} categoryLabel={(m) => formatMonth(m, true)}
+                   series={keys.map((key, index) => ({ name: key, stack: 'ai', color: index,
+                     data: monthsWithLines.map((row) => row.lines.filter((line) => `${line.category} · ${line.pricing}` === key)
+                       .reduce((sum, line) => sum + line.cost, 0)) }))} />
+      {latest ? (
+        <table className="azure-cost-table">
+          <thead><tr><th>{formatMonth(latest.month)}</th><th>Bought as</th><th>Cost</th></tr></thead>
+          <tbody>
+            {latest.lines.map((line) => (
+              <tr key={`${line.category}-${line.pricing}`}><td>{line.category}</td><td>{line.pricing}</td>
+                <td>{formatMoney(line.cost, analysis.currency)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </section>
+  );
+}
+
+export function BreakdownTab({ analysis, syncedVersion }: { analysis: Analysis; syncedVersion: number }) {
+  const [mix, setMix] = useState<ConsumptionRow[]>([]);
+  const [mixBy, setMixBy] = useState<MixGroup>('service');
+  const customerId = analysis.customer.id;
+
+  useEffect(() => {
+    fetchConsumption(customerId, mixBy).then((result) => setMix(result.rows), () => setMix([]));
+  }, [customerId, mixBy, syncedVersion]);
+
+  return (
+    <>
+      <GpuAndAi analysis={analysis} />
+      <section className="card azure-cost-card">
+        <div className="azure-cost-card-head">
+          <h3>Spend by month</h3>
+          <div className="azure-cost-segmented">
+            {(Object.keys(MIX_LABELS) as MixGroup[]).map((group) => (
+              <button key={group} type="button" className={group === mixBy ? 'active' : undefined} onClick={() => setMixBy(group)}>
+                {MIX_LABELS[group]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <StackedMonthsChart rows={mix} groupKey={mixBy} currency={analysis.currency} />
+        <p className="text-muted azure-cost-note">Cost Management's actual cost: Marketplace included, credits not subtracted.</p>
+      </section>
+      <div className="azure-cost-columns">
+        <section className="card azure-cost-card">
+          <h3>Top services, {formatMonth(analysis.top_services.month)}</h3>
+          <RankedBars rows={analysis.top_services.rows} currency={analysis.currency} />
+          {analysis.top_services.others ? (
+            <p className="text-muted azure-cost-note">All other services: {formatMoney(analysis.top_services.others, analysis.currency)}</p>
+          ) : null}
+        </section>
+        <section className="card azure-cost-card">
+          <h3>Subscriptions, {formatMonth(analysis.subscriptions.month)}</h3>
+          <RankedBars rows={analysis.subscriptions.rows.slice(0, 10)} currency={analysis.currency} />
+        </section>
+      </div>
+      <AnomalyList analysis={analysis} />
+    </>
+  );
+}

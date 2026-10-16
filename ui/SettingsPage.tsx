@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import {
-  deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, saveCustomer,
-  type BillingAccount, type Commitment, type Customer,
+  deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, saveCustomer,
+  type BillingAccount, type Commitment, type Customer, type EntityCustomer,
 } from './client';
 import { agreementLabel, errorText, formatMoney } from './format';
 import { SyncControl } from './SyncControl';
@@ -14,7 +14,11 @@ interface Draft {
   id: string | null;
   name: string;
   accounts: string[];
-  commitment: { type: string; amount: string; currency: string; start: string; end: string; note: string };
+  entity_customer: string;
+  commitment: {
+    type: string; amount: string; currency: string; start: string; end: string; note: string;
+    include_marketplace: boolean; subtract_credits: boolean;
+  };
 }
 
 function draftOf(customer: Customer | null): Draft {
@@ -23,16 +27,19 @@ function draftOf(customer: Customer | null): Draft {
     id: customer?.id ?? null,
     name: customer?.name ?? '',
     accounts: customer?.accounts.map((account) => account.name) ?? [],
+    entity_customer: customer?.entity_customer ?? '',
     commitment: {
       type: commitment.type ?? 'MACC', amount: commitment.amount != null ? String(commitment.amount) : '',
       currency: commitment.currency ?? 'USD', start: commitment.start ?? '', end: commitment.end ?? '',
-      note: commitment.note ?? '',
+      note: commitment.note ?? '', include_marketplace: commitment.include_marketplace ?? true,
+      subtract_credits: commitment.subtract_credits ?? true,
     },
   };
 }
 
-function CustomerEditor({ draft, accounts, types, onSaved, onCancel }: {
-  draft: Draft; accounts: BillingAccount[]; types: string[]; onSaved: () => void; onCancel: () => void;
+function CustomerEditor({ draft, accounts, types, entityCustomers, onSaved, onCancel }: {
+  draft: Draft; accounts: BillingAccount[]; types: string[]; entityCustomers: EntityCustomer[] | null;
+  onSaved: () => void; onCancel: () => void;
 }) {
   const [value, setValue] = useState<Draft>(draft);
   const [search, setSearch] = useState('');
@@ -72,7 +79,7 @@ function CustomerEditor({ draft, accounts, types, onSaved, onCancel }: {
       start: starts[0] ?? current.commitment.start, end: ends[ends.length - 1] ?? current.commitment.end } }));
   }
 
-  function setCommitment(field: keyof Draft['commitment'], fieldValue: string) {
+  function setCommitment(field: keyof Draft['commitment'], fieldValue: string | boolean) {
     setValue((current) => ({ ...current, commitment: { ...current.commitment, [field]: fieldValue } }));
   }
 
@@ -81,7 +88,8 @@ function CustomerEditor({ draft, accounts, types, onSaved, onCancel }: {
     setError(null);
     const commitment = value.commitment.amount.trim()
       ? { ...value.commitment, amount: Number(value.commitment.amount) } : null;
-    saveCustomer(value.id, { name: value.name, accounts: value.accounts, commitment }).then(() => {
+    saveCustomer(value.id, { name: value.name, accounts: value.accounts, commitment,
+      entity_customer: value.entity_customer || null }).then(() => {
       setSaving(false);
       onSaved();
     }, (failure) => {
@@ -159,6 +167,30 @@ function CustomerEditor({ draft, accounts, types, onSaved, onCancel }: {
         <input value={value.commitment.note} onChange={(event) => setCommitment('note', event.target.value)}
                placeholder="e.g. MACC signed with the 2024 renewal" />
       </label>
+      <label className="azure-cost-check">
+        <input type="checkbox" checked={value.commitment.include_marketplace}
+               onChange={(event) => setCommitment('include_marketplace', event.target.checked)} />
+        Marketplace counts against it
+      </label>
+      <label className="azure-cost-check">
+        <input type="checkbox" checked={value.commitment.subtract_credits}
+               onChange={(event) => setCommitment('subtract_credits', event.target.checked)} />
+        Credits reduce what counts against it
+      </label>
+
+      <h4>Customer note</h4>
+      <p className="text-muted azure-cost-note">
+        The Customer note in the vault whose Opportunities (its affiliates' included) are this customer's pipeline.
+      </p>
+      {entityCustomers === null ? (
+        <p className="text-muted azure-cost-note">The Entities plugin (1.1 or later) is needed to link a Customer note.</p>
+      ) : (
+        <select value={value.entity_customer} onChange={(event) => setValue({ ...value, entity_customer: event.target.value })}
+                className="azure-cost-picker">
+          <option value="">Not linked</option>
+          {entityCustomers.map((customer) => <option key={customer.stem} value={customer.stem}>{customer.name}</option>)}
+        </select>
+      )}
 
       {error ? <div className="azure-cost-error">{error}</div> : null}
       <div className="azure-cost-toolbar">
@@ -175,6 +207,7 @@ export function SettingsPage() {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [accounts, setAccounts] = useState<BillingAccount[]>([]);
   const [types, setTypes] = useState<string[]>([]);
+  const [entityCustomers, setEntityCustomers] = useState<EntityCustomer[] | null>(null);
   const [editing, setEditing] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [params] = useSearchParams();
@@ -192,6 +225,8 @@ export function SettingsPage() {
   useEffect(() => {
     load();
     fetchCommitmentTypes().then(setTypes, () => setTypes(['MACC', 'EA commitment', 'Azure Prepayment', 'Other']));
+    fetchEntityCustomers().then((result) => setEntityCustomers(result.available ? result.customers : null),
+      () => setEntityCustomers(null));
   }, [load]);
 
   function remove(customer: Customer) {
@@ -207,7 +242,7 @@ export function SettingsPage() {
       {error ? <div className="azure-cost-error">{error}</div> : null}
 
       {editing ? (
-        <CustomerEditor draft={editing} accounts={accounts} types={types}
+        <CustomerEditor draft={editing} accounts={accounts} types={types} entityCustomers={entityCustomers}
                         onSaved={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />
       ) : (
         <section className="card azure-cost-card">

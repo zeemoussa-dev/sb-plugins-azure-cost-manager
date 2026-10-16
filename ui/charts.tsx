@@ -86,6 +86,56 @@ function axisTooltip(currency: string | null, title: (axisValue: string) => stri
   };
 }
 
+export interface Series {
+  name: string;
+  data: (number | null)[];
+  kind?: 'bar' | 'line';
+  stack?: string;
+  dashed?: boolean;
+  /** 'other' draws it grey; a number picks a palette slot. */
+  color?: number | 'other';
+}
+
+/** Any chart of the workbook's kind: categories along the bottom, bars and lines
+ *  over them, money or percent up the side. */
+export function SeriesChart({ categories, series, currency, label, percent = false, height = 280,
+  categoryLabel = (value: string) => value }: {
+  categories: string[]; series: Series[]; currency: string | null; label: string; percent?: boolean;
+  height?: number; categoryLabel?: (value: string) => string;
+}) {
+  const { colors, option } = baseOption(currency);
+  const value = (amount: number) => (percent ? `${amount > 0 ? '+' : ''}${amount}%` : formatMoney(amount, currency));
+  return (
+    <Chart label={label} height={height} option={{
+      ...option,
+      color: series.map((item, index) => item.color === 'other' ? colors.other
+        : colors.series[(typeof item.color === 'number' ? item.color : index) % colors.series.length]),
+      legend: { ...option.legend, type: 'scroll', right: 0 },
+      grid: { ...option.grid, top: series.length > 1 ? 44 : 16 },
+      tooltip: { ...option.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (items: AxisTooltipItem[]) => {
+          const shown = items.filter((item) => item.value != null);
+          if (!shown.length) return '';
+          return [`<b>${categoryLabel(shown[0].axisValue)}</b>`,
+            ...shown.map((item) => `${item.marker}${item.seriesName}: <b>${value(item.value ?? 0)}</b>`)].join('<br/>');
+        } },
+      xAxis: { type: 'category', data: categories, axisLabel: { color: colors.muted, formatter: categoryLabel },
+        axisLine: { lineStyle: { color: colors.border } } },
+      yAxis: percent
+        ? { ...option.yAxis, axisLabel: { color: colors.muted, formatter: (amount: number) => `${amount}%` } }
+        : option.yAxis,
+      series: series.map((item) => ({
+        name: item.name, type: item.kind ?? 'bar', data: item.data, stack: item.stack, barMaxWidth: 36,
+        symbolSize: 5, connectNulls: false, emphasis: { focus: 'series' },
+        lineStyle: item.dashed ? { type: 'dashed', width: 2 } : { width: 2 },
+        ...(item.dashed && item.kind !== 'line'
+          ? { itemStyle: { color: 'transparent', borderColor: colors.series[0], borderType: 'dashed', borderWidth: 1.5 } }
+          : {}),
+      })),
+    }} />
+  );
+}
+
 /** Monthly spend: actual as bars, amortized as a line, the rest of the year's
  *  forecast as outlined bars. The current month's bar is drawn lighter: it is
  *  still being billed. */
@@ -230,6 +280,11 @@ export function BurnDownChart({ commitment, today }: { commitment: BurnDown; tod
           lineStyle: { width: 2, type: 'dashed' } },
         { name: 'Even pace', type: 'line', data: [[start, 0], [end, commitment.amount]], symbol: 'none',
           lineStyle: { width: 1, type: 'dotted' } },
+        ...(commitment.pipeline_in_term > 0 && commitment.run_rate ? [{
+          name: 'Run rate + pipeline', type: 'line', symbolSize: 5,
+          data: [[today.getTime(), commitment.consumed], [end, Math.round(commitment.projected_with_pipeline)]],
+          lineStyle: { width: 2, type: 'dashed' }, itemStyle: { color: colors.series[2] },
+        }] : []),
       ],
     }} />
   );
