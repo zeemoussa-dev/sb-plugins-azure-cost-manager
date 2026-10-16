@@ -1,0 +1,359 @@
+/* The Azure Cost Manager's own layout and chart styles. The vocabulary it
+   renders with (.card, .btn, .badge, .empty-state, .text-muted) and the colour
+   and spacing tokens belong to the framework. */
+
+:root {
+  --azure-cost-series-1: #4c9be8;
+  --azure-cost-series-2: #c58b5f;
+  --azure-cost-series-3: #5fb48a;
+  --azure-cost-series-4: #b07ad8;
+  --azure-cost-series-5: #d8b44a;
+  --azure-cost-series-6: #e0727a;
+  --azure-cost-series-other: #6b7280;
+}
+
+.azure-cost-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.azure-cost-header h1 {
+  margin: 0;
+}
+
+.azure-cost-settings-link {
+  margin-left: auto;
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-toolbar .btn {
+  margin-left: auto;
+}
+
+.azure-cost-error {
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0;
+  color: var(--color-text);
+  background: rgba(185, 28, 28, 0.12);
+}
+
+.azure-cost-note {
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.azure-cost-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.azure-cost-kpi strong {
+  font-size: var(--font-size-xl);
+}
+
+.azure-cost-kpi-label,
+.azure-cost-kpi-detail {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.azure-cost-card {
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.azure-cost-card h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-base);
+}
+
+.azure-cost-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.azure-cost-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+}
+
+.azure-cost-segmented {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--space-3);
+}
+
+.azure-cost-segmented button {
+  background: transparent;
+  border: 0;
+  color: var(--color-text-muted);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.azure-cost-segmented button.active {
+  background: var(--color-accent-muted);
+  color: var(--color-text);
+}
+
+/* Charts */
+
+.azure-cost-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.azure-cost-axis text,
+.azure-cost-axis-label {
+  fill: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.azure-cost-gridline {
+  stroke: var(--color-border);
+}
+
+.azure-cost-bar {
+  fill: var(--azure-cost-series-1);
+}
+
+.azure-cost-bar.partial {
+  fill: var(--azure-cost-series-1);
+  opacity: 0.45;
+}
+
+.azure-cost-forecast-bar {
+  fill: none;
+  stroke: var(--azure-cost-series-1);
+  stroke-dasharray: 4 3;
+}
+
+.azure-cost-line {
+  fill: none;
+  stroke: var(--azure-cost-series-2);
+  stroke-width: 2;
+}
+
+.azure-cost-line-point {
+  fill: var(--azure-cost-series-2);
+}
+
+.azure-cost-projection {
+  stroke: var(--azure-cost-series-2);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+.azure-cost-commitment-line {
+  stroke: var(--color-text-muted);
+  stroke-dasharray: 3 3;
+}
+
+.azure-cost-today {
+  stroke: var(--color-border);
+  stroke-dasharray: 2 3;
+}
+
+.azure-cost-segment:hover {
+  opacity: 0.8;
+}
+
+.azure-cost-tooltip rect {
+  fill: var(--color-surface-raised);
+  stroke: var(--color-border);
+}
+
+.azure-cost-tooltip text {
+  fill: var(--color-text);
+  font-size: 11px;
+}
+
+.azure-cost-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.azure-cost-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+.azure-cost-legend i.dashed {
+  border-style: dashed;
+}
+
+.azure-cost-ranked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-ranked-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1.4fr) 2fr auto 3.5em 4.5em;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.azure-cost-ranked-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.azure-cost-ranked-track {
+  height: 10px;
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.azure-cost-ranked-fill {
+  display: block;
+  height: 100%;
+  background: var(--azure-cost-series-1);
+}
+
+.azure-cost-ranked-value,
+.azure-cost-ranked-share {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.azure-cost-change {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.azure-cost-change.up {
+  color: var(--color-warning);
+}
+
+.azure-cost-change.down {
+  color: var(--color-success);
+}
+
+.azure-cost-gauge {
+  height: 12px;
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: var(--space-3);
+}
+
+.azure-cost-gauge span {
+  display: block;
+  height: 100%;
+  background: var(--azure-cost-series-2);
+}
+
+.azure-cost-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-facts dt {
+  color: var(--color-text-muted);
+}
+
+.azure-cost-facts dd {
+  margin: 0;
+}
+
+.azure-cost-warning {
+  color: var(--color-warning);
+}
+
+.azure-cost-verdict {
+  font-weight: 600;
+  margin: 0 0 var(--space-3);
+}
+
+.azure-cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-table th,
+.azure-cost-table td {
+  text-align: left;
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.azure-cost-anomaly {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-anomaly.spike {
+  background: rgba(180, 83, 9, 0.2);
+}
+
+.azure-cost-anomaly.drop {
+  background: rgba(22, 163, 74, 0.2);
+}
+
+.azure-cost-anomaly.new {
+  background: rgba(76, 155, 232, 0.2);
+}
+
+.azure-cost-clickable {
+  cursor: pointer;
+}
+
+.azure-cost-id {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.azure-cost-filter {
+  width: 100%;
+  max-width: 24rem;
+  margin-bottom: var(--space-3);
+}
