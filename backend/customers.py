@@ -145,6 +145,11 @@ class CustomerBook:
         return listed
 
     def save(self, customer_id: str | None, submitted: dict) -> dict:
+        if not isinstance(submitted.get("name", ""), str):
+            raise CustomerError("a customer's name is text")
+        if not isinstance(submitted.get("accounts", []), list) or \
+                not all(isinstance(account, str) for account in submitted.get("accounts", [])):
+            raise CustomerError("accounts is a list of billing account numbers")
         name = (submitted.get("name") or "").strip()
         if not name:
             raise CustomerError("a customer needs a name")

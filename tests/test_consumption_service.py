@@ -108,6 +108,9 @@ def test_a_signed_value_needs_an_amount_and_a_term(fake_api):
                          "commitment": {"type": "MACC", "amount": 1_000_000}})
     with pytest.raises(CustomerError, match="see"):
         book.save(None, {"name": "Fabrikam", "accounts": ["nope"]})
+    # A malformed request is the caller's to fix (400), never a crash (500).
+    with pytest.raises(CustomerError, match="text"):
+        book.save(None, {"name": ["Fabrikam", "Contoso"], "accounts": ["20000001"]})
 
     saved = book.save(None, {"name": "Fabrikam", "accounts": ["20000001", "20000002"],
                              "commitment": {"type": "MACC", "amount": "3000000", "currency": "usd",

@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.3.2] - 2026-10-16
+
+- fix: saving a customer whose name or accounts arrive in the wrong shape answers 400 with what is wrong, instead of failing with a 500 (seen live: a name sent as a list).
+
 ## [0.3.1] - 2026-10-16
 
 - fix: an opportunity's `partner` and `product` are lists, as Entities 1.1.0 returns them. The export wrote the list into one cell -- which `openpyxl` refuses, so any customer with opportunities could not be exported -- and the Pipeline table ran partner names together. Both now join them; the editor takes partners comma-separated, each the name of a Partner note.
