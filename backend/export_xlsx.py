@@ -1,309 +1,708 @@
-"""One customer's consumption as an Excel workbook: values and native charts,
-no formulas (operator, 2026-10-16). Modelled on the operator's own workbook --
-a Dashboard of KPIs and charts over sheets holding the data each chart reads.
+"""One customer's consumption as an Excel workbook, laid out and styled like the
+operator's own consumption workbook (2026-10-16): a Dashboard of KPI tiles,
+summary tables and charts beside them; the automatic forecast; the scenarios;
+the Pipeline in its month-by-month grid; and the Export, one block per billing
+profile and year. Values and charts only -- no formulas (operator's choice).
+
+The look is the workbook's: Aptos Narrow, no gridlines, navy (#1F3864) section
+bars and tab, light-blue KPI tiles, peach tiles for the signed value, #D9E1F2
+table headers, thin grey borders, `"$"#,##0` money and `0.0%` percentages.
 
 `openpyxl` is provided to plugin backends by the host (framework API 9).
 """
 from __future__ import annotations
 
 import io
-from datetime import date
+from datetime import date, datetime
 
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.chart.label import DataLabelList
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-MONEY = '#,##0;[Red]-#,##0'
-PERCENT = '0.0"%"'
-HEADER_FILL = PatternFill("solid", fgColor="1F3864")
-HEADER_FONT = Font(bold=True, color="FFFFFF")
-TITLE_FONT = Font(bold=True, size=16)
-LABEL_FONT = Font(bold=True, color="595959", size=9)
-KPI_FONT = Font(bold=True, size=14)
-TOP_NAMES = 15
+from . import categories
+
+# -- the operator's workbook palette and formats ------------------------------
+FONT = "Aptos Narrow"
+NAVY, BLUE_TAB, SLATE, GREY_TEXT = "1F3864", "2E75B6", "44546A", "595959"
+TILE_BLUE, TILE_PEACH, PEACH_TEXT, PEACH_EDGE = "EEF3FB", "FDF2E9", "843C0C", "F4B183"
+HEADER_FILL, BAND_FILL, GRID = "D9E1F2", "F2F5FB", "BFBFBF"
+
+MONEY = '"$"#,##0;\\("$"#,##0\\);\\-'
+MONEY_CENTS = '\\$#,##0.00;\\(\\$#,##0.00\\);\\$#,##0.00'
+PERCENT = '0.0%;\\(0.0%\\);\\-'
+MONTH = 'yyyy\\-mm'
+INDEX = '0.00'
+
+THIN = Side(style="thin", color=GRID)
+BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+MEDIUM_NAVY = Side(style="medium", color=NAVY)
+TOTAL_BOX = Border(left=THIN, right=THIN, top=MEDIUM_NAVY, bottom=MEDIUM_NAVY)
+PEACH_BOX = Border(left=Side(style="thin", color=PEACH_EDGE), right=Side(style="thin", color=PEACH_EDGE),
+                   top=Side(style="thin", color=PEACH_EDGE), bottom=Side(style="thin", color=PEACH_EDGE))
+
+CHART_COLUMN = "J"
+CHART_ROWS = 17
+MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+LONG_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+                    "October", "November", "December"]
 
 
-def _joined(value) -> str | None:
-    """A cell takes one value; an opportunity's partners and products are lists."""
-    if isinstance(value, list):
-        return ", ".join(str(item) for item in value) or None
-    return value or None
+def _font(size: float = 11, bold: bool = False, italic: bool = False, color: str | None = None) -> Font:
+    return Font(name=FONT, size=size, bold=bold, italic=italic, color=color)
 
 
-def _table(sheet, top_row: int, headers: list[str], rows: list[list], formats: dict[int, str] | None = None) -> int:
-    """Writes a header row and rows from `top_row`; returns the last row written."""
-    for column, header in enumerate(headers, start=1):
-        cell = sheet.cell(top_row, column, header)
-        cell.fill, cell.font = HEADER_FILL, HEADER_FONT
+def _fill(color: str) -> PatternFill:
+    return PatternFill("solid", fgColor=color)
+
+
+def _month_date(month: str) -> datetime:
+    return datetime(int(month[:4]), int(month[5:]), 1)
+
+
+def _fraction(percent: float | None) -> float | None:
+    return None if percent is None else percent / 100
+
+
+def _new_sheet(workbook: Workbook, title: str, heading: str, subtitle: str, tab: str = BLUE_TAB, sheet=None):
+    sheet = sheet or workbook.create_sheet(title)
+    sheet.title = title
+    sheet.sheet_view.showGridLines = False
+    sheet.sheet_properties.tabColor = tab
+    sheet["A1"], sheet["A2"] = heading, subtitle
+    sheet["A1"].font = _font(16, bold=True)
+    sheet["A2"].font = _font(italic=True, color=GREY_TEXT)
+    sheet.row_dimensions[1].height = 23.5
+    return sheet
+
+
+def _section(sheet, row: int, title: str, last_column: int = 8) -> None:
+    """A navy bar with the section's name, the way the workbook separates sections."""
+    for column in range(1, last_column + 1):
+        sheet.cell(row, column).fill = _fill(NAVY)
+    sheet.cell(row, 1, title).font = _font(bold=True, color="FFFFFF")
+
+
+def _table(sheet, top: int, headers: list[str], rows: list[list], formats: dict[int, str] | None = None,
+           left: int = 1, bold_first: bool = False, total_row: list | None = None) -> int:
+    """Header row in the workbook's header style, bordered data rows; returns the last row."""
+    for offset, header in enumerate(headers):
+        cell = sheet.cell(top, left + offset, header)
+        cell.font, cell.fill, cell.border = _font(bold=True), _fill(HEADER_FILL), BOX
         cell.alignment = Alignment(wrap_text=True, vertical="center")
-    for offset, values in enumerate(rows, start=1):
-        for column, value in enumerate(values, start=1):
-            cell = sheet.cell(top_row + offset, column, value)
-            if formats and column in formats and isinstance(value, (int, float)):
-                cell.number_format = formats[column]
-    for column in range(1, len(headers) + 1):
-        width = max([len(str(headers[column - 1]))] + [len(str(row[column - 1])) for row in rows
-                                                       if column - 1 < len(row) and row[column - 1] is not None])
-        sheet.column_dimensions[get_column_letter(column)].width = min(max(width + 2, 10), 48)
-    sheet.freeze_panes = sheet.cell(top_row + 1, 2)
-    return top_row + len(rows)
+    every = rows + ([total_row] if total_row else [])
+    for index, values in enumerate(every, start=1):
+        is_total = total_row is not None and index == len(every)
+        for offset, value in enumerate(values):
+            cell = sheet.cell(top + index, left + offset, value)
+            cell.font = _font(bold=is_total or (bold_first and offset == 0))
+            cell.border = TOTAL_BOX if is_total else BOX
+            if formats and offset in formats and value is not None and not isinstance(value, str):
+                cell.number_format = formats[offset]
+    return top + len(every)
 
 
-def _bar(title: str, sheet, first_row: int, last_row: int, value_columns: list[int], label_column: int = 1,
-         stacked: bool = False, percent: bool = False, height: float = 7.5, width: float = 16) -> BarChart:
+def _widths(sheet, widths: dict[str, float]) -> None:
+    for column, width in widths.items():
+        sheet.column_dimensions[column].width = width
+
+
+def _labels(chart, money: bool = True) -> None:
+    chart.dataLabels = DataLabelList()
+    chart.dataLabels.showVal = True
+    chart.dataLabels.numFmt = '"$"#,##0.0,,"M"' if money else '0.0%'
+
+
+def _bar(title: str, sheet, header_row: int, first_row: int, last_row: int, value_columns: list[int],
+         label_column: int = 1, stacked: bool = False, percent: bool = False, labelled: bool | None = None) -> BarChart:
     chart = BarChart()
-    chart.type, chart.title, chart.height, chart.width = "col", title, height, width
+    chart.type, chart.title, chart.width, chart.height = "col", title, 15, 7.5
+    chart.gapWidth = 150 if stacked or len(value_columns) > 1 else 219
     if stacked:
         chart.grouping, chart.overlap = "stacked", 100
     for column in value_columns:
-        chart.add_data(Reference(sheet, min_col=column, min_row=first_row - 1, max_row=last_row), titles_from_data=True)
+        chart.add_data(Reference(sheet, min_col=column, min_row=header_row, max_row=last_row), titles_from_data=True)
     chart.set_categories(Reference(sheet, min_col=label_column, min_row=first_row, max_row=last_row))
-    chart.y_axis.numFmt = '0"%"' if percent else '#,##0'
-    chart.y_axis.majorGridlines = None if percent else chart.y_axis.majorGridlines
-    chart.legend.position = "b"
+    chart.y_axis.numFmt = '0%' if percent else '"$"#,##0,,"M"'
+    chart.y_axis.majorGridlines = None
+    if len(value_columns) == 1:
+        chart.legend = None
+    else:
+        chart.legend.position = "b"
+    # The workbook labels its bars; with more than ~14 of them the labels overlap.
+    if labelled if labelled is not None else (last_row - first_row < 14 and not stacked):
+        _labels(chart, money=not percent)
     return chart
 
 
-def _line(title: str, sheet, first_row: int, last_row: int, value_columns: list[int], label_column: int = 1,
-          height: float = 7.5, width: float = 16) -> LineChart:
+def _line(title: str, sheet, header_row: int, first_row: int, last_row: int, value_columns: list[int],
+          label_column: int = 1) -> LineChart:
     chart = LineChart()
-    chart.title, chart.height, chart.width = title, height, width
+    chart.title, chart.width, chart.height = title, 15, 7.5
     for column in value_columns:
-        chart.add_data(Reference(sheet, min_col=column, min_row=first_row - 1, max_row=last_row), titles_from_data=True)
+        chart.add_data(Reference(sheet, min_col=column, min_row=header_row, max_row=last_row), titles_from_data=True)
     chart.set_categories(Reference(sheet, min_col=label_column, min_row=first_row, max_row=last_row))
-    chart.y_axis.numFmt = '#,##0'
+    chart.y_axis.numFmt = '"$"#,##0,,"M"'
+    chart.y_axis.majorGridlines = None
     chart.legend.position = "b"
     return chart
 
 
-def _top_names(merged: dict, kind_key: str) -> list[str]:
-    totals: dict[str, float] = {}
-    for data in merged.values():
-        for name, cost in ((data.get("actual") or {}).get(kind_key) or {}).items():
-            totals[name] = totals.get(name, 0.0) + cost
-    return [name for name, _ in sorted(totals.items(), key=lambda item: -item[1])]
+def _place(sheet, charts: list, row: int) -> int:
+    """Charts stacked down column J beside their table; returns the row below the last."""
+    for chart in charts:
+        sheet.add_chart(chart, f"{CHART_COLUMN}{row}")
+        row += CHART_ROWS
+    return row
 
 
-def _breakdown_sheet(workbook: Workbook, title: str, merged: dict, kind_key: str, limit: int | None = TOP_NAMES):
-    sheet = workbook.create_sheet(title)
-    names = _top_names(merged, kind_key)
-    shown = names[:limit] if limit else names
-    rows = []
-    for month in sorted(merged):
-        spend = (merged[month].get("actual") or {}).get(kind_key) or {}
-        row = [month] + [round(spend.get(name, 0.0), 2) for name in shown]
-        if limit and len(names) > limit:
-            row.append(round(sum(cost for name, cost in spend.items() if name not in shown), 2))
-        rows.append(row)
-    headers = ["Month"] + shown + (["Other"] if limit and len(names) > limit else [])
-    last = _table(sheet, 1, headers, rows, {column: MONEY for column in range(2, len(headers) + 1)})
-    return sheet, last, len(headers)
+# -- plan lines per month --------------------------------------------------------
+
+def _lines(meters: dict[str, float]) -> dict[str, float]:
+    """GPU H100 / GPU H200 / other GPU / PTU / Azure OpenAI tokens out of a month's meters."""
+    found = {"GPU H100": 0.0, "GPU H200": 0.0, "GPU other": 0.0, "PTU": 0.0, "OpenAI tokens": 0.0}
+    for item in categories.detail(meters or {}):
+        if item["category"] == "GPU H100":
+            found["GPU H100"] += item["cost"]
+        elif item["category"] == "GPU H200":
+            found["GPU H200"] += item["cost"]
+        elif item["category"].startswith("GPU"):
+            found["GPU other"] += item["cost"]
+        elif item["category"] == categories.OPENAI_PTU:
+            found["PTU"] += item["cost"]
+        elif item["category"] == categories.OPENAI_TOKENS:
+            found["OpenAI tokens"] += item["cost"]
+    return found
 
 
-def build(customer: dict, analysis: dict, merged: dict, today: date) -> bytes:
-    workbook = Workbook()
-    dashboard = workbook.active
-    dashboard.title = "Dashboard"
-    currency = analysis.get("currency") or "USD"
+def _components(data: dict, measure: dict) -> dict[str, float]:
+    """One account-month (or merged month) as the workbook's columns. `Azure` is
+    everything that is not GPU or PTU, so the columns add up to `total`."""
+    balance = data.get("balance") or {}
+    measured = data.get("measured")
+    if measured is not None:  # a merged month
+        usage, marketplace, credits = measured["usage"], measured["marketplace"], measured["credits"]
+    elif balance and not balance.get("missing"):
+        usage, marketplace, credits = balance["usage"], balance["marketplace"], balance["credits"]
+    else:
+        usage = sum(((data.get("actual") or {}).get("service") or {}).values())
+        marketplace = credits = 0.0
+    lines = _lines(data.get("meters") or {})
+    special = lines["GPU H100"] + lines["GPU H200"] + lines["GPU other"] + lines["PTU"]
+    marketplace_counted = marketplace if measure["marketplace"] else 0.0
+    credits_counted = credits if measure["credits"] else 0.0
+    return {"marketplace": marketplace, "credits": credits, "azure": usage - special,
+            "gpu_h100": lines["GPU H100"], "gpu_h200": lines["GPU H200"], "gpu_other": lines["GPU other"],
+            "ptu": lines["PTU"], "openai_tokens": lines["OpenAI tokens"],
+            "total": usage + marketplace_counted - credits_counted}
+
+
+# -- sheets ------------------------------------------------------------------------
+
+def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict, today: date) -> None:
     board = analysis["dashboard"]
     kpis = board["kpis"]
     measure = analysis["measure"]
-
-    # -- data sheets ------------------------------------------------------
-    monthly = workbook.create_sheet("Monthly")
-    month_rows = [[row["month"], row["usage"], row["marketplace"], row["credits"], row["actual"], row["amortized"],
-                   row["mom_pct"], row["yoy_pct"], "partial" if row["partial"] else ""] for row in board["monthly"]]
-    monthly_last = _table(monthly, 1, ["Month", "Azure usage", "Marketplace", "Credits", "Total", "Amortized",
-                                       "MoM %", "YoY %", ""], month_rows,
-                          {2: MONEY, 3: MONEY, 4: MONEY, 5: MONEY, 6: MONEY, 7: PERCENT, 8: PERCENT})
-
-    mix = workbook.create_sheet("Mix")
-    lines = sorted({name for row in board["mix"] for name in row["lines"]},
-                   key=lambda name: (name == "Azure (other)", name))
-    mix_last = _table(mix, 1, ["Month"] + lines,
-                      [[row["month"]] + [row["lines"].get(name, 0.0) for name in lines] for row in board["mix"]],
-                      {column: MONEY for column in range(2, len(lines) + 2)})
-
-    years = workbook.create_sheet("Years")
-    years_last = _table(years, 1, ["Year", "Total", "YTD (same months)"],
-                        [[row["year"], row["total"], next((y["total"] for y in board["ytd_by_year"]
-                                                           if y["year"] == row["year"]), None)]
-                         for row in board["by_year"]], {2: MONEY, 3: MONEY})
-    comparison = board["this_vs_last_year"]
-    _table(years, years_last + 3, ["Month", str(comparison["last_year"]), str(comparison["this_year"]),
-                                   f"MoM % {comparison['last_year']}", f"MoM % {comparison['this_year']}"],
-           [[name, comparison["last"][index], comparison["this"][index], comparison["last_mom"][index],
-             comparison["this_mom"][index]]
-            for index, name in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
-                                          "Nov", "Dec"])],
-           {2: MONEY, 3: MONEY, 4: PERCENT, 5: PERCENT})
-    comparison_first = years_last + 4
-
-    _breakdown_sheet(workbook, "Services", merged, "service")
-    _breakdown_sheet(workbook, "Subscriptions", merged, "subscription")
-    enrollments, enrollments_last, enrollments_columns = _breakdown_sheet(workbook, "Enrollments", merged,
-                                                                          "account", limit=None)
-    quarter_rows = [[row["quarter"]] + [row["by_account"].get(name, 0.0) for name in board["accounts"]]
-                    for row in board["quarterly"]]
-    quarter_first = enrollments_last + 3
-    _table(enrollments, quarter_first, ["Quarter"] + board["accounts"], quarter_rows,
-           {column: MONEY for column in range(2, len(board["accounts"]) + 2)})
-
-    ai = workbook.create_sheet("GPU & AI")
-    _table(ai, 1, ["Month", "Line", "Bought as", "Cost"],
-           [[row["month"], line["category"], line["pricing"], line["cost"]]
-            for row in analysis["gpu_and_ai"] for line in row["lines"]], {4: MONEY})
-
-    forecast_sheet = workbook.create_sheet("Forecast")
+    commitment = analysis.get("commitment")
     automatic = analysis.get("automatic_forecast")
-    if automatic:
-        summary = [["Method", automatic["method"]], ["Months of history", automatic["months_of_history"]],
-                   ["Fit (R²)", automatic["r_squared"]], ["Backtest error (MAPE)", automatic["mape"]],
-                   ["Next 12 months", automatic["next_12_months"]],
-                   ["Next 12 months + pipeline", automatic["next_12_months_with_pipeline"]],
-                   [f"{today.year} total (actual + forecast)", automatic["this_year_total"]],
-                   [f"{automatic['next_year']} forecast", automatic["next_year_total"]],
-                   [f"{automatic['next_year']} forecast + pipeline", automatic["next_year_with_pipeline"]]]
-        for offset, (label, value) in enumerate(summary, start=1):
-            forecast_sheet.cell(offset, 1, label).font = LABEL_FONT
-            cell = forecast_sheet.cell(offset, 2, value)
-            if isinstance(value, float) and value > 10:
-                cell.number_format = MONEY
-        forecast_first = len(summary) + 3
-        forecast_last = _table(forecast_sheet, forecast_first, ["Month", "Actual", "Model", "Forecast", "Pipeline"],
-                               [[row["month"], row["actual"], row["model"], row["forecast"], row["pipeline"] or None]
-                                for row in automatic["series"]], {2: MONEY, 3: MONEY, 4: MONEY, 5: MONEY})
-        forecast_sheet.add_chart(_line("Actual vs model vs forecast", forecast_sheet, forecast_first + 1,
-                                       forecast_last, [2, 3, 4], width=24), "H2")
+    sheet = _new_sheet(
+        workbook, "Dashboard", f"Azure Consumption Dashboard – {customer['name']}",
+        f"Data through {kpis['latest_month'] or '—'}  ·  {kpis['months_of_history']} months of history  ·  "
+        f"{len(customer['accounts'])} billing profiles  ·  Marketplace {'included' if measure['marketplace'] else 'excluded'}"
+        f", credits {'subtracted' if measure['credits'] else 'not subtracted'}  ·  exported {today.isoformat()}",
+        tab=NAVY, sheet=workbook.active)
+    sheet.sheet_view.zoomScale = 115
+    _widths(sheet, {"A": 41.8, "B": 21, "C": 12, "D": 22.2, "E": 21, "F": 14, "G": 14, "H": 14, "I": 12.7,
+                    "K": 34, "L": 24.7})
+
+    # KPI tiles: five a row, in A, B:C, D:E, F:G, H:I -- the workbook's grid.
+    tile_columns = [(1, 1), (2, 3), (4, 5), (6, 7), (8, 9)]
+
+    def tiles(row: int, items: list[tuple[str, object, str | None]], peach: bool = False) -> None:
+        fill = _fill(TILE_PEACH if peach else TILE_BLUE)
+        border = PEACH_BOX if peach else BOX
+        for (first, last), (label, value, number_format) in zip(tile_columns, items):
+            for line, (text, font) in enumerate([(label.upper(), _font(8, bold=True, color=SLATE)),
+                                                 (value if value is not None else "—",
+                                                  _font(15, bold=True, color=PEACH_TEXT if peach else NAVY))]):
+                if last > first:
+                    sheet.merge_cells(start_row=row + line, start_column=first, end_row=row + line, end_column=last)
+                for column in range(first, last + 1):
+                    sheet.cell(row + line, column).fill = fill
+                    sheet.cell(row + line, column).border = border
+                cell = sheet.cell(row + line, first, text)
+                cell.font, cell.alignment = font, Alignment(horizontal="center", vertical="center", wrap_text=True)
+                if line == 1 and number_format and isinstance(value, (int, float)):
+                    cell.number_format = number_format
+        sheet.row_dimensions[row].height = 16
+        sheet.row_dimensions[row + 1].height = 22
+
+    tiles(3, [("Total consumption – all time", kpis["all_time"], MONEY),
+              (f"YTD {today.year} (to {kpis['ytd_through'] or '—'})", kpis["ytd"], MONEY),
+              ("YTD growth vs last year", _fraction(kpis["ytd_growth_pct"]), PERCENT),
+              (f"Latest month total ({kpis['latest_month'] or '—'})", kpis["latest_total"], MONEY),
+              ("Active billing profiles", kpis["active_enrollments"], "0")])
+    tiles(6, [("Latest month MoM", _fraction(kpis["latest_mom_pct"]), PERCENT),
+              ("Latest month YoY", _fraction(kpis["latest_yoy_pct"]), PERCENT),
+              ("Next 12 months (auto forecast)", kpis["next_12_months"], MONEY),
+              (f"{automatic['next_year'] if automatic else today.year + 1} forecast (auto)", kpis["next_year_forecast"], MONEY),
+              ("Largest billing profile share", _fraction(kpis["largest_enrollment_share_pct"]), PERCENT)])
+    if commitment:
+        tiles(9, [("MACC consumed (% of commitment)", _fraction(commitment["consumed_pct"]), PERCENT),
+                  ("MACC remaining ($)", commitment["remaining"], MONEY),
+                  ("Burn rate – 3-mo avg ($/mo)", kpis["burn_rate_3m"], MONEY),
+                  ("Runway at current burn (months)", kpis.get("runway_months"), "0.0"),
+                  ("Projected exhaustion", commitment["projected_exhaustion"] or "not within term", None)], peach=True)
+
+    # The signed value, as the workbook's MACC block beside the tiles.
+    sheet.merge_cells("K2:L2")
+    sheet["K2"] = "SIGNED VALUE  ·  entered in the plugin"
+    sheet["K2"].font, sheet["K2"].fill = _font(bold=True, color="FFFFFF"), _fill(NAVY)
+    if commitment:
+        start, end = date.fromisoformat(commitment["start"]), date.fromisoformat(commitment["end"])
+        term_months = (end.year - start.year) * 12 + end.month - start.month + 1
+        facts = [("Total MACC value ($)" if commitment["type"] == "MACC" else f"Signed value ({commitment['type']})",
+                  commitment["amount"], MONEY),
+                 ("Start date", datetime(start.year, start.month, start.day), "yyyy-mm-dd"),
+                 ("Term duration (months)", term_months, "0"),
+                 ("End date", datetime(end.year, end.month, end.day), "yyyy-mm-dd"),
+                 ("Term elapsed", _fraction(commitment["elapsed_pct"]), PERCENT),
+                 ("Consumed since start ($)", commitment["consumed"], MONEY),
+                 ("Consumed % of commitment", _fraction(commitment["consumed_pct"]), PERCENT),
+                 ("Remaining ($)", commitment["remaining"], MONEY),
+                 ("Against an even pace ($)", commitment["pace_gap"], MONEY),
+                 ("Burn rate – 3-mo avg ($/mo)", commitment["run_rate"], MONEY),
+                 ("At term end, at run rate ($)", commitment["projected_at_end"], MONEY),
+                 ("At term end, with pipeline ($)", commitment["projected_with_pipeline"], MONEY),
+                 ("Projected exhaustion month", commitment["projected_exhaustion"] or "not within term", None),
+                 ("Marketplace counted / credits subtracted",
+                  f"{'yes' if commitment.get('include_marketplace', True) else 'no'} / "
+                  f"{'yes' if commitment.get('subtract_credits', True) else 'no'}", None)]
     else:
-        forecast_sheet["A1"] = "Not enough billed months for an automatic forecast (six are needed)."
+        facts = [("No signed value entered for this customer", "", None)]
+    for offset, (label, value, number_format) in enumerate(facts, start=3):
+        sheet.cell(offset, 11, label).font = _font(9)
+        cell = sheet.cell(offset, 12, value)
+        cell.font = _font(color="000000")
+        for column in (11, 12):
+            sheet.cell(offset, column).border = BOX
+        if number_format and isinstance(value, (int, float, datetime)):
+            cell.number_format = number_format
 
-    scenario_sheet = workbook.create_sheet("Scenarios")
+    monthly = board["monthly"]
+    by_month_components = {row["month"]: _components(merged.get(row["month"]) or {}, measure) for row in monthly}
+
+    # Summary -- All Periods
+    row = max(13, 3 + len(facts) + 2)
+    _section(sheet, row, "Summary – All Periods")
+    summary = [["Total consumption – all time", kpis["all_time"], "", "Billing profiles", len(customer["accounts"])],
+               ["Months of history", kpis["months_of_history"], "", "First month", kpis["first_month"]],
+               ["Marketplace – all time", kpis["marketplace_all_time"], "", "Latest closed month", kpis["latest_month"]],
+               ["Credits applied – all time", kpis["credits_all_time"], "", "Current month so far", kpis["current_so_far"]]]
+    for offset, values in enumerate(summary, start=1):
+        for column, value in enumerate(values, start=1):
+            if column == 3:
+                continue
+            cell = sheet.cell(row + offset, column, value)
+            cell.border = BOX
+            cell.font = _font(bold=column in (2, 5))
+            if column in (2, 5) and isinstance(value, float):
+                cell.number_format = MONEY
+    row += len(summary) + 3
+
+    # Consumption by Year
+    _section(sheet, row, "Consumption by Year")
+    year_rows = []
+    previous = None
+    for item in board["by_year"]:
+        parts = [by_month_components[m] for m in by_month_components if m.startswith(f"{item['year']:04d}-")]
+        year_rows.append([item["year"], item["total"], sum(p["azure"] for p in parts),
+                          sum(p["gpu_h100"] + p["gpu_h200"] + p["gpu_other"] for p in parts),
+                          sum(p["ptu"] for p in parts), sum(p["marketplace"] for p in parts),
+                          sum(p["credits"] for p in parts),
+                          (item["total"] / previous - 1) if previous else None])
+        previous = item["total"]
+    year_header = row + 1
+    year_last = _table(sheet, year_header, ["Year", "Total", "Azure", "GPU", "PTU", "Marketplace", "Credits", "YoY %"],
+                       year_rows, {0: "0", 1: MONEY, 2: MONEY, 3: MONEY, 4: MONEY, 5: MONEY, 6: MONEY, 7: PERCENT},
+                       bold_first=False)
+    ytd_header = year_last + 2
+    ytd_last = _table(sheet, ytd_header, ["Year", f"YTD (Jan–{MONTH_NAMES[int(kpis['ytd_through'][5:]) - 1]})"
+                                          if kpis["ytd_through"] else "YTD"],
+                      [[item["year"], item["total"]] for item in board["ytd_by_year"]], {0: "0", 1: MONEY})
+    chart_end = _place(sheet, [_bar("Total Consumption by Year", sheet, year_header, year_header + 1, year_last, [2]),
+                               _bar(f"YTD Total by Year", sheet, ytd_header, ytd_header + 1, ytd_last, [2])], row)
+    row = max(ytd_last, chart_end) + 2
+
+    # Monthly Consumption
+    _section(sheet, row, "Monthly Consumption")
+    month_header = row + 1
+    month_rows = []
+    for item in monthly:
+        parts = by_month_components[item["month"]]
+        month_rows.append([_month_date(item["month"]), item["actual"], parts["azure"],
+                           parts["gpu_h100"] + parts["gpu_h200"] + parts["gpu_other"], parts["ptu"],
+                           parts["marketplace"], parts["credits"], _fraction(item["mom_pct"]), _fraction(item.get("yoy_pct"))])
+    month_last = _table(sheet, month_header, ["Month", "Total", "Azure", "GPU", "PTU", "Marketplace", "Credits",
+                                              "MoM %", "YoY %"], month_rows,
+                        {0: MONTH, 1: MONEY, 2: MONEY, 3: MONEY, 4: MONEY, 5: MONEY, 6: MONEY, 7: PERCENT, 8: PERCENT})
+    chart_end = _place(sheet, [
+        _bar("Total Consumption by Month", sheet, month_header, month_header + 1, month_last, [2]),
+        _bar("Service Mix by Month (Azure / GPU / PTU / Marketplace)", sheet, month_header, month_header + 1,
+             month_last, [3, 4, 5, 6], stacked=True),
+        _bar("Month-over-Month % – Total Consumption", sheet, month_header, month_header + 1, month_last, [8], percent=True),
+        _bar("Year-over-Year % – Total Consumption", sheet, month_header, month_header + 1, month_last, [9], percent=True),
+    ], row)
+    row = max(month_last, chart_end) + 2
+
+    # This year against last
+    comparison = board["this_vs_last_year"]
+    _section(sheet, row, f"Monthly Consumption – {comparison['last_year']} vs {comparison['this_year']}")
+    compare_header = row + 1
+    compare_last = _table(sheet, compare_header, ["Month", str(comparison["last_year"]), str(comparison["this_year"]),
+                                                  f"MoM % {comparison['last_year']}", f"MoM % {comparison['this_year']}"],
+                          [[MONTH_NAMES[index], comparison["last"][index], comparison["this"][index],
+                            _fraction(comparison["last_mom"][index]), _fraction(comparison["this_mom"][index])]
+                           for index in range(12)], {1: MONEY, 2: MONEY, 3: PERCENT, 4: PERCENT})
+    chart_end = _place(sheet, [
+        _bar(f"Monthly Consumption – {comparison['last_year']} vs {comparison['this_year']}", sheet, compare_header,
+             compare_header + 1, compare_last, [2, 3], labelled=False),
+        _bar(f"MoM Growth % – {comparison['last_year']} vs {comparison['this_year']}", sheet, compare_header,
+             compare_header + 1, compare_last, [4, 5], percent=True, labelled=False),
+    ], row)
+    row = max(compare_last, chart_end) + 2
+
+    # Consumption by Billing Profile
+    _section(sheet, row, "Consumption by Billing Profile")
+    totals: dict[str, float] = {}
+    for data in merged.values():
+        for label, cost in ((data.get("actual") or {}).get("account") or {}).items():
+            totals[label] = totals.get(label, 0.0) + cost
+    grand = sum(totals.values()) or 1.0
+    profile_header = row + 1
+    profile_last = _table(sheet, profile_header, ["Billing profile", "Total", "Share"],
+                          [[label, cost, cost / grand] for label, cost in sorted(totals.items(), key=lambda i: -i[1])],
+                          {1: MONEY, 2: PERCENT})
+    quarter_header = profile_last + 2
+    quarter_rows = [[item["quarter"]] + [item["by_account"].get(name, 0.0) for name in board["accounts"]]
+                    for item in board["quarterly"]]
+    quarter_last = _table(sheet, quarter_header, ["Quarter"] + board["accounts"], quarter_rows,
+                          {index: MONEY for index in range(1, len(board["accounts"]) + 1)})
+    chart_end = _place(sheet, [
+        _bar("Total Consumption by Billing Profile", sheet, profile_header, profile_header + 1, profile_last, [2]),
+        _bar("Quarterly Consumption by Billing Profile", sheet, quarter_header, quarter_header + 1, quarter_last,
+             list(range(2, len(board["accounts"]) + 2)), labelled=False),
+    ], row)
+    row = max(quarter_last, chart_end) + 2
+
+
+def _forecast_auto(workbook: Workbook, analysis: dict, today: date) -> None:
+    automatic = analysis.get("automatic_forecast")
+    sheet = _new_sheet(workbook, "Forecast Auto", "Forecast – Automatic (no inputs)",
+                       "Method: linear trend on actuals (zero months excluded) × month-of-year seasonal index. "
+                       "Recalculated by the plugin from the synced data.")
+    _widths(sheet, {"A": 47.5, "B": 21, "C": 17.2, "D": 19, "E": 19, "F": 14, "G": 14})
+    if not automatic:
+        sheet["A4"] = "Not enough billed months for an automatic forecast (six are needed)."
+        return
+    _section(sheet, 4, "Derived model parameters", last_column=2)
+    for column in (4, 5):
+        sheet.cell(4, column).fill = _fill(NAVY)
+    sheet.cell(4, 4, "Forecast summary").font = _font(bold=True, color="FFFFFF")
+    parameters = [("Slope ($/month)", automatic["slope"], MONEY), ("Intercept ($)", automatic["intercept"], MONEY),
+                  ("R² of trend fit", automatic["r_squared"], "0.000"),
+                  ("Months of actuals", automatic["months_of_history"], "0"),
+                  ("Backtest error (MAPE, actual months)", automatic["mape"], "0.0%")]
+    summary = [("Next 12 months forecast", automatic["next_12_months"], MONEY),
+               ("Next 12 months + pipeline", automatic["next_12_months_with_pipeline"], MONEY),
+               (f"{today.year} total (actual + forecast)", automatic["this_year_total"], MONEY),
+               (f"{automatic['next_year']} total (forecast)", automatic["next_year_total"], MONEY),
+               (f"{automatic['next_year']} + pipeline", automatic["next_year_with_pipeline"], MONEY),
+               (f"{automatic['next_year']} vs {today.year} %", _fraction(automatic["next_vs_this_pct"]), "0.0%")]
+    for offset, (label, value, number_format) in enumerate(parameters, start=5):
+        sheet.cell(offset, 1, label).border = BOX
+        cell = sheet.cell(offset, 2, value)
+        cell.border, cell.number_format = BOX, number_format
+    for offset, (label, value, number_format) in enumerate(summary, start=5):
+        sheet.cell(offset, 4, label).border = BOX
+        cell = sheet.cell(offset, 5, value)
+        cell.border, cell.number_format, cell.font = BOX, number_format, _font(bold=True)
+
+    _section(sheet, 13, "Model timeline – actuals and forecast", last_column=6)
+    rows = [[_month_date(item["month"]), item["actual"], item["model"], item["forecast"], item["pipeline"] or None,
+             "Actual" if item["actual"] is not None else "Forecast"] for item in automatic["series"]]
+    last = _table(sheet, 14, ["Month", "Actual", "Model", "Forecast", "Pipeline", "Type"], rows,
+                  {0: MONTH, 1: MONEY, 2: MONEY, 3: MONEY, 4: MONEY})
+    sheet.add_chart(_line("Total Consumption – Actual vs Model vs Forecast (auto)", sheet, 14, 15, last, [2, 3, 4]), "I3")
+    season_rows = [[MONTH_NAMES[number - 1], automatic["seasonal_index"][str(number)]] for number in range(1, 13)]
+    season_last = _table(sheet, 27, ["Month", "Seasonal index"], season_rows, {1: INDEX}, left=18)
+    _widths(sheet, {"R": 10, "S": 14})
+    chart = _bar("Month-of-year seasonal index (1.00 = average)", sheet, 27, 28, season_last, [19], label_column=18,
+                 labelled=False)
+    chart.y_axis.numFmt = INDEX
+    sheet.add_chart(chart, "I21")
+
+
+def _forecast_scenarios(workbook: Workbook, analysis: dict) -> None:
     scenarios = analysis.get("scenarios")
-    if scenarios:
-        settings = scenarios["settings"]
-        scenario_sheet["A1"] = (f"From {scenarios['base_month']} ({scenarios['base_total']:,.0f}); monthly growth "
-                                + ", ".join(f"{name} {rate * 100:.1f}%" for name, rate in settings["growth"].items())
-                                + f"; seasonality {'on' if settings['seasonality'] else 'off'}; active {settings['active']}"
-                                + (f"; uplift {settings['uplift_usd']:,.0f}/month from {settings['uplift_from']}"
-                                   if settings.get("uplift_from") else ""))
-        scenario_last = _table(scenario_sheet, 3, ["Month", "Base", "Upside", "Downside", "Pipeline",
-                                                   f"{settings['active']} + pipeline"],
-                               [[row["month"], row["Base"], row["Upside"], row["Downside"], row["pipeline"],
-                                 row["active_with_pipeline"]] for row in scenarios["rows"]],
-                               {column: MONEY for column in range(2, 7)})
-        scenario_sheet.add_chart(_line("Scenarios", scenario_sheet, 4, scenario_last, [2, 3, 4, 6], width=24), "H3")
+    sheet = _new_sheet(workbook, "Forecast Scenarios", "Forecast – Driver-Based Scenarios",
+                       "The settings are this customer's, saved in the plugin's Forecast tab; change them there and export again.")
+    _widths(sheet, {"A": 49.5, "B": 22.8, "C": 19, "D": 19, "E": 19, "F": 19, "G": 22})
+    if not scenarios:
+        sheet["A4"] = "No closed month to grow from yet."
+        return
+    settings = scenarios["settings"]
+    _section(sheet, 4, "Inputs", last_column=2)
+    inputs = [("Base month (last actual)", _month_date(scenarios["base_month"]), MONTH),
+              ("Base month total ($)", scenarios["base_total"], MONEY),
+              ("MoM growth % – Base", settings["growth"]["Base"], "0.0%"),
+              ("MoM growth % – Upside", settings["growth"]["Upside"], "0.0%"),
+              ("MoM growth % – Downside", settings["growth"]["Downside"], "0.0%"),
+              ("Apply seasonality?", "Yes" if settings["seasonality"] else "No", None),
+              ("Active scenario", settings["active"], None),
+              ("Extra monthly uplift ($)", settings["uplift_usd"], MONEY),
+              ("Uplift starts from period (yyyy-mm)", settings["uplift_from"] or "—", None)]
+    for offset, (label, value, number_format) in enumerate(inputs, start=5):
+        sheet.cell(offset, 1, label).border = BOX
+        cell = sheet.cell(offset, 2, value)
+        cell.border = BOX
+        if number_format:
+            cell.number_format = number_format
+    for column in (4, 5):
+        sheet.cell(4, column).fill = _fill(NAVY)
+    sheet.cell(4, 4, "Scenario totals (horizon)").font = _font(bold=True, color="FFFFFF")
+    totals = [(name, scenarios["totals"][name]) for name in ("Base", "Upside", "Downside")] + \
+             [(f"Next year – {name}", scenarios["next_year"][name]) for name in ("Base", "Upside", "Downside")] + \
+             [("Pipeline over the horizon", scenarios["pipeline_total"])]
+    for offset, (label, value) in enumerate(totals, start=5):
+        sheet.cell(offset, 4, label).border = BOX
+        cell = sheet.cell(offset, 5, value)
+        cell.border, cell.number_format, cell.font = BOX, MONEY, _font(bold=True)
 
-    pipeline_sheet = workbook.create_sheet("Pipeline")
+    _section(sheet, 16, "Scenario timeline", last_column=6)
+    rows = [[_month_date(item["month"]), item["Base"], item["Upside"], item["Downside"], item["pipeline"] or None,
+             item["active_with_pipeline"]] for item in scenarios["rows"]]
+    last = _table(sheet, 17, ["Month", "Base", "Upside", "Downside", "Pipeline", f"{settings['active']} + pipeline"],
+                  rows, {0: MONTH, 1: MONEY, 2: MONEY, 3: MONEY, 4: MONEY, 5: MONEY})
+    sheet.add_chart(_line("Total Consumption – Base / Upside / Downside", sheet, 17, 18, last, [2, 3, 4, 6]), "I3")
+
+
+def _pipeline(workbook: Workbook, analysis: dict, today: date) -> None:
+    """The workbook's Pipeline grid: one row per engagement, its expected $ per
+    month under a merged year header, banded rows and a navy total -- a block per year."""
+    sheet = workbook.create_sheet("Pipeline")
+    sheet.sheet_view.zoomScale = 130
+    _widths(sheet, {"A": 4.2, "B": 47.5, "C": 24.7, "D": 30.5, "E": 20, "R": 53.3})
+    for column in range(6, 18):
+        sheet.column_dimensions[get_column_letter(column)].width = 12
     pipeline = analysis.get("pipeline") or {}
     opportunities = pipeline.get("opportunities") or []
-    if opportunities:
-        pipeline_last = _table(pipeline_sheet, 1, ["Opportunity", "Under", "Status", "Stage", "Partner",
-                                                   "Billing profile", "Starts", "Expected monthly"],
-                               [[o.get("title"), o.get("affiliate") or o.get("customer"), o.get("status"),
-                                 o.get("stage"), _joined(o.get("partner")), o.get("billing_profile"),
-                                 o.get("consumption_start"), o.get("expected_monthly_usd")] for o in opportunities],
-                               {8: MONEY})
-        plan_months = sorted({row["month"] for o in opportunities for row in o.get("plan") or []})
-        if plan_months:
-            _table(pipeline_sheet, pipeline_last + 3, ["Opportunity"] + plan_months,
-                   [[o.get("title")] + [next((row["usd"] for row in o.get("plan") or [] if row["month"] == month), None)
-                                        for month in plan_months] for o in opportunities],
-                   {column: MONEY for column in range(2, len(plan_months) + 2)})
-    else:
-        pipeline_sheet["A1"] = pipeline.get("reason") or "No opportunities for this customer."
-
-    commitment = analysis.get("commitment")
-    if commitment:
-        commitment_sheet = workbook.create_sheet("Commitment")
-        facts = [["Signed", commitment["amount"]], ["Type", commitment["type"]],
-                 ["Term", f"{commitment['start']} to {commitment['end']}"],
-                 ["Counts Marketplace", "yes" if commitment.get("include_marketplace", True) else "no"],
-                 ["Subtracts credits", "yes" if commitment.get("subtract_credits", True) else "no"],
-                 ["Consumed", commitment["consumed"]], ["Consumed %", commitment["consumed_pct"]],
-                 ["Term elapsed %", commitment["elapsed_pct"]], ["Remaining", commitment["remaining"]],
-                 ["Against an even pace", commitment["pace_gap"]], ["Run rate (3 closed months)", commitment["run_rate"]],
-                 ["At term end, at run rate", commitment["projected_at_end"]],
-                 ["At term end, with pipeline", commitment["projected_with_pipeline"]],
-                 ["Projected shortfall", commitment["projected_shortfall"]],
-                 ["Fully consumed by", commitment["projected_exhaustion"] or "not within the term"],
-                 ["Verdict", commitment["verdict"]]]
-        for offset, (label, value) in enumerate(facts, start=1):
-            commitment_sheet.cell(offset, 1, label).font = LABEL_FONT
-            cell = commitment_sheet.cell(offset, 2, value)
-            if isinstance(value, float) and abs(value) > 100:
+    if not opportunities:
+        sheet["B1"] = pipeline.get("reason") or "No opportunities for this customer."
+        sheet["B1"].font = _font(italic=True, color=GREY_TEXT)
+        return
+    years = sorted({int(row["month"][:4]) for o in opportunities for row in o.get("plan") or []}) or [today.year]
+    header = _font(10, bold=True, color="FFFFFF")
+    body = _font(10, color="000000")
+    top = 1
+    for year in years:
+        for column, title in ((1, "#"), (2, "Engagement"), (3, "Partner"), (4, "Billing Profile"), (5, "Status"),
+                              (18, "Comments")):
+            sheet.merge_cells(start_row=top, start_column=column, end_row=top + 1, end_column=column)
+            cell = sheet.cell(top, column, title)
+            cell.font, cell.fill, cell.border = header, _fill(NAVY), BOX
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        sheet.merge_cells(start_row=top, start_column=6, end_row=top, end_column=17)
+        cell = sheet.cell(top, 6, year)
+        cell.font, cell.fill = _font(12, bold=True, color="FFFFFF"), _fill(NAVY)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        for index, name in enumerate(MONTH_NAMES):
+            cell = sheet.cell(top + 1, 6 + index, name)
+            cell.font, cell.fill = header, _fill(NAVY)
+            cell.border = Border(left=MEDIUM_NAVY, right=MEDIUM_NAVY, top=MEDIUM_NAVY, bottom=MEDIUM_NAVY)
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        sheet.row_dimensions[top].height = sheet.row_dimensions[top + 1].height = 22
+        month_totals = [0.0] * 12
+        for number, opportunity in enumerate(opportunities, start=1):
+            row = top + 1 + number
+            banded = number % 2 == 1
+            plan = {item["month"]: item["usd"] for item in opportunity.get("plan") or []}
+            partner = opportunity.get("partner")
+            values = [number, opportunity.get("title"), ", ".join(partner) if isinstance(partner, list) else partner,
+                      opportunity.get("billing_profile") or "", opportunity.get("status")]
+            values += [plan.get(f"{year:04d}-{month:02d}") for month in range(1, 13)]
+            comments = [opportunity.get("stage") or ""]
+            if opportunity.get("affiliate"):
+                comments.append(f"under {opportunity['affiliate']}")
+            if opportunity.get("consumption_start"):
+                comments.append(f"starts {opportunity['consumption_start']}")
+            values.append(" · ".join(item for item in comments if item))
+            for column, value in enumerate(values, start=1):
+                cell = sheet.cell(row, column, value)
+                cell.font = body if column > 1 else _font()
+                if column > 1:
+                    cell.border = BOX
+                    if banded:
+                        cell.fill = _fill(BAND_FILL)
+                if 6 <= column <= 17:
+                    cell.number_format = MONEY
+                    cell.alignment = Alignment(horizontal="right", vertical="center")
+                    month_totals[column - 6] += value or 0
+                elif column in (3, 4, 5):
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                else:
+                    cell.alignment = Alignment(vertical="center", wrap_text=True)
+            sheet.row_dimensions[row].height = 20.15
+        total_row = top + 2 + len(opportunities)
+        sheet.cell(total_row, 2, f"Total {year}")
+        for column in range(2, 19):
+            cell = sheet.cell(total_row, column)
+            cell.font, cell.fill, cell.border = _font(10, bold=True, color="000000"), _fill(BAND_FILL), TOTAL_BOX
+            if 6 <= column <= 17:
+                cell.value = month_totals[column - 6] or None
                 cell.number_format = MONEY
-        cumulative_first = len(facts) + 3
-        cumulative_last = _table(commitment_sheet, cumulative_first, ["Month", "Consumed to date", "Signed"],
-                                 [[row["month"], row["consumed"], commitment["amount"]] for row in commitment["cumulative"]],
-                                 {2: MONEY, 3: MONEY})
-        commitment_sheet.add_chart(_line("Consumed against the signed value", commitment_sheet, cumulative_first + 1,
-                                         cumulative_last, [2, 3]), "E2")
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+        top = total_row + 3
 
-    if board["credit_details"]:
-        credits = workbook.create_sheet("Credits")
-        _table(credits, 1, ["Month", "Credit", "Value"],
-               [[row["month"], row["name"], row["value"]] for row in board["credit_details"]], {3: MONEY})
 
-    # -- dashboard ----------------------------------------------------------
-    dashboard["A1"] = f"Azure consumption -- {customer['name']}"
-    dashboard["A1"].font = TITLE_FONT
-    dashboard["A2"] = (f"{len(customer['accounts'])} enrollment(s) · {kpis['months_of_history']} months from "
-                       f"{kpis['first_month']} · through {kpis['latest_month']} (closed) · {currency} · "
-                       f"Marketplace {'included' if measure['marketplace'] else 'excluded'}, credits "
-                       f"{'subtracted' if measure['credits'] else 'not subtracted'} · exported {today.isoformat()}")
-    tiles = [("Total, all synced months", kpis["all_time"], MONEY),
-             (f"YTD through {kpis['ytd_through']}", kpis["ytd"], MONEY),
-             ("YTD against last year", kpis["ytd_growth_pct"], PERCENT),
-             (f"Latest month ({kpis['latest_month']})", kpis["latest_total"], MONEY),
-             ("Latest month MoM", kpis["latest_mom_pct"], PERCENT),
-             ("Latest month YoY", kpis["latest_yoy_pct"], PERCENT),
-             ("Next 12 months (auto forecast)", kpis["next_12_months"], MONEY),
-             ("Next year (auto forecast)", kpis["next_year_forecast"], MONEY),
-             ("Burn rate, 3-month average", kpis["burn_rate_3m"], MONEY),
-             ("Largest enrollment's share", kpis["largest_enrollment_share_pct"], PERCENT),
-             ("Credits applied, all synced months", kpis["credits_all_time"], MONEY),
-             ("Marketplace, all synced months", kpis["marketplace_all_time"], MONEY)]
-    if commitment:
-        tiles += [(f"Signed ({commitment['type']})", commitment["amount"], MONEY),
-                  ("Consumed against it", commitment["consumed_pct"], PERCENT),
-                  ("Remaining", commitment["remaining"], MONEY),
-                  ("Runway at current burn (months)", kpis.get("runway_months"), "0.0"),
-                  ("Projected exhaustion", commitment["projected_exhaustion"] or "not within term", None)]
-    for index, (label, value, number_format) in enumerate(tiles):
-        row, column = 4 + (index // 6) * 3, 1 + (index % 6) * 2
-        dashboard.cell(row, column, label).font = LABEL_FONT
-        cell = dashboard.cell(row + 1, column, value if value is not None else "—")
-        cell.font = KPI_FONT
-        if number_format and isinstance(value, (int, float)):
-            cell.number_format = number_format
+def _export(workbook: Workbook, customer: dict, entries: dict[str, dict], measure: dict) -> None:
+    """The workbook's Export: per billing profile, per year (newest first), a
+    Total row then each month -- the shape the operator built the sheet from."""
+    sheet = workbook.create_sheet("Export")
+    sheet.sheet_view.zoomScale = 140
+    headers = ["Customer Name", "Billing Profile ID", "Date - Year", "Date - Month", "Marketplace",
+               "Charges against Credit", "Azure Consumption", "GPU Consumption ND96isrH100v5",
+               "GPU Consumption ND96isrH200v5", "GPU Consumption (other)", "PTU Consumption", "Total Consumption"]
+    _widths(sheet, {"A": 40, "B": 18.5, "C": 11, "D": 13.3, "E": 13.3, "F": 22, "G": 20, "H": 22, "I": 22,
+                    "J": 20, "K": 16, "L": 18})
+    for column, title in enumerate(headers, start=1):
+        cell = sheet.cell(1, column, title)
+        cell.font, cell.fill, cell.border = _font(bold=True), _fill(HEADER_FILL), BOX
+        cell.alignment = Alignment(wrap_text=True, vertical="center")
+    formats = {5: MONEY_CENTS, 6: MONEY_CENTS, 7: MONEY_CENTS, 8: MONEY_CENTS, 9: MONEY_CENTS, 10: MONEY_CENTS,
+               11: MONEY_CENTS, 12: MONEY_CENTS}
+    names = {account["name"]: account["display_name"] for account in customer["accounts"]}
+    row = 2
+    grand = [0.0] * 8
+
+    def write(values: list, bold: bool) -> None:
+        for column, value in enumerate(values, start=1):
+            cell = sheet.cell(row, column, value)
+            cell.font = _font(bold=bold)
+            cell.alignment = Alignment(vertical="top")
+            if column in formats and isinstance(value, (int, float)):
+                cell.number_format = formats[column]
+
+    for account, entry in entries.items():
+        account_top = row
+        months_by_year: dict[int, list[str]] = {}
+        for month in sorted(entry.get("months") or {}):
+            months_by_year.setdefault(int(month[:4]), []).append(month)
+        for year in sorted(months_by_year, reverse=True):
+            parts = [_components(entry["months"][month], measure) for month in months_by_year[year]]
+            if not any(part["total"] or part["azure"] for part in parts):
+                continue
+            year_top = row
+
+            def numbers(items: list[dict]) -> list[float]:
+                return [round(sum(item[key] for item in items), 2) for key in
+                        ("marketplace", "credits", "azure", "gpu_h100", "gpu_h200", "gpu_other", "ptu", "total")]
+
+            totals = numbers(parts)
+            write([names.get(account, account), account, year, "Total"] + totals, bold=True)
+            grand = [a + b for a, b in zip(grand, totals)]
+            row += 1
+            for month, part in zip(months_by_year[year], parts):
+                write([None, None, None, LONG_MONTH_NAMES[int(month[5:]) - 1]] + numbers([part]), bold=False)
+                row += 1
+            if row - 1 > year_top:
+                sheet.merge_cells(start_row=year_top, start_column=3, end_row=row - 1, end_column=3)
+        if row - 1 > account_top:
+            for column in (1, 2):
+                sheet.merge_cells(start_row=account_top, start_column=column, end_row=row - 1, end_column=column)
+    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
+    write(["Total", None, None, None] + [round(value, 2) for value in grand], bold=True)
     for column in range(1, 13):
-        dashboard.column_dimensions[get_column_letter(column)].width = 16
+        sheet.cell(row, column).border = TOTAL_BOX
+    sheet.freeze_panes = "A2"
 
-    anchor_row = 6 + ((len(tiles) - 1) // 6 + 1) * 3
-    charts = [
-        _bar("Total consumption by month", monthly, 2, monthly_last, [5]),
-        _bar("Mix by month", mix, 2, mix_last, list(range(2, len(lines) + 2)), stacked=True),
-        _bar("By year", years, 2, years_last, [2]),
-        _bar("Year to date, same months", years, 2, years_last, [3]),
-        _bar("Month over month %", monthly, 2, monthly_last, [7], percent=True),
-        _bar("Year over year %", monthly, 2, monthly_last, [8], percent=True),
-        _bar(f"{comparison['last_year']} against {comparison['this_year']}, by month", years, comparison_first + 1,
-             comparison_first + 12, [2, 3]),
-        _bar(f"MoM growth % {comparison['last_year']} against {comparison['this_year']}", years,
-             comparison_first + 1, comparison_first + 12, [4, 5], percent=True),
-        _bar("By enrollment, by month", enrollments, 2, enrollments_last, list(range(2, enrollments_columns + 1)),
-             stacked=True),
-    ]
-    if quarter_rows:
-        charts.append(_bar("By enrollment, by quarter", enrollments, quarter_first + 1, quarter_first + len(quarter_rows),
-                           list(range(2, len(board["accounts"]) + 2))))
-    for index, chart in enumerate(charts):
-        row = anchor_row + (index // 2) * 16
-        column = "A" if index % 2 == 0 else "G"
-        dashboard.add_chart(chart, f"{column}{row}")
 
+def _breakdown(workbook: Workbook, title: str, heading: str, merged: dict, key: str, limit: int = 15) -> None:
+    sheet = _new_sheet(workbook, title, heading, "Cost Management actual cost by month: Marketplace included, "
+                                                 "credits not subtracted.", tab=BLUE_TAB)
+    totals: dict[str, float] = {}
+    for data in merged.values():
+        for name, cost in ((data.get("actual") or {}).get(key) or {}).items():
+            totals[name] = totals.get(name, 0.0) + cost
+    names = [name for name, _ in sorted(totals.items(), key=lambda item: -item[1])]
+    shown = names[:limit]
+    rows = []
+    for month in sorted(merged):
+        spend = (merged[month].get("actual") or {}).get(key) or {}
+        rows.append([_month_date(month)] + [spend.get(name) for name in shown] +
+                    ([sum(cost for name, cost in spend.items() if name not in shown)] if len(names) > limit else []))
+    headers = ["Month"] + shown + (["Other"] if len(names) > limit else [])
+    _table(sheet, 4, headers, rows, {0: MONTH, **{index: MONEY for index in range(1, len(headers))}})
+    sheet.column_dimensions["A"].width = 12
+    for column in range(2, len(headers) + 1):
+        sheet.column_dimensions[get_column_letter(column)].width = 18
+    sheet.freeze_panes = "B5"
+
+
+def _gpu_and_ai(workbook: Workbook, analysis: dict) -> None:
+    sheet = _new_sheet(workbook, "GPU & AI", "GPU & AI – by SKU and how it was bought",
+                       "GPU by series from the meter, Azure OpenAI PTU (reservations) against pay-as-you-go tokens.")
+    _widths(sheet, {"A": 12, "B": 32, "C": 18, "D": 16})
+    rows = [[_month_date(item["month"]), line["category"], line["pricing"], line["cost"]]
+            for item in analysis["gpu_and_ai"] for line in item["lines"]]
+    if not rows:
+        sheet["A4"] = "No GPU or Azure OpenAI spend in the synced months."
+        return
+    _table(sheet, 4, ["Month", "Line", "Bought as", "Cost"], rows, {0: MONTH, 3: MONEY})
+
+
+def _commitment(workbook: Workbook, analysis: dict) -> None:
+    commitment = analysis.get("commitment")
+    if not commitment:
+        return
+    sheet = _new_sheet(workbook, "Commitment", f"Consumption against the signed value ({commitment['type']})",
+                       commitment.get("note") or "Entered in the plugin's Settings.", tab=NAVY)
+    _widths(sheet, {"A": 14, "B": 22, "C": 22, "D": 22})
+    rows = [[_month_date(item["month"]), item["consumed"], commitment["amount"]] for item in commitment["cumulative"]]
+    last = _table(sheet, 4, ["Month", "Consumed to date", "Signed value"], rows, {0: MONTH, 1: MONEY, 2: MONEY})
+    sheet.add_chart(_line("Consumed against the signed value", sheet, 4, 5, last, [2, 3]), "F3")
+    sheet.cell(last + 2, 1, commitment["verdict"]).font = _font(bold=True)
+
+
+def _credits(workbook: Workbook, analysis: dict) -> None:
+    rows = analysis["dashboard"]["credit_details"]
+    if not rows:
+        return
+    sheet = _new_sheet(workbook, "Credits", "Credits applied", "Adjustments on the EA billing-period balance.")
+    _widths(sheet, {"A": 12, "B": 40, "C": 18})
+    _table(sheet, 4, ["Month", "Credit", "Value"], [[_month_date(r["month"]), r["name"], r["value"]] for r in rows],
+           {0: MONTH, 2: MONEY_CENTS})
+
+
+def build(customer: dict, analysis: dict, merged: dict, today: date, entries: dict[str, dict] | None = None) -> bytes:
+    workbook = Workbook()
+    _dashboard(workbook, customer, analysis, merged, today)
+    _forecast_auto(workbook, analysis, today)
+    _forecast_scenarios(workbook, analysis)
+    _pipeline(workbook, analysis, today)
+    _export(workbook, customer, entries or {}, analysis["measure"])
+    _breakdown(workbook, "Services", "Consumption by Service", merged, "service")
+    _breakdown(workbook, "Subscriptions", "Consumption by Subscription", merged, "subscription")
+    _gpu_and_ai(workbook, analysis)
+    _commitment(workbook, analysis)
+    _credits(workbook, analysis)
+    for sheet in workbook.worksheets:
+        for row in sheet.iter_rows():
+            for cell in row:
+                if cell.value is not None and (cell.font is None or cell.font.name != FONT):
+                    cell.font = _font(cell.font.sz or 11, bold=cell.font.b, italic=cell.font.i,
+                                      color=cell.font.color.rgb if cell.font.color and isinstance(cell.font.color.rgb, str) else None)
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()

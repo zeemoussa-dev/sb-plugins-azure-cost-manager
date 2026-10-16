@@ -184,9 +184,24 @@ def test_the_export_is_a_workbook_with_the_dashboard_and_its_data(fake_api):
     workbook = openpyxl.load_workbook(io.BytesIO(data))
 
     assert name.endswith(".xlsx") and "Contoso" in name
-    assert workbook.sheetnames[:3] == ["Dashboard", "Monthly", "Mix"]
-    assert {"Forecast", "Scenarios", "Pipeline", "Commitment", "GPU & AI", "Enrollments"} <= set(workbook.sheetnames)
-    assert len(workbook["Dashboard"]._charts) >= 9
-    assert workbook["Monthly"]["A2"].value == "2025-01"
-    assert workbook["Pipeline"]["A2"].value == "Data platform"
-    assert workbook["Pipeline"]["E2"].value == "Northwind, Litware"
+    # The operator's workbook first, in its order; the plugin's extra sheets after.
+    assert workbook.sheetnames[:5] == ["Dashboard", "Forecast Auto", "Forecast Scenarios", "Pipeline", "Export"]
+    assert {"Services", "Subscriptions", "GPU & AI", "Commitment"} <= set(workbook.sheetnames)
+
+    dashboard = workbook["Dashboard"]
+    assert len(dashboard._charts) == 10
+    assert dashboard.sheet_view.showGridLines is False
+    assert dashboard["A3"].value == "TOTAL CONSUMPTION – ALL TIME"
+    assert dashboard["A4"].fill.fgColor.rgb.endswith("EEF3FB") and dashboard["A4"].font.name == "Aptos Narrow"
+    assert dashboard["A10"].fill.fgColor.rgb.endswith("FDF2E9")  # the signed value's peach tiles
+    assert dashboard["L3"].value == 30_000
+
+    pipeline = workbook["Pipeline"]
+    assert (pipeline["B3"].value, pipeline["C3"].value, pipeline["E3"].value) == ("Data platform", "Northwind, Litware", "Open")
+    assert pipeline["F1"].value == 2026 and pipeline["P2"].value == "Nov" and pipeline["P3"].value == 25_000
+
+    export = workbook["Export"]
+    assert export["D2"].value == "Total" and export["C2"].value == 2026
+    assert export["D3"].value == "January"
+    # January 2026: usage 1040, of which 100 on H100 -- so Azure 940 + GPU 100 + Marketplace 5 = 1045.
+    assert (export["G3"].value, export["H3"].value, export["E3"].value, export["L3"].value) == (940, 100, 5, 1045)

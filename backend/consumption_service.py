@@ -82,8 +82,8 @@ class ConsumptionService:
     def export(self, customer_id: str, measure: dict | None = None) -> tuple[str, bytes]:
         """`(file name, .xlsx bytes)` for one customer."""
         analysis = self.analysis(customer_id, measure)
-        merged, _, _ = self._merged(analysis["customer"])
-        workbook = export_xlsx.build(analysis["customer"], analysis, merged, self._today())
+        merged, _, entries = self._merged(analysis["customer"])
+        workbook = export_xlsx.build(analysis["customer"], analysis, merged, self._today(), entries)
         return f"Azure consumption - {analysis['customer']['name']} - {self._today().isoformat()}.xlsx", workbook
 
     def consumption(self, customer_id: str, first_month: str | None, last_month: str | None,

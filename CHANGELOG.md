@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.3.4] - 2026-10-16
+
+- feat: **the export is laid out and styled like the operator's own workbook** (operator, 2026-10-16: "The Formatting of the Exported Excel is not the Same"). Sheets in its order -- Dashboard, Forecast Auto, Forecast Scenarios, Pipeline, Export -- then Services, Subscriptions, GPU & AI, Commitment and Credits. Its look: Aptos Narrow, no gridlines, navy section bars and tab, light-blue KPI tiles across merged column pairs, peach tiles and a side block for the signed value, `#D9E1F2` table headers, thin grey borders, `"$"#,##0` money, real `0.0%` percentages and `yyyy-mm` month dates, charts stacked in column J beside their tables with labels where they fit. The Pipeline is its month grid under a merged year header with banded rows and a navy total, a block per year; the Export is one block per billing profile and year, Total row first, with GPU H100 / H200 / other and PTU split out of Azure so the columns add up to the total.
+
 ## [0.3.3] - 2026-10-16
 
 - fix: **the Sync button looked like it did nothing** (operator, 2026-10-16). It started the sync, but the only sign was a line of grey text, and the page did not change until the whole sync ended -- minutes, since every billing month is its own call and Azure throttles. A sync now shows a banner with the customer, the enrollment and step it is on, any wait Azure asked for, and a progress bar; the page refreshes as each enrollment finishes; and a click while another sync runs says which one, instead of a silent no.
