@@ -39,6 +39,7 @@ ACCOUNTS = [
 class FakeAzure:
     def __init__(self) -> None:
         self.queries: list[tuple] = []
+        self.balances: list[tuple] = []
         self.throttle_next = 0
         self.fail_windows: set[str] = set()
 
@@ -57,6 +58,21 @@ class FakeAzure:
 
     def forecast_monthly(self, account_name, first_month, last_month):
         return [{"month": "2026-11", "cost": 950}]
+
+    def query_monthly_meters(self, account_name, first_month, last_month):
+        self.queries.append((account_name, "meters", first_month, last_month))
+        return [{"month": "2026-09", "meter_subcategory": "NDsr H100 v5 Series", "pricing_model": "Reservation",
+                 "cost": 200, "currency": "USD"},
+                {"month": "2026-09", "meter_subcategory": "Azure OpenAI", "pricing_model": "Reservation",
+                 "cost": 100, "currency": "USD"}]
+
+    def billing_period_balance(self, account_name, month):
+        self.balances.append((account_name, month))
+        if month < "2026-01":
+            raise AzureApiError(404, "no such billing period")
+        return {"usage": 1000.0, "marketplace": 50.0, "credits": 30.0,
+                "credit_details": [{"name": "Contract Price Match Credit", "value": 30.0}],
+                "billed_separately": 0.0, "currency": "USD"}
 
 
 def build(fake_api, azure, now=NOW):
@@ -175,8 +191,10 @@ def test_reading_a_customer_never_calls_azure_and_merges_its_enrollments(fake_ap
     by_enrollment = service.consumption("fabrikam", "2026-09", "2026-09", "account", "actual")
 
     assert azure.queries == []
-    assert result["months"][-2] == {"month": "2026-09", "actual": 2000.0, "amortized": 2000.0,
-                                    "mom_pct": None, "partial": False}
+    september = result["months"][-2]
+    # Two EA enrollments, each billed 1000 usage + 50 Marketplace - 30 credit.
+    assert (september["month"], september["actual"], september["cost_management"]) == ("2026-09", 2040.0, 2000.0)
+    assert (september["usage"], september["marketplace"], september["credits"]) == (2000.0, 100.0, 60.0)
     assert {row["name"] for row in by_enrollment["rows"]} == {"Fabrikam Energy (20000001)",
                                                               "Fabrikam  Energy (20000002)"}
     assert result["forecast"]["months"][1] == {"month": "2026-11", "cost": 1900, "source": "azure"}

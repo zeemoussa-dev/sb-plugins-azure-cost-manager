@@ -26,6 +26,7 @@ DEFAULT_HISTORY_MONTHS = 12
 # A term start further back than this is cut, so a typo cannot ask for decades.
 LONGEST_HISTORY_MONTHS = 72
 THROTTLE_WAITS_PER_QUERY = 12
+ENTERPRISE_AGREEMENT = "EnterpriseAgreement"
 
 
 def _now() -> datetime:
@@ -46,6 +47,17 @@ def _aggregate(rows: list[dict]) -> dict[str, dict]:
         for key in ("service", "subscription"):
             month[key] = {name: round(cost, 2) for name, cost in month[key].items() if round(cost, 2) != 0}
     return by_month
+
+
+def _aggregate_meters(rows: list[dict]) -> dict[str, dict[str, float]]:
+    """Per month, `"<meter subcategory>|<pricing model>"` -> cost."""
+    by_month: dict[str, dict[str, float]] = {}
+    for row in rows:
+        key = f"{row['meter_subcategory']}|{row['pricing_model']}"
+        month = by_month.setdefault(row["month"], {})
+        month[key] = month.get(key, 0.0) + row["cost"]
+    return {month: {key: round(cost, 2) for key, cost in meters.items() if round(cost, 2) != 0}
+            for month, meters in by_month.items()}
 
 
 def _windows(wanted: list[str]) -> list[list[str]]:
@@ -122,7 +134,7 @@ class ConsumptionSync:
         self._set(accounts_total=len(first_month_by_account))
         client = self._client_factory()
         for done, (name, first_month) in enumerate(sorted(first_month_by_account.items()), start=1):
-            self._sync_account(client, name, first_month)
+            self._sync_account(client, name, first_month, visible.get(name) or {})
             self._set(accounts_done=done)
 
     def _first_month(self, account: dict, commitment_start: str | None) -> str:
@@ -140,7 +152,7 @@ class ConsumptionSync:
                 self._sleep(exc.retry_after_seconds + 1)
         raise AzureApiError(429, f"still throttled after {THROTTLE_WAITS_PER_QUERY} waits")
 
-    def _sync_account(self, client: BillingClient, account: str, first_month: str) -> None:
+    def _sync_account(self, client: BillingClient, account: str, first_month: str, known: dict) -> None:
         current_month = months.month_of(self._today())
         entry = self._store.account(account)
         entry.setdefault("months", {})
@@ -152,6 +164,8 @@ class ConsumptionSync:
                 by_type = {cost_type: _aggregate(self._query(
                     lambda cost_type=cost_type: client.query_monthly_cost(account, cost_type, window[0], window[-1]),
                     account)) for cost_type in COST_TYPES}
+                meters = _aggregate_meters(self._query(
+                    lambda: client.query_monthly_meters(account, window[0], window[-1]), account))
             except AzureApiError as exc:
                 errors[f"{window[0]}..{window[-1]}"] = str(exc)
                 self._record_error(account, f"{window[0]}..{window[-1]}: {exc}")
@@ -160,19 +174,50 @@ class ConsumptionSync:
             for month in window:
                 actual = by_type["ActualCost"].get(month) or {}
                 amortized = by_type["AmortizedCost"].get(month) or {}
+                kept_balance = (entry["months"].get(month) or {}).get("balance")
                 entry["months"][month] = {
                     "fetched_at": fetched_at,
                     "currency": actual.get("currency") or amortized.get("currency"),
                     "actual": {"service": actual.get("service", {}), "subscription": actual.get("subscription", {})},
                     "amortized": {"service": amortized.get("service", {}),
                                   "subscription": amortized.get("subscription", {})},
+                    "meters": meters.get(month, {}),
+                    **({"balance": kept_balance} if kept_balance else {}),
                 }
             # Saved per window: a sync stopped by a restart resumes from here.
             self._store.save_account(account, entry)
 
+        if known.get("agreement_type") == ENTERPRISE_AGREEMENT:
+            self._sync_balances(client, account, entry, wanted, errors)
+
         entry["forecast"] = self._forecast(client, account, entry, current_month, errors)
         entry["synced_at"] = self._now().isoformat()
         entry["errors"] = errors
+        self._store.save_account(account, entry)
+
+    def _sync_balances(self, client: BillingClient, account: str, entry: dict, wanted: list[str],
+                       errors: dict[str, str]) -> None:
+        """Each billing period's usage, Marketplace and credits -- the figures the
+        partner export and the customer's invoice use. A period before the
+        enrollment existed answers with an error; it is kept as empty so a settled
+        one is not asked for again."""
+        pending = self._store.balances_to_fetch(entry, wanted)
+        for index, month in enumerate(pending, start=1):
+            self._set(current={"account": account, "first_month": month, "last_month": month, "balances": True})
+            fetched_at = self._now().isoformat()
+            try:
+                balance = self._query(lambda: client.billing_period_balance(account, month), account)
+            except AzureApiError as exc:
+                if exc.status in (400, 404):
+                    balance = {"usage": 0.0, "marketplace": 0.0, "credits": 0.0, "credit_details": [],
+                               "billed_separately": 0.0, "currency": None, "missing": True}
+                else:
+                    errors[f"balance {month}"] = str(exc)
+                    self._record_error(account, f"balance {month}: {exc}")
+                    continue
+            entry["months"].setdefault(month, {})["balance"] = {**balance, "fetched_at": fetched_at}
+            if index % 6 == 0:
+                self._store.save_account(account, entry)
         self._store.save_account(account, entry)
 
     def _forecast(self, client: BillingClient, account: str, entry: dict, current_month: str,

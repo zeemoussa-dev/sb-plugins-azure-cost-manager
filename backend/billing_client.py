@@ -1,4 +1,4 @@
-"""The Azure Billing and Cost Management calls -- raw I/O only.
+"""The Azure Billing, Cost Management and Consumption calls -- raw I/O only.
 
 Responses are normalised into plain rows here and nothing else: what a number
 means (a trend, a burn-down) is `consumption_analysis`'s business.
@@ -19,6 +19,7 @@ API_ROOT = "https://management.azure.com"
 # 2024-04-01), and 2020-05-01 also returns each enrollment's term.
 BILLING_API = "2020-05-01"
 COST_MANAGEMENT_API = "2023-11-01"
+CONSUMPTION_API = "2023-05-01"
 
 # Cost Management throttles per sign-in and says how long to wait. A twelve-month
 # query costs about twelve query units, so back-to-back queries are routinely told
@@ -144,11 +145,11 @@ class BillingClient:
             })
         return listed
 
-    def query_monthly_cost(self, account_name: str, cost_type: str,
-                           first_month: str, last_month: str) -> list[dict]:
-        """`[{month, service, subscription, cost, currency}]`, one per month x
-        service x subscription. Cost Management accepts at most a year per query,
-        so callers pass a window of twelve months or fewer."""
+    def _grouped_monthly(self, account_name: str, cost_type: str, first_month: str, last_month: str,
+                         dimensions: dict[str, str]) -> list[dict]:
+        """One row per month x the two `dimensions` (row key -> Azure dimension).
+        Cost Management accepts at most a year and two dimensions per query, so
+        callers pass a window of twelve months or fewer."""
         body = {
             "type": cost_type,
             "timeframe": "Custom",
@@ -156,8 +157,7 @@ class BillingClient:
             "dataset": {
                 "granularity": "Monthly",
                 "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}},
-                "grouping": [{"type": "Dimension", "name": "ServiceName"},
-                             {"type": "Dimension", "name": "SubscriptionName"}],
+                "grouping": [{"type": "Dimension", "name": name} for name in dimensions.values()],
             },
         }
         url = f"{billing_account_scope(account_name)}/providers/Microsoft.CostManagement/query"
@@ -165,28 +165,59 @@ class BillingClient:
         rows: list[dict] = []
         while True:
             properties = page.get("properties") or {}
-            rows.extend(self._cost_rows(properties))
+            rows.extend(self._cost_rows(properties, dimensions))
             if not properties.get("nextLink"):
                 return rows
             page = self._request("POST", properties["nextLink"], body=body)
 
+    def query_monthly_cost(self, account_name: str, cost_type: str,
+                           first_month: str, last_month: str) -> list[dict]:
+        """`[{month, service, subscription, cost, currency}]`."""
+        return self._grouped_monthly(account_name, cost_type, first_month, last_month,
+                                     {"service": "ServiceName", "subscription": "SubscriptionName"})
+
+    def query_monthly_meters(self, account_name: str, first_month: str, last_month: str) -> list[dict]:
+        """`[{month, meter_subcategory, pricing_model, cost, currency}]`, actual cost:
+        where GPU SKUs (`NDsr H100 v5 Series`) and Azure OpenAI reservations (PTU)
+        can be told apart from everything else."""
+        return self._grouped_monthly(account_name, "ActualCost", first_month, last_month,
+                                     {"meter_subcategory": "MeterSubCategory", "pricing_model": "PricingModel"})
+
     @staticmethod
-    def _cost_rows(properties: dict) -> list[dict]:
+    def _cost_rows(properties: dict, dimensions: dict[str, str] | None = None) -> list[dict]:
         columns = [column.get("name", "") for column in properties.get("columns") or []]
         cost_at = _column_index(columns, "totalCost", "Cost", "PreTaxCost")
         month_at = _column_index(columns, "BillingMonth", "UsageDate")
-        service_at = _column_index(columns, "ServiceName")
-        subscription_at = _column_index(columns, "SubscriptionName")
         currency_at = _column_index(columns, "Currency", "BillingCurrency")
         if cost_at is None or month_at is None:
             return []
-        return [{
-            "month": _month_from_cell(row[month_at]),
-            "service": (row[service_at] if service_at is not None else None) or "Unassigned",
-            "subscription": (row[subscription_at] if subscription_at is not None else None) or "Unassigned",
-            "cost": float(row[cost_at] or 0),
-            "currency": row[currency_at] if currency_at is not None else None,
-        } for row in properties.get("rows") or []]
+        dimension_at = {key: _column_index(columns, name) for key, name in (dimensions or {}).items()}
+        rows = []
+        for row in properties.get("rows") or []:
+            parsed = {"month": _month_from_cell(row[month_at]), "cost": float(row[cost_at] or 0),
+                      "currency": row[currency_at] if currency_at is not None else None}
+            for key, index in dimension_at.items():
+                parsed[key] = (row[index] if index is not None else None) or "Unassigned"
+            rows.append(parsed)
+        return rows
+
+    def billing_period_balance(self, account_name: str, month: str) -> dict:
+        """An EA enrollment's balance for one billing period: what the month billed
+        as usage, as Marketplace, and the credits applied against it. Matches the
+        partner consumption export to the cent (checked 2026-10-16)."""
+        period = month.replace("-", "")
+        url = (f"{billing_account_scope(account_name)}/billingPeriods/{period}"
+               "/providers/Microsoft.Consumption/balances")
+        properties = self._request("GET", url, params={"api-version": CONSUMPTION_API}).get("properties") or {}
+        return {
+            "usage": float(properties.get("totalUsage") or 0),
+            "marketplace": float(properties.get("azureMarketplaceServiceCharges") or 0),
+            "credits": float(properties.get("adjustments") or 0),
+            "credit_details": [{"name": detail.get("name"), "value": float(detail.get("value") or 0)}
+                               for detail in properties.get("adjustmentDetails") or []],
+            "billed_separately": float(properties.get("chargesBilledSeparately") or 0),
+            "currency": properties.get("currency"),
+        }
 
     def forecast_monthly(self, account_name: str, first_month: str, last_month: str) -> list[dict]:
         """`[{month, cost}]` -- Azure's own forecast for months not yet billed."""
@@ -202,6 +233,6 @@ class BillingClient:
         url = f"{billing_account_scope(account_name)}/providers/Microsoft.CostManagement/forecast"
         page = self._request("POST", url, params={"api-version": COST_MANAGEMENT_API}, body=body)
         totals: dict[str, float] = {}
-        for row in self._cost_rows(page.get("properties") or {}):
+        for row in self._cost_rows(page.get("properties") or {}, {}):
             totals[row["month"]] = totals.get(row["month"], 0.0) + row["cost"]
         return [{"month": month, "cost": cost} for month, cost in sorted(totals.items())]

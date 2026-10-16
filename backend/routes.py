@@ -5,13 +5,16 @@ and it only starts the background sync. The weekly Hermes job calls it.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, HTTPException
+from urllib.parse import quote
+
+from fastapi import APIRouter, Body, HTTPException, Response
 
 from .azure_token import AzureCliToken, AzureSignInError
 from .billing_client import AzureApiError, AzureThrottled
 from .consumption_service import ConsumptionService, CustomerNotFound
 from .consumption_sync import ConsumptionSync
 from .customers import COMMITMENT_TYPES, AccountDirectory, CustomerBook, CustomerError
+from .pipeline import Pipeline, PipelineUnavailable
 
 
 def _answered(call):
@@ -28,13 +31,50 @@ def _answered(call):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except CustomerNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PipelineUnavailable as exc:
+        raise HTTPException(status_code=424, detail=str(exc)) from exc
     except (CustomerError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def build_router(service: ConsumptionService, book: CustomerBook, directory: AccountDirectory,
-                 sync: ConsumptionSync, token: AzureCliToken) -> APIRouter:
+                 sync: ConsumptionSync, token: AzureCliToken, pipeline: Pipeline) -> APIRouter:
     router = APIRouter()
+
+    def measure(marketplace: bool, credits: bool) -> dict:
+        return {"marketplace": marketplace, "credits": credits}
+
+    @router.get("/customers/{customer_id}/export.xlsx")
+    def get_export(customer_id: str, marketplace: bool = True, credits: bool = True) -> Response:
+        name, workbook = _answered(lambda: service.export(customer_id, measure(marketplace, credits)))
+        return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
+
+    @router.put("/customers/{customer_id}/scenario")
+    def put_scenario(customer_id: str, settings: dict = Body(...)) -> dict:
+        return _answered(lambda: book.set_scenario(customer_id, settings))
+
+    @router.get("/entity-customers")
+    def get_entity_customers() -> dict:
+        """The Customer notes a customer can be linked to, or why there are none."""
+        try:
+            return {"available": True, "customers": pipeline.entity_customers()}
+        except PipelineUnavailable as exc:
+            return {"available": False, "reason": str(exc), "customers": []}
+
+    @router.get("/customers/{customer_id}/pipeline")
+    def get_pipeline(customer_id: str) -> dict:
+        return _answered(lambda: service.pipeline(customer_id))
+
+    @router.post("/customers/{customer_id}/opportunities")
+    def post_opportunity(customer_id: str, opportunity: dict = Body(...)) -> dict:
+        return _answered(lambda: pipeline.create(
+            service.customer(customer_id), opportunity.get("owner_stem") or service.customer(customer_id)["entity_customer"],
+            (opportunity.get("title") or "").strip(), opportunity.get("fields") or {}, opportunity.get("plan") or []))
+
+    @router.put("/opportunities/{opportunity_id}")
+    def put_opportunity(opportunity_id: str, change: dict = Body(...)) -> dict:
+        return _answered(lambda: pipeline.update(opportunity_id, change.get("fields") or {}, change.get("plan")))
 
     @router.get("/sign-in")
     def get_sign_in() -> dict:
@@ -73,8 +113,8 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return {"deleted": customer_id}
 
     @router.get("/customers/{customer_id}/analysis")
-    def get_analysis(customer_id: str) -> dict:
-        return _answered(lambda: service.analysis(customer_id))
+    def get_analysis(customer_id: str, marketplace: bool = True, credits: bool = True) -> dict:
+        return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits)))
 
     @router.get("/customers/{customer_id}/consumption")
     def get_consumption(customer_id: str, first_month: str | None = None, last_month: str | None = None,

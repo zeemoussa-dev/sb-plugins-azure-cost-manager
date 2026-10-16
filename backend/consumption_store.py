@@ -129,6 +129,15 @@ class ConsumptionStore:
 
     @staticmethod
     def months_to_fetch(entry: dict, wanted: list[str]) -> list[str]:
-        """The wanted months that are missing or not yet settled, oldest first."""
+        """The wanted months that are missing or not yet settled, oldest first.
+        A month synced before meter detail was kept (0.2.0) is fetched once more."""
+        def complete(month: str) -> bool:
+            data = entry["months"].get(month) or {}
+            return "meters" in data and is_settled(month, data.get("fetched_at"))
+        return [month for month in wanted if not complete(month)]
+
+    @staticmethod
+    def balances_to_fetch(entry: dict, wanted: list[str]) -> list[str]:
+        """The wanted billing periods whose balance is missing or not yet settled."""
         return [month for month in wanted
-                if not is_settled(month, (entry["months"].get(month) or {}).get("fetched_at"))]
+                if not is_settled(month, ((entry["months"].get(month) or {}).get("balance") or {}).get("fetched_at"))]

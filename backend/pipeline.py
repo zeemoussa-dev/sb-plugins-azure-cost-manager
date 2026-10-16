@@ -1,0 +1,60 @@
+"""A customer's pipeline: its Opportunity notes, through the Entities plugin.
+
+The Entities plugin owns the `opportunity` Template and writes those notes; this
+plugin only asks, through the `entities.opportunities` service (contract in
+`PLAN.md`), at the moment it needs to -- plugins load in install order, so the
+service may not exist yet at `register`. Without it the pipeline is simply
+empty and says why; every other view works.
+"""
+from __future__ import annotations
+
+SERVICE = "entities.opportunities"
+# An opportunity that is still expected to land. Lost, disengaged and paused ones
+# add nothing to a forecast.
+COUNTED_STATUSES = {"Open", "Won"}
+
+
+class PipelineUnavailable(RuntimeError):
+    pass
+
+
+class Pipeline:
+    def __init__(self, api) -> None:
+        self._api = api
+
+    def _service(self):
+        service = self._api.get_service(SERVICE)
+        if service is None:
+            raise PipelineUnavailable("The pipeline needs the Entities plugin (1.1 or later), which owns "
+                                      "Opportunity notes. Install or update it to plan opportunities here.")
+        return service
+
+    def available(self) -> bool:
+        return self._api.get_service(SERVICE) is not None
+
+    def entity_customers(self) -> list[dict]:
+        return list(self._service().customers())
+
+    def opportunities(self, customer: dict) -> list[dict]:
+        if not customer.get("entity_customer"):
+            return []
+        return list(self._service().list_for_customer(customer["entity_customer"], include_affiliates=True))
+
+    def create(self, customer: dict, owner_stem: str, title: str, fields: dict, plan: list[dict]) -> dict:
+        if not customer.get("entity_customer"):
+            raise ValueError("link this customer to its Customer note before adding opportunities")
+        return self._service().create(owner_stem, title, fields, plan)
+
+    def update(self, opportunity_id: str, fields: dict, plan: list[dict] | None) -> dict:
+        return self._service().update(opportunity_id, fields, plan)
+
+
+def by_month(opportunities: list[dict]) -> dict[str, float]:
+    """The expected monthly $ of every opportunity still expected to land."""
+    totals: dict[str, float] = {}
+    for opportunity in opportunities:
+        if opportunity.get("status") not in COUNTED_STATUSES:
+            continue
+        for row in opportunity.get("plan") or []:
+            totals[row["month"]] = totals.get(row["month"], 0.0) + float(row.get("usd") or 0)
+    return totals

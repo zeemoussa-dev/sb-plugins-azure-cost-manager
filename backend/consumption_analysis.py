@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from . import months
+from . import categories, dashboard, forecasting, months
 
 TOP_SERVICES = 10
 BASELINE_MONTHS = 3
@@ -24,6 +24,12 @@ ANOMALY_MIN_SHARE_PCT = 2.0
 COST_KINDS = ("actual", "amortized")
 BREAKDOWNS = ("service", "subscription")
 
+# What a month's total counts. Marketplace burns a customer's MACC but not the
+# seller's quota, and a credit (e.g. a Contract Price Match Credit) lowers what
+# was billed -- so both are switches (operator, 2026-10-16). Including Marketplace
+# and subtracting credits is the partner export's "Total Consumption".
+DEFAULT_MEASURE = {"marketplace": True, "credits": True}
+
 
 def _pct(new: float, old: float) -> float | None:
     if not old:
@@ -35,17 +41,30 @@ def _add(into: dict[str, float], name: str, cost: float) -> None:
     into[name] = into.get(name, 0.0) + cost
 
 
+def _empty_month() -> dict:
+    return {**{kind: {"service": {}, "subscription": {}, "account": {}} for kind in COST_KINDS},
+            "meters": {},
+            "measured": {"usage": 0.0, "marketplace": 0.0, "credits": 0.0, "credit_details": {},
+                         "by_account": {}, "from_balance": 0}}
+
+
 def merge(entries: dict[str, dict], labels: dict[str, str] | None = None) -> tuple[dict, str | None]:
     """The customer's accounts as one: per month, per cost kind, spend by
-    `service`, `subscription` and `account` (the enrollment, labelled)."""
+    `service`, `subscription` and `account` (the enrollment, labelled); meter
+    detail; and the month's measured components.
+
+    An enrollment with a billing-period balance (EA) is measured by it -- usage,
+    Marketplace and credits, exactly as invoiced. One without is measured by its
+    Cost Management actual cost, which already holds any Marketplace and knows of
+    no credits, so for it the two switches change nothing."""
     labels = labels or {}
     merged: dict[str, dict] = {}
     currency = None
     for account, entry in entries.items():
+        label = labels.get(account, account)
         for month, data in (entry.get("months") or {}).items():
-            target = merged.setdefault(month, {kind: {"service": {}, "subscription": {}, "account": {}}
-                                               for kind in COST_KINDS})
-            currency = currency or data.get("currency")
+            target = merged.setdefault(month, _empty_month())
+            currency = currency or data.get("currency") or (data.get("balance") or {}).get("currency")
             for kind in COST_KINDS:
                 spend = data.get(kind) or {}
                 for key in BREAKDOWNS:
@@ -53,8 +72,30 @@ def merge(entries: dict[str, dict], labels: dict[str, str] | None = None) -> tup
                         _add(target[kind][key], name, cost)
                 total = sum((spend.get("service") or {}).values())
                 if total:
-                    _add(target[kind]["account"], labels.get(account, account), total)
+                    _add(target[kind]["account"], label, total)
+            for key, cost in (data.get("meters") or {}).items():
+                _add(target["meters"], key, cost)
+            balance = data.get("balance") or {}
+            if balance and not balance.get("missing"):
+                parts = {"usage": balance.get("usage", 0.0), "marketplace": balance.get("marketplace", 0.0),
+                         "credits": balance.get("credits", 0.0)}
+                target["measured"]["from_balance"] += 1
+                for detail in balance.get("credit_details") or []:
+                    _add(target["measured"]["credit_details"], detail.get("name") or "Credit", detail["value"])
+            else:
+                parts = {"usage": sum(((data.get("actual") or {}).get("service") or {}).values()),
+                         "marketplace": 0.0, "credits": 0.0}
+            for key, value in parts.items():
+                target["measured"][key] += value
+            if any(parts.values()):
+                target["measured"]["by_account"][label] = parts
     return merged, currency
+
+
+def measured_total(parts: dict, measure: dict | None = None) -> float:
+    measure = {**DEFAULT_MEASURE, **(measure or {})}
+    return (parts.get("usage", 0.0) + (parts.get("marketplace", 0.0) if measure["marketplace"] else 0.0)
+            - (parts.get("credits", 0.0) if measure["credits"] else 0.0))
 
 
 def merge_forecasts(entries: dict[str, dict]) -> list[dict] | None:
@@ -69,12 +110,20 @@ def _total(merged: dict, month: str, kind: str = "actual") -> float:
     return sum(((merged.get(month) or {}).get(kind) or {}).get("service", {}).values())
 
 
-def monthly_totals(merged: dict, current_month: str) -> list[dict]:
+def monthly_totals(merged: dict, current_month: str, measure: dict | None = None) -> list[dict]:
+    """Per month: `actual` is the measured total (what the dashboard means by
+    consumption), with its parts beside it and Cost Management's own figures."""
     trend, previous = [], None
     for month in sorted(merged):
-        actual, amortized = _total(merged, month), _total(merged, month, "amortized")
+        measured = merged[month].get("measured") or {"usage": _total(merged, month)}
+        actual = measured_total(measured, measure)
         partial = month >= current_month
-        trend.append({"month": month, "actual": round(actual, 2), "amortized": round(amortized, 2),
+        trend.append({"month": month, "actual": round(actual, 2),
+                      "amortized": round(_total(merged, month, "amortized"), 2),
+                      "cost_management": round(_total(merged, month), 2),
+                      "usage": round(measured.get("usage", 0.0), 2),
+                      "marketplace": round(measured.get("marketplace", 0.0), 2),
+                      "credits": round(measured.get("credits", 0.0), 2),
                       "mom_pct": None if partial or previous is None else _pct(actual, previous),
                       "partial": partial})
         if not partial:
@@ -139,15 +188,26 @@ def run_rate(trend: list[dict]) -> float | None:
     return round(sum(closed) / len(closed), 2) if closed else None
 
 
-def burn_down(commitment: dict | None, trend: list[dict], today: date) -> dict | None:
+def commitment_measure(commitment: dict) -> dict:
+    """What counts against the signed value: by default Marketplace burns the MACC
+    and a credit lowers what was billed against it."""
+    return {"marketplace": commitment.get("include_marketplace", True),
+            "credits": commitment.get("subtract_credits", True)}
+
+
+def burn_down(commitment: dict | None, trend: list[dict], today: date,
+              pipeline: dict[str, float] | None = None) -> dict | None:
     """Consumption since the term started against what the customer signed for:
-    where it stands, where an even pace would have it, and where the run rate
-    takes it by the end of the term."""
+    where it stands, where an even pace would have it, and where the run rate --
+    and the run rate plus the pipeline's ramps -- take it by the end of the term.
+    `trend` must be measured the commitment's way (`commitment_measure`)."""
     if not commitment:
         return None
     amount = float(commitment["amount"])
     start, end = date.fromisoformat(commitment["start"]), date.fromisoformat(commitment["end"])
     start_month, end_month = months.month_of(start), months.month_of(end)
+    pipeline_in_term = sum(usd for month, usd in (pipeline or {}).items()
+                           if months.month_of(today) <= month <= end_month)
     in_term = [month for month in trend if start_month <= month["month"] <= end_month]
     cumulative, running = [], 0.0
     for month in in_term:
@@ -174,6 +234,9 @@ def burn_down(commitment: dict | None, trend: list[dict], today: date) -> dict |
         "run_rate": rate,
         "projected_at_end": round(projected_at_end, 2),
         "projected_shortfall": round(max(0.0, amount - projected_at_end), 2),
+        "pipeline_in_term": round(pipeline_in_term, 2),
+        "projected_with_pipeline": round(projected_at_end + pipeline_in_term, 2),
+        "shortfall_with_pipeline": round(max(0.0, amount - projected_at_end - pipeline_in_term), 2),
         "projected_exhaustion": exhaustion if exhaustion and exhaustion <= end_month else None,
         "cumulative": cumulative,
         "verdict": ("Commitment consumed" if consumed >= amount
@@ -215,19 +278,35 @@ def forecast(trend: list[dict], azure_forecast: list[dict] | None, today: date) 
     }
 
 
+def gpu_and_ai(merged: dict, last: int = 13) -> list[dict]:
+    """The last `last` months' GPU and AI lines, by how they were bought."""
+    return [{"month": month, "lines": categories.detail(merged[month].get("meters") or {})}
+            for month in sorted(merged)[-last:]]
+
+
 def analyse(merged: dict, currency: str | None, commitment: dict | None,
-            azure_forecast: list[dict] | None, today: date) -> dict:
+            azure_forecast: list[dict] | None, today: date, measure: dict | None = None,
+            scenario: dict | None = None, pipeline: dict[str, float] | None = None) -> dict:
+    measure = {**DEFAULT_MEASURE, **(measure or {})}
     current_month = months.month_of(today)
-    trend = monthly_totals(merged, current_month)
+    trend = monthly_totals(merged, current_month, measure)
     last_closed = months.shift(current_month, -1)
+    burn = (burn_down(commitment, monthly_totals(merged, current_month, commitment_measure(commitment)),
+                      today, pipeline) if commitment else None)
+    automatic = forecasting.automatic(trend, today, pipeline)
     return {
         "currency": currency,
+        "measure": measure,
         "months": trend,
         "last_closed_month": last_closed,
         "top_services": breakdown(merged, last_closed, "service"),
         "subscriptions": breakdown(merged, last_closed, "subscription", limit=None),
         "enrollments": breakdown(merged, last_closed, "account", limit=None),
         "anomalies": anomalies(merged, last_closed),
-        "commitment": burn_down(commitment, trend, today),
+        "commitment": burn,
         "forecast": forecast(trend, azure_forecast, today),
+        "automatic_forecast": automatic,
+        "scenarios": forecasting.scenarios(trend, today, scenario, pipeline),
+        "gpu_and_ai": gpu_and_ai(merged),
+        "dashboard": dashboard.build(trend, merged, today, burn, automatic, measure),
     }

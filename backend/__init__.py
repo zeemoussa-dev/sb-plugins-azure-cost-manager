@@ -17,6 +17,7 @@ from .consumption_service import ConsumptionService
 from .consumption_store import DATA_FILES, ConsumptionStore
 from .consumption_sync import ConsumptionSync
 from .customers import AccountDirectory, CustomerBook
+from .pipeline import Pipeline
 from .routes import build_router
 
 
@@ -28,4 +29,6 @@ def register(api) -> None:
     directory = AccountDirectory(lambda: BillingClient(token).list_billing_accounts())
     book = CustomerBook(store, directory)
     sync = ConsumptionSync(store, directory, lambda: BillingClient(token))
-    api.register_router(build_router(ConsumptionService(store, book), book, directory, sync, token))
+    pipeline = Pipeline(api)
+    service = ConsumptionService(store, book, pipeline=pipeline)
+    api.register_router(build_router(service, book, directory, sync, token, pipeline))

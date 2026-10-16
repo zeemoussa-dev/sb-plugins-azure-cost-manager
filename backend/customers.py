@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
 from .consumption_store import ConsumptionStore, slug
+from .forecasting import DEFAULT_SCENARIO
 
 COMMITMENT_TYPES = ("MACC", "EA commitment", "Azure Prepayment", "Other")
 
@@ -90,7 +91,30 @@ def _valid_commitment(commitment: dict | None) -> dict | None:
     if end <= start:
         raise CustomerError("the term must end after it starts")
     return {"type": kind, "amount": amount, "currency": (commitment.get("currency") or "USD").upper(),
-            "start": start, "end": end, "note": (commitment.get("note") or "").strip()}
+            "start": start, "end": end, "note": (commitment.get("note") or "").strip(),
+            # Marketplace burns a MACC; a credit lowers what was billed against it.
+            "include_marketplace": bool(commitment.get("include_marketplace", True)),
+            "subtract_credits": bool(commitment.get("subtract_credits", True))}
+
+
+def _valid_scenario(settings: dict) -> dict:
+    growth = settings.get("growth") or {}
+    try:
+        cleaned_growth = {name: float(growth.get(name, default))
+                          for name, default in DEFAULT_SCENARIO["growth"].items()}
+        uplift = float(settings.get("uplift_usd") or 0)
+    except (TypeError, ValueError) as exc:
+        raise CustomerError("growth rates and the uplift must be numbers") from exc
+    if any(abs(rate) > 1 for rate in cleaned_growth.values()):
+        raise CustomerError("a monthly growth rate is a fraction, e.g. 0.02 for 2%")
+    active = settings.get("active") or "Base"
+    if active not in DEFAULT_SCENARIO["growth"]:
+        raise CustomerError("the active scenario must be Base, Upside or Downside")
+    uplift_from = settings.get("uplift_from") or None
+    if uplift_from and not re.fullmatch(r"\d{4}-\d{2}", uplift_from):
+        raise CustomerError("the uplift starts from a month, YYYY-MM")
+    return {"growth": cleaned_growth, "seasonality": bool(settings.get("seasonality", True)),
+            "active": active, "uplift_usd": uplift, "uplift_from": uplift_from}
 
 
 class CustomerBook:
@@ -136,14 +160,28 @@ class CustomerBook:
             customer_id, taken = slug(name), {customer["id"] for customer in customers}
             while customer_id in taken:
                 customer_id += "-2"
+        existing = next((customer for customer in customers if customer["id"] == customer_id), {})
         saved = {"id": customer_id, "name": name, "accounts": account_names,
-                 "commitment": _valid_commitment(submitted.get("commitment"))}
+                 "commitment": _valid_commitment(submitted.get("commitment")),
+                 # The Entities Customer hub this customer's Opportunity notes sit under.
+                 "entity_customer": (submitted["entity_customer"] or None) if "entity_customer" in submitted
+                 else existing.get("entity_customer"),
+                 "scenario": existing.get("scenario")}
         replaced = [saved if customer["id"] == customer_id else customer for customer in customers]
         if not any(customer["id"] == customer_id for customer in customers):
             replaced.append(saved)
         self._store.save_customers(replaced)
         self._forget_unused_accounts(replaced)
         return saved
+
+    def set_scenario(self, customer_id: str, settings: dict) -> dict:
+        customers = self._store.customers()
+        customer = next((candidate for candidate in customers if candidate["id"] == customer_id), None)
+        if customer is None:
+            raise CustomerError(f"no customer {customer_id!r}")
+        customer["scenario"] = _valid_scenario(settings)
+        self._store.save_customers(customers)
+        return customer["scenario"]
 
     def delete(self, customer_id: str) -> None:
         customers = [customer for customer in self._store.customers() if customer["id"] != customer_id]
