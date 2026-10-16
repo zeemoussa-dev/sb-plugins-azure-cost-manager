@@ -1,23 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchSyncStatus, startSync, type SyncStatus } from './client';
-import { errorText } from './format';
+import { errorText, formatMonth } from './format';
 
 const POLL_MS = 3000;
 
+function scopeLabel(scope: string | null, customerId?: string): string {
+  if (!scope || scope === 'all') return 'all customers';
+  return scope === customerId ? 'this customer' : `customer “${scope}”`;
+}
+
 /** Starts the background sync -- for one customer, or every one -- and follows
- *  it. The weekly Hermes job starts the same sync; this shows it either way. */
+ *  it. The weekly Hermes job starts the same sync; this shows it either way.
+ *
+ *  A sync takes minutes (Azure throttles, and every billing month is its own
+ *  call), so it is shown as a banner, and the page is refreshed each time an
+ *  enrollment finishes rather than only at the end -- a quiet line of grey text
+ *  read as a button that did nothing (operator, 2026-10-16). */
 export function SyncControl({ customerId, syncedAt, onSynced }: {
   customerId?: string; syncedAt?: string | null; onSynced: () => void;
 }) {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const wasRunning = useRef(false);
+  const accountsDone = useRef(0);
 
   const poll = useCallback(() => {
     fetchSyncStatus().then((next) => {
       setStatus(next);
-      if (wasRunning.current && !next.running) onSynced();
+      const finished = wasRunning.current && !next.running;
+      const enrollmentFinished = next.running && next.accounts_done > accountsDone.current;
+      if (finished || enrollmentFinished) onSynced();
       wasRunning.current = next.running;
+      accountsDone.current = next.running ? next.accounts_done : 0;
     }, (failure) => setError(errorText(failure)));
   }, [onSynced]);
 
@@ -35,31 +49,53 @@ export function SyncControl({ customerId, syncedAt, onSynced }: {
     setError(null);
     startSync(customerId).then((next) => {
       wasRunning.current = true;
+      accountsDone.current = 0;
       setStatus(next);
-      if (next.started === false && next.reason) setError(next.reason);
+      if (next.started === false && next.reason) {
+        setError(`${next.reason} (${scopeLabel(next.scope, customerId)}) — wait for it to finish, then sync again.`);
+      }
     }, (failure) => setError(errorText(failure)));
   }
 
   const running = status?.running;
   const current = status?.current;
+  const total = status?.accounts_total || 0;
+  const done = status?.accounts_done || 0;
+  const phase = current
+    ? current.balances
+      ? `reading the billing balance for ${formatMonth(current.first_month)}`
+      : `fetching ${formatMonth(current.first_month)}${current.last_month !== current.first_month ? ` to ${formatMonth(current.last_month)}` : ''}`
+    : 'starting';
+
   return (
-    <div className="azure-cost-toolbar">
-      <span className="text-muted">
-        {running
-          ? `Syncing ${status.accounts_done} of ${status.accounts_total || '?'} enrollments`
-            + (current ? ` — ${current.account}, ${current.first_month} to ${current.last_month}` : '')
-            + (current?.waiting_seconds ? ` (Azure asked to wait ${current.waiting_seconds}s)` : '')
-          : syncedAt ? `Synced ${new Date(syncedAt).toLocaleString()}` : 'Not synced yet'}
-      </span>
-      {!running && status?.errors.length ? (
-        <span className="azure-cost-warning" title={status.errors.map((e) => `${e.account ?? ''} ${e.message}`).join('\n')}>
-          last sync: {status.errors.length} problem{status.errors.length === 1 ? '' : 's'}
-        </span>
+    <>
+      {running ? (
+        <div className="azure-cost-sync-banner" role="status">
+          <strong>Syncing {scopeLabel(status.scope, customerId)}</strong>
+          <span>
+            Enrollment {Math.min(done + 1, total || 1)} of {total || '?'}{current ? ` (${current.account})` : ''}: {phase}
+            {current?.waiting_seconds ? ` — Azure asked to wait ${current.waiting_seconds}s` : ''}
+          </span>
+          <div className="azure-cost-sync-progress"><span style={{ width: `${total ? (done / total) * 100 : 5}%` }} /></div>
+          <span className="text-muted">
+            This takes a few minutes. The page fills in as each enrollment finishes; you can leave it and come back.
+          </span>
+        </div>
       ) : null}
-      {error ? <span className="azure-cost-warning">{error}</span> : null}
-      <button type="button" className="btn" onClick={start} disabled={running}>
-        {running ? 'Syncing…' : customerId ? 'Sync this customer' : 'Sync all customers'}
-      </button>
-    </div>
+      <div className="azure-cost-toolbar">
+        <span className="text-muted">
+          {running ? '' : syncedAt ? `Synced ${new Date(syncedAt).toLocaleString()}` : 'Not synced yet'}
+        </span>
+        {!running && status?.errors.length ? (
+          <span className="azure-cost-warning" title={status.errors.map((e) => `${e.account ?? ''} ${e.message}`).join('\n')}>
+            last sync: {status.errors.length} problem{status.errors.length === 1 ? '' : 's'}
+          </span>
+        ) : null}
+        {error ? <span className="azure-cost-warning">{error}</span> : null}
+        <button type="button" className="btn" onClick={start} disabled={running}>
+          {running ? 'Syncing…' : customerId ? 'Sync this customer' : 'Sync all customers'}
+        </button>
+      </div>
+    </>
   );
 }

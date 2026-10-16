@@ -233,6 +233,32 @@
   margin-bottom: var(--space-3);
 }
 
+.azure-cost-sync-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-3) 0;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-muted);
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-sync-progress {
+  height: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+.azure-cost-sync-progress span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 0.4s ease;
+}
+
 .azure-cost-check {
   display: inline-flex;
   align-items: center;

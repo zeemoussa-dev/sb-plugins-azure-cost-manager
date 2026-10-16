@@ -292,7 +292,11 @@ export interface SyncStatus {
   started_at: string | null;
   finished_at: string | null;
   scope: string | null;
-  current: { account: string; first_month: string; last_month: string; waiting_seconds?: number } | null;
+  current: {
+    account: string; first_month: string; last_month: string; waiting_seconds?: number;
+    /** Reading billing-period balances, one month per call, rather than cost. */
+    balances?: boolean;
+  } | null;
   accounts_done: number;
   accounts_total: number;
   errors: { account: string | null; message: string }[];

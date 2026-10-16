@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.3.3] - 2026-10-16
+
+- fix: **the Sync button looked like it did nothing** (operator, 2026-10-16). It started the sync, but the only sign was a line of grey text, and the page did not change until the whole sync ended -- minutes, since every billing month is its own call and Azure throttles. A sync now shows a banner with the customer, the enrollment and step it is on, any wait Azure asked for, and a progress bar; the page refreshes as each enrollment finishes; and a click while another sync runs says which one, instead of a silent no.
+
 ## [0.3.2] - 2026-10-16
 
 - fix: saving a customer whose name or accounts arrive in the wrong shape answers 400 with what is wrong, instead of failing with a 500 (seen live: a name sent as a list).
