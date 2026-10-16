@@ -107,19 +107,6 @@ def test_a_long_throttle_goes_back_to_the_operator():
     assert raised.value.retry_after_seconds == 300
 
 
-def test_macc_lots_are_read_as_original_and_remaining():
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert "ConsumptionCommitment" in request.url.params["$filter"]
-        return httpx.Response(200, json={"value": [{"properties": {
-            "originalAmount": {"value": 1000000, "currency": "USD"}, "closedBalance": {"value": 750000},
-            "startDate": "2025-07-01T00:00:00Z", "expirationDate": "2028-06-30T00:00:00Z", "status": "Active"}}]})
-
-    lots = client_answering(handler).consumption_commitment_lots("acct")
-
-    assert lots == [{"original": 1000000.0, "remaining": 750000.0, "currency": "USD",
-                     "start": "2025-07-01", "end": "2028-06-30", "status": "Active"}]
-
-
 def test_a_missing_sign_in_tells_the_operator_to_run_az_login():
     def run_az(arguments):
         return subprocess.CompletedProcess(arguments, 1, "", "ERROR: Please run 'az login' to setup account.")

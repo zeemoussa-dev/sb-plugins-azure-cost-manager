@@ -1,5 +1,10 @@
-"""Tracking and refreshing, against a fake Azure: a settled month is never asked
-for twice, and a missing commitment or forecast does not fail a refresh."""
+"""Customers and the sync, against a fake Azure.
+
+Worth pinning: related enrollments are suggested together, a signed value is
+validated, the sync never asks for a settled month twice, saves per window so a
+stopped sync resumes, waits out throttling instead of failing, and reading a
+customer never calls Azure.
+"""
 from __future__ import annotations
 
 import json
@@ -8,104 +13,187 @@ from datetime import date, datetime, timezone
 import pytest
 
 from backend import register
-from backend.billing_client import AzureApiError
-from backend.consumption_service import AccountNotTracked, ConsumptionService
-from backend.consumption_store import CONSUMPTION_CACHE_FILE, ConsumptionStore
+from backend.billing_client import AzureApiError, AzureThrottled
+from backend.consumption_service import ConsumptionService
+from backend.consumption_store import (CONSUMPTION_CACHE_FILE, CUSTOMERS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
+                                       ConsumptionStore)
+from backend.consumption_sync import ConsumptionSync, _windows
+from backend.customers import AccountDirectory, CustomerBook, CustomerError, group_key
 from conftest import cost_row
+
+TODAY = date(2026, 10, 16)
+NOW = datetime(2026, 10, 16, 9, tzinfo=timezone.utc)
+
+ACCOUNTS = [
+    {"name": "10000001", "display_name": "Contoso Oil", "agreement_type": "EnterpriseAgreement",
+     "term_start": "2026-01-15", "term_end": "2028-09-30"},
+    {"name": "10000002", "display_name": "Contoso Oil-10000001-PrivateSaaS", "agreement_type": "EnterpriseAgreement",
+     "term_start": "2026-06-01", "term_end": "2028-09-30"},
+    {"name": "20000001", "display_name": "Fabrikam Energy", "agreement_type": "EnterpriseAgreement",
+     "term_start": "2024-10-24", "term_end": "2027-10-31"},
+    {"name": "20000002", "display_name": "Fabrikam  Energy", "agreement_type": "EnterpriseAgreement",
+     "term_start": "2026-03-09", "term_end": "2029-03-31"},
+]
 
 
 class FakeAzure:
-    def __init__(self, agreement_type="MicrosoftCustomerAgreement") -> None:
-        self.agreement_type = agreement_type
+    def __init__(self) -> None:
         self.queries: list[tuple] = []
-        self.forecast_fails = False
+        self.throttle_next = 0
+        self.fail_windows: set[str] = set()
 
     def list_billing_accounts(self):
-        return [{"name": "acct-1", "display_name": "Contoso Ltd", "agreement_type": self.agreement_type,
-                 "account_type": "Enterprise"}]
+        return [dict(account) for account in ACCOUNTS]
 
     def query_monthly_cost(self, account_name, cost_type, first_month, last_month):
-        self.queries.append((cost_type, first_month, last_month))
-        return [cost_row("2026-09", 900), cost_row("2026-10", 300)]
+        if self.throttle_next:
+            self.throttle_next -= 1
+            raise AzureThrottled(42)
+        if first_month in self.fail_windows:
+            raise AzureApiError(500, "boom")
+        self.queries.append((account_name, cost_type, first_month, last_month))
+        return [cost_row("2026-09", 900, "VM", "Prod"), cost_row("2026-09", 100, "Storage", "Dev"),
+                cost_row("2026-10", 300, "VM", "Prod")]
 
     def forecast_monthly(self, account_name, first_month, last_month):
-        if self.forecast_fails:
-            raise AzureApiError(400, "Forecast is not supported for this scope")
         return [{"month": "2026-11", "cost": 950}]
 
-    def consumption_commitment_lots(self, account_name):
-        return []
 
-    def enterprise_agreement_balance(self, account_name):
-        raise AzureApiError(403, "no access to balances")
-
-
-def service_on(fake_api, azure, today=date(2026, 10, 16),
-               now=datetime(2026, 10, 16, 9, tzinfo=timezone.utc)) -> ConsumptionService:
-    return ConsumptionService(ConsumptionStore(fake_api), lambda: azure, today=lambda: today, now=lambda: now)
+def build(fake_api, azure, now=NOW):
+    store = ConsumptionStore(fake_api)
+    directory = AccountDirectory(azure.list_billing_accounts, now=lambda: now)
+    book = CustomerBook(store, directory)
+    waits: list[float] = []
+    sync = ConsumptionSync(store, directory, lambda: azure, today=lambda: TODAY, now=lambda: now, sleep=waits.append)
+    service = ConsumptionService(store, book, today=lambda: TODAY, now=lambda: now)
+    return store, book, sync, service, waits
 
 
 def test_register_declares_its_data_files_and_one_router(fake_api):
     register(fake_api)
 
-    assert len(fake_api.seed_data_files) == 2
+    assert CUSTOMERS_FILE in fake_api.seed_data_files
     assert len(fake_api.routers) == 1
 
 
-def test_only_accounts_the_sign_in_can_see_can_be_tracked(fake_api):
-    service = service_on(fake_api, FakeAzure())
+def test_renewals_and_linked_enrollments_are_suggested_together():
+    by_name = {account["name"]: account for account in ACCOUNTS}
+    keys = {account["name"]: group_key(account, by_name) for account in ACCOUNTS}
 
-    with pytest.raises(AccountNotTracked):
-        service.set_tracked(["someone-else"])
-    tracked = service.set_tracked(["acct-1"])
-
-    assert tracked[0]["display_name"] == "Contoso Ltd"
-    assert tracked[0]["stale"] is True
+    assert keys["10000001"] == keys["10000002"] == "contoso oil"
+    assert keys["20000001"] == keys["20000002"] == "fabrikam energy"
 
 
-def test_a_settled_month_is_not_queried_again(fake_api):
+def test_a_signed_value_needs_an_amount_and_a_term(fake_api):
+    _, book, *_ = build(fake_api, FakeAzure())
+
+    with pytest.raises(CustomerError, match="term"):
+        book.save(None, {"name": "Fabrikam", "accounts": ["20000001"],
+                         "commitment": {"type": "MACC", "amount": 1_000_000}})
+    with pytest.raises(CustomerError, match="see"):
+        book.save(None, {"name": "Fabrikam", "accounts": ["nope"]})
+
+    saved = book.save(None, {"name": "Fabrikam", "accounts": ["20000001", "20000002"],
+                             "commitment": {"type": "MACC", "amount": "3000000", "currency": "usd",
+                                            "start": "2024-10-24", "end": "2027-10-31"}})
+
+    assert saved["id"] == "fabrikam"
+    assert saved["commitment"]["amount"] == 3_000_000.0
+    assert saved["commitment"]["currency"] == "USD"
+
+
+def test_tracked_accounts_from_0_1_are_carried_over_as_customers(fake_api):
+    fake_api.files[LEGACY_TRACKED_ACCOUNTS_FILE] = json.dumps(
+        {"accounts": [{"name": "20000001", "display_name": "Fabrikam Energy"}]})
+    store, *_ = build(fake_api, FakeAzure())
+
+    assert store.customers() == [{"id": "fabrikam-energy", "name": "Fabrikam Energy",
+                                  "accounts": ["20000001"], "commitment": None}]
+
+
+def test_history_reaches_back_to_the_term_start_in_windows_of_a_year(fake_api):
     azure = FakeAzure()
-    service_on(fake_api, azure).set_tracked(["acct-1"])
-    service_on(fake_api, azure).refresh("acct-1")
-    assert azure.queries[0][1:] == ("2025-11", "2026-10")
+    _, book, sync, *_ = build(fake_api, azure)
+    book.save(None, {"name": "Fabrikam", "accounts": ["20000001"]})
 
-    later = datetime(2026, 10, 20, tzinfo=timezone.utc)
-    service_on(fake_api, azure, now=later).refresh("acct-1")
+    sync.run()
+
+    windows = sorted({(first, last) for _, _, first, last in azure.queries})
+    assert windows == [("2024-10", "2025-09"), ("2025-10", "2026-09"), ("2026-10", "2026-10")]
+
+
+def test_a_settled_month_is_never_asked_for_again(fake_api):
+    azure = FakeAzure()
+    _, book, sync, *_ = build(fake_api, azure)
+    book.save(None, {"name": "Contoso", "accounts": ["10000002"]})
+    sync.run()
+    azure.queries.clear()
+
+    later = datetime(2026, 10, 23, tzinfo=timezone.utc)
+    _, _, sync_later, *_ = build(fake_api, azure, now=later)
+    sync_later.run()
 
     # Fetched on 16 Oct, September had settled (30 Sep + 5 days); only October is asked for.
-    assert azure.queries[-1][1:] == ("2026-10", "2026-10")
+    assert {(first, last) for _, _, first, last in azure.queries} == {("2026-10", "2026-10")}
 
 
-def test_a_failing_forecast_or_commitment_is_reported_not_fatal(fake_api):
-    azure = FakeAzure(agreement_type="EnterpriseAgreement")
-    azure.forecast_fails = True
-    service = service_on(fake_api, azure)
-    service.set_tracked(["acct-1"])
-
-    result = service.refresh("acct-1")
-
-    assert set(result["errors"]) == {"forecast", "commitment"}
-    assert result["forecast"]["source"] == "run-rate"
-    assert result["months"][-1] == {"month": "2026-10", "actual": 300.0, "amortized": 300.0,
-                                    "mom_pct": None, "partial": True}
-
-
-def test_untracking_an_account_drops_its_cache(fake_api):
+def test_throttling_is_waited_out_not_failed(fake_api):
     azure = FakeAzure()
-    service = service_on(fake_api, azure)
-    service.set_tracked(["acct-1"])
-    service.refresh("acct-1")
+    azure.throttle_next = 2
+    _, book, sync, _, waits = build(fake_api, azure)
+    book.save(None, {"name": "Contoso", "accounts": ["10000002"]})
 
-    service.set_tracked([])
+    sync.run()
+
+    assert waits == [43, 43]
+    assert azure.queries
+
+
+def test_a_failed_window_is_reported_and_the_rest_still_saved(fake_api):
+    azure = FakeAzure()
+    azure.fail_windows = {"2024-10"}
+    store, book, sync, *_ = build(fake_api, azure)
+    book.save(None, {"name": "Fabrikam", "accounts": ["20000001"]})
+
+    sync.run()
+
+    entry = store.account("20000001")
+    assert "2024-10..2025-09" in entry["errors"]
+    assert "2024-10" not in entry["months"]
+    assert entry["months"]["2026-09"]["actual"]["service"] == {"VM": 900, "Storage": 100}
+    assert sync.status()["errors"]
+
+
+def test_reading_a_customer_never_calls_azure_and_merges_its_enrollments(fake_api):
+    azure = FakeAzure()
+    _, book, sync, service, _ = build(fake_api, azure)
+    book.save(None, {"name": "Fabrikam", "accounts": ["20000001", "20000002"]})
+    sync.run()
+    azure.queries.clear()
+
+    result = service.analysis("fabrikam")
+    by_enrollment = service.consumption("fabrikam", "2026-09", "2026-09", "account", "actual")
+
+    assert azure.queries == []
+    assert result["months"][-2] == {"month": "2026-09", "actual": 2000.0, "amortized": 2000.0,
+                                    "mom_pct": None, "partial": False}
+    assert {row["name"] for row in by_enrollment["rows"]} == {"Fabrikam Energy (20000001)",
+                                                              "Fabrikam  Energy (20000002)"}
+    assert result["forecast"]["months"][1] == {"month": "2026-11", "cost": 1900, "source": "azure"}
+
+
+def test_removing_a_customer_drops_its_local_data(fake_api):
+    _, book, sync, *_ = build(fake_api, FakeAzure())
+    book.save(None, {"name": "Contoso", "accounts": ["10000002"]})
+    sync.run()
+
+    book.delete("contoso")
 
     assert json.loads(fake_api.files[CONSUMPTION_CACHE_FILE])["accounts"] == {}
 
 
-def test_consumption_groups_by_subscription(fake_api):
-    service = service_on(fake_api, FakeAzure())
-    service.set_tracked(["acct-1"])
-    service.refresh("acct-1")
+def test_windows_split_on_gaps_and_at_twelve_months():
+    wanted = [f"2025-{m:02d}" for m in range(1, 13)] + ["2026-01", "2026-03"]
 
-    result = service.consumption("acct-1", "2026-09", "2026-09", "subscription", "actual")
-
-    assert result["rows"] == [{"month": "2026-09", "subscription": "Prod", "cost": 900.0}]
+    assert [(w[0], w[-1]) for w in _windows(wanted)] == [("2025-01", "2025-12"), ("2026-01", "2026-01"),
+                                                         ("2026-03", "2026-03")]

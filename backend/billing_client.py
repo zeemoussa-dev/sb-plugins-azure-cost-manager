@@ -1,4 +1,4 @@
-"""The Azure Billing, Cost Management and Consumption calls -- raw I/O only.
+"""The Azure Billing and Cost Management calls -- raw I/O only.
 
 Responses are normalised into plain rows here and nothing else: what a number
 means (a trend, a burn-down) is `consumption_analysis`'s business.
@@ -19,13 +19,11 @@ API_ROOT = "https://management.azure.com"
 # 2024-04-01), and 2020-05-01 also returns each enrollment's term.
 BILLING_API = "2020-05-01"
 COST_MANAGEMENT_API = "2023-11-01"
-CONSUMPTION_API = "2023-05-01"
 
-# Cost Management throttles per scope and says how long to wait. A twelve-month
-# query costs about twelve of the scope's query units, and a refresh makes two, so
-# on a large EA enrollment the second is routinely told to wait 15-45 seconds
-# (seen live 2026-10-16). A refresh is something the operator clicked and is
-# watching, so waits up to a minute are absorbed; longer goes back to them.
+# Cost Management throttles per sign-in and says how long to wait. A twelve-month
+# query costs about twelve query units, so back-to-back queries are routinely told
+# to wait 15-45 seconds (seen live 2026-10-16). Waits up to a minute are absorbed
+# here; a longer one raises `AzureThrottled`, which the sync waits out itself.
 _LONGEST_INLINE_WAIT_SECONDS = 60
 _ATTEMPTS = 4
 
@@ -207,36 +205,3 @@ class BillingClient:
         for row in self._cost_rows(page.get("properties") or {}):
             totals[row["month"]] = totals.get(row["month"], 0.0) + row["cost"]
         return [{"month": month, "cost": cost} for month, cost in sorted(totals.items())]
-
-    def enterprise_agreement_balance(self, account_name: str) -> dict:
-        """The current billing period's Azure Prepayment (monetary commitment)."""
-        url = f"{billing_account_scope(account_name)}/providers/Microsoft.Consumption/balances"
-        properties = self._request("GET", url, params={"api-version": CONSUMPTION_API}).get("properties") or {}
-        return {
-            "beginning_balance": float(properties.get("beginningBalance") or 0),
-            "new_purchases": float(properties.get("newPurchases") or 0),
-            "utilized": float(properties.get("utilized") or 0),
-            "ending_balance": float(properties.get("endingBalance") or 0),
-            "service_overage": float(properties.get("serviceOverage") or 0),
-            "currency": properties.get("currency"),
-        }
-
-    def consumption_commitment_lots(self, account_name: str) -> list[dict]:
-        """The MACC lots on a Microsoft Customer Agreement."""
-        url = f"{billing_account_scope(account_name)}/providers/Microsoft.Consumption/lots"
-        lots = self._get_all(url, {"api-version": CONSUMPTION_API,
-                                   "$filter": "source eq 'ConsumptionCommitment'"})
-        normalised = []
-        for lot in lots:
-            properties = lot.get("properties") or {}
-            original = properties.get("originalAmount") or {}
-            remaining = properties.get("closedBalance") or {}
-            normalised.append({
-                "original": float(original.get("value") or 0),
-                "remaining": float(remaining.get("value") or 0),
-                "currency": original.get("currency"),
-                "start": _day(properties.get("startDate")),
-                "end": _day(properties.get("expirationDate")),
-                "status": properties.get("status"),
-            })
-        return normalised

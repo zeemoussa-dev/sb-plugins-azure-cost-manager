@@ -1,41 +1,55 @@
 """What the screen says about a customer's consumption.
 
-Worth pinning: the partial current month is never evidence, an anomaly must be
-both sharp and material, and a burn-down's verdict follows the run rate.
+Worth pinning: a customer's enrollments read as one (a renewal is not a drop to
+zero), the partial current month is never evidence, an anomaly must be both
+sharp and material, and the burn-down measures consumption since the signed
+term began against the signed value.
 """
 from __future__ import annotations
 
 from datetime import date
 
 from backend import consumption_analysis as analysis
-from conftest import cost_row
 
 TODAY = date(2026, 10, 16)
 
 
-def months_of(costs: dict[str, list[dict]]) -> dict:
-    return {month: {"fetched_at": "2026-10-16T00:00:00+00:00", "actual": rows, "amortized": rows}
-            for month, rows in costs.items()}
+def month(service: dict[str, float], subscription: dict[str, float] | None = None) -> dict:
+    spend = {"service": service, "subscription": subscription or {"Prod": sum(service.values())}}
+    return {"fetched_at": "2026-10-16T00:00:00+00:00", "currency": "USD", "actual": spend, "amortized": spend}
+
+
+def merged(entries: dict) -> dict:
+    return analysis.merge(entries)[0]
+
+
+def test_a_renewal_reads_as_one_customer_not_a_drop_to_zero():
+    old = {"months": {"2026-02": month({"VM": 600}), "2026-03": month({"VM": 200}), "2026-04": month({})}}
+    new = {"months": {"2026-03": month({"VM": 400}), "2026-04": month({"VM": 610})}}
+
+    combined, currency = analysis.merge({"20000001": old, "20000002": new})
+    trend = analysis.monthly_totals(combined, "2026-10")
+
+    assert [m["actual"] for m in trend] == [600, 600, 610]
+    assert currency == "USD"
+    assert combined["2026-03"]["actual"]["account"] == {"20000001": 200, "20000002": 400}
 
 
 def test_trend_reports_month_over_month_and_marks_the_current_month_partial():
-    cached = months_of({"2026-08": [cost_row("2026-08", 100)],
-                        "2026-09": [cost_row("2026-09", 150)],
-                        "2026-10": [cost_row("2026-10", 40)]})
+    combined = merged({"a": {"months": {"2026-08": month({"VM": 100}), "2026-09": month({"VM": 150}),
+                                        "2026-10": month({"VM": 40})}}})
 
-    trend = analysis.monthly_totals(cached, "2026-10")
+    trend = analysis.monthly_totals(combined, "2026-10")
 
     assert [m["mom_pct"] for m in trend] == [None, 50.0, None]
     assert [m["partial"] for m in trend] == [False, False, True]
 
 
 def test_breakdown_ranks_by_cost_and_compares_with_the_month_before():
-    cached = months_of({
-        "2026-08": [cost_row("2026-08", 50, "Storage")],
-        "2026-09": [cost_row("2026-09", 300, "Virtual Machines"), cost_row("2026-09", 100, "Storage")],
-    })
+    combined = merged({"a": {"months": {"2026-08": month({"Storage": 50}),
+                                        "2026-09": month({"Virtual Machines": 300, "Storage": 100})}}})
 
-    result = analysis.breakdown(cached, "2026-09", "service")
+    result = analysis.breakdown(combined, "2026-09", "service")
 
     assert [row["name"] for row in result["rows"]] == ["Virtual Machines", "Storage"]
     assert result["rows"][1]["change_pct"] == 100.0
@@ -43,65 +57,57 @@ def test_breakdown_ranks_by_cost_and_compares_with_the_month_before():
 
 
 def test_an_anomaly_must_be_sharp_and_material():
-    steady = [cost_row(m, 1000, "Virtual Machines") for m in ("2026-06", "2026-07", "2026-08")]
-    cached = months_of({
-        "2026-06": [steady[0], cost_row("2026-06", 2, "DNS"), cost_row("2026-06", 400, "SQL")],
-        "2026-07": [steady[1], cost_row("2026-07", 2, "DNS"), cost_row("2026-07", 400, "SQL")],
-        "2026-08": [steady[2], cost_row("2026-08", 2, "DNS"), cost_row("2026-08", 400, "SQL")],
-        "2026-09": [cost_row("2026-09", 2500, "Virtual Machines"),   # spike
-                    cost_row("2026-09", 9, "DNS"),                     # sharp, not material
-                    cost_row("2026-09", 100, "SQL"),                   # drop
-                    cost_row("2026-09", 300, "Azure OpenAI")],         # new
-    })
+    steady = {"Virtual Machines": 1000, "DNS": 2, "SQL": 400}
+    combined = merged({"a": {"months": {
+        "2026-06": month(steady), "2026-07": month(steady), "2026-08": month(steady),
+        "2026-09": month({"Virtual Machines": 2500, "DNS": 9, "SQL": 100, "Azure OpenAI": 300}),
+    }}})
 
-    found = {a["service"]: a["kind"] for a in analysis.anomalies(cached, "2026-09")}
+    found = {a["service"]: a["kind"] for a in analysis.anomalies(combined, "2026-09")}
 
     assert found == {"Virtual Machines": "spike", "SQL": "drop", "Azure OpenAI": "new"}
 
 
-def test_macc_burn_down_projects_a_shortfall_when_the_run_rate_is_too_low():
-    trend = [{"month": m, "actual": 10_000, "partial": False} for m in ("2026-07", "2026-08", "2026-09")]
-    commitment = {"kind": "macc", "lots": [{"original": 1_000_000, "remaining": 900_000, "currency": "USD",
-                                            "start": "2025-07-01", "end": "2027-06-30", "status": "Active"}]}
+def commitment(amount=1_200_000, start="2025-10-01", end="2027-09-30"):
+    return {"type": "MACC", "amount": amount, "currency": "USD", "start": start, "end": end, "note": ""}
 
-    result = analysis.burn_down(commitment, trend, TODAY)
+
+def test_burn_down_counts_only_consumption_since_the_term_started():
+    trend = [{"month": "2025-09", "actual": 99_999, "partial": False},
+             {"month": "2025-10", "actual": 40_000, "partial": False},
+             {"month": "2025-11", "actual": 60_000, "partial": False}]
+
+    result = analysis.burn_down(commitment(), trend, date(2025, 12, 1))
 
     assert result["consumed"] == 100_000
-    assert result["consumed_pct"] == 10.0
-    assert result["run_rate"] == 10_000
+    assert [point["consumed"] for point in result["cumulative"]] == [40_000, 100_000]
+
+
+def test_burn_down_projects_a_shortfall_when_the_run_rate_is_too_low():
+    trend = [{"month": m, "actual": 30_000, "partial": False}
+             for m in ("2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
+                       "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09")]
+
+    result = analysis.burn_down(commitment(), trend, TODAY)
+
+    assert result["consumed"] == 360_000
+    assert result["consumed_pct"] == 30.0
+    assert result["pace_gap"] < 0  # behind an even pace over the two-year term
     assert result["projected_shortfall"] > 0
     assert result["verdict"] == "Shortfall projected at the end of the term"
 
 
-def test_macc_burn_down_on_track_when_the_run_rate_covers_the_remainder():
-    trend = [{"month": m, "actual": 100_000, "partial": False} for m in ("2026-07", "2026-08", "2026-09")]
-    commitment = {"kind": "macc", "lots": [{"original": 1_000_000, "remaining": 500_000, "currency": "USD",
-                                            "start": "2025-07-01", "end": "2027-06-30", "status": "Active"}]}
+def test_burn_down_on_track_when_the_run_rate_covers_the_remainder():
+    trend = [{"month": m, "actual": 80_000, "partial": False}
+             for m in ("2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
+                       "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09")]
 
-    result = analysis.burn_down(commitment, trend, TODAY)
+    result = analysis.burn_down(commitment(), trend, TODAY)
 
+    assert result["remaining"] == 240_000
     assert result["projected_shortfall"] == 0
-    assert result["projected_exhaustion"] == "2027-03"
-
-
-def test_ea_burn_down_reads_the_prepayment_balance():
-    trend = [{"month": "2026-09", "actual": 20_000, "partial": False}]
-    commitment = {"kind": "ea-prepayment", "balance": {"beginning_balance": 100_000, "new_purchases": 20_000,
-                                                       "ending_balance": 60_000, "currency": "EUR"}}
-
-    result = analysis.burn_down(commitment, trend, TODAY)
-
-    assert (result["original"], result["consumed"], result["remaining"]) == (120_000, 60_000, 60_000)
     assert result["projected_exhaustion"] == "2027-01"
-
-
-def test_an_enrollment_without_prepayment_has_no_commitment_rather_than_a_consumed_one():
-    trend = [{"month": "2026-09", "actual": 8_000, "partial": False}]
-    commitment = {"kind": "ea-prepayment", "start": "2022-04-14", "end": "2027-04-30",
-                  "balance": {"beginning_balance": 0, "new_purchases": 0, "ending_balance": 0,
-                              "service_overage": 8_644.46, "currency": "USD"}}
-
-    assert analysis.burn_down(commitment, trend, TODAY) is None
+    assert result["verdict"] == "On track to consume the commitment within the term"
 
 
 def test_forecast_prefers_azure_and_adds_what_is_already_billed_this_month():
@@ -118,10 +124,9 @@ def test_forecast_prefers_azure_and_adds_what_is_already_billed_this_month():
     assert result["year_end_total"] == 900 + 900 + 950 + 900
 
 
-def test_forecast_without_azure_falls_back_to_the_run_rate():
-    trend = [{"month": m, "actual": 300, "partial": False} for m in ("2026-07", "2026-08", "2026-09")]
+def test_forecasts_of_a_customers_enrollments_are_summed():
+    entries = {"a": {"forecast": [{"month": "2026-11", "cost": 10}]},
+               "b": {"forecast": [{"month": "2026-11", "cost": 5}, {"month": "2026-12", "cost": 7}]},
+               "stopped": {"forecast": None}}
 
-    result = analysis.forecast(trend, None, TODAY)
-
-    assert result["source"] == "run-rate"
-    assert [m["cost"] for m in result["months"]] == [300, 300, 300]
+    assert analysis.merge_forecasts(entries) == [{"month": "2026-11", "cost": 15}, {"month": "2026-12", "cost": 7}]

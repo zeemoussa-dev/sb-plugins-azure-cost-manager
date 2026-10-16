@@ -1,20 +1,30 @@
-"""This plugin's two data files, through the Plugin API's `api.data`.
+"""This plugin's local data, through the Plugin API's `api.data`.
 
-`Tracked-Accounts.json` is the operator's choice of billing accounts.
-`Consumption-Cache.json` holds the rows Azure returned, per account per month,
-with when each month was fetched -- so a month Azure has finished settling is
-never queried again (Cost Management throttles per scope).
+`Customers.json` is the operator's own: each customer is a named group of
+billing accounts (enrollments) with the value they signed for.
+`Consumption-Cache.json` is what the sync brought back from Azure, per account
+per month: spend by service and by subscription, actual and amortized, as
+name -> cost maps, with when each month was fetched -- so a month Azure has
+finished settling is never asked for again.
+
+The cache is held in memory once read and written through: the sync writes it
+from a background thread while pages read it, and a reader must never see a
+half-written file.
 """
 from __future__ import annotations
 
 import json
+import re
+import threading
 from datetime import datetime, timedelta
 
 from . import months
 
-TRACKED_ACCOUNTS_FILE = "Azure-Cost-Manager/Tracked-Accounts.json"
+CUSTOMERS_FILE = "Azure-Cost-Manager/Customers.json"
 CONSUMPTION_CACHE_FILE = "Azure-Cost-Manager/Consumption-Cache.json"
-DATA_FILES = (TRACKED_ACCOUNTS_FILE, CONSUMPTION_CACHE_FILE)
+# 0.1.x tracked single accounts; read once to carry them over as customers.
+LEGACY_TRACKED_ACCOUNTS_FILE = "Azure-Cost-Manager/Tracked-Accounts.json"
+DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, LEGACY_TRACKED_ACCOUNTS_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -35,7 +45,7 @@ def _read_json(api, path: str, empty):
 
 
 def _write_json(api, path: str, value) -> None:
-    api.data.write_text(path, json.dumps(value, indent=2, sort_keys=True))
+    api.data.write_text(path, json.dumps(value, indent=1, sort_keys=True))
 
 
 def is_settled(month: str, fetched_at: str | None) -> bool:
@@ -45,44 +55,80 @@ def is_settled(month: str, fetched_at: str | None) -> bool:
     return fetched_on >= months.last_day(month) + timedelta(days=SETTLING_DAYS)
 
 
+def slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "customer"
+
+
 class ConsumptionStore:
     def __init__(self, api) -> None:
         self._api = api
+        self._lock = threading.RLock()
+        self._cache: dict | None = None
 
-    def tracked_accounts(self) -> list[dict]:
-        return list(_read_json(self._api, TRACKED_ACCOUNTS_FILE, {"accounts": []}).get("accounts") or [])
+    # -- customers --------------------------------------------------------
 
-    def save_tracked_accounts(self, accounts: list[dict]) -> None:
-        _write_json(self._api, TRACKED_ACCOUNTS_FILE, {"accounts": accounts})
+    def customers(self) -> list[dict]:
+        with self._lock:
+            stored = _read_json(self._api, CUSTOMERS_FILE, None)
+            if stored is None:
+                return self._carried_over_from_tracked_accounts()
+            return list(stored.get("customers") or [])
 
-    def tracked_account(self, account_name: str) -> dict | None:
-        return next((account for account in self.tracked_accounts()
-                     if account["name"] == account_name), None)
+    def _carried_over_from_tracked_accounts(self) -> list[dict]:
+        tracked = _read_json(self._api, LEGACY_TRACKED_ACCOUNTS_FILE, {"accounts": []}).get("accounts") or []
+        customers, taken = [], set()
+        for account in tracked:
+            customer_id = slug(account.get("display_name") or account["name"])
+            while customer_id in taken:
+                customer_id += "-2"
+            taken.add(customer_id)
+            customers.append({"id": customer_id, "name": account.get("display_name") or account["name"],
+                              "accounts": [account["name"]], "commitment": None})
+        if customers:
+            self.save_customers(customers)
+        return customers
 
-    def _cache(self) -> dict:
-        return _read_json(self._api, CONSUMPTION_CACHE_FILE, {"accounts": {}})
+    def save_customers(self, customers: list[dict]) -> None:
+        with self._lock:
+            _write_json(self._api, CUSTOMERS_FILE, {"customers": customers})
 
-    def cached(self, account_name: str) -> dict:
-        """`{months: {YYYY-MM: {fetched_at, actual, amortized}}, commitment, forecast, fetched_at, errors}`."""
-        return self._cache()["accounts"].get(account_name) or {"months": {}}
+    def customer(self, customer_id: str) -> dict | None:
+        return next((customer for customer in self.customers() if customer["id"] == customer_id), None)
 
-    def save_cached(self, account_name: str, entry: dict) -> None:
-        cache = self._cache()
-        cache["accounts"][account_name] = entry
-        _write_json(self._api, CONSUMPTION_CACHE_FILE, cache)
+    # -- consumption cache --------------------------------------------------
 
-    def forget_untracked(self, tracked_names: set[str]) -> None:
-        cache = self._cache()
-        kept = {name: entry for name, entry in cache["accounts"].items() if name in tracked_names}
-        if len(kept) != len(cache["accounts"]):
-            _write_json(self._api, CONSUMPTION_CACHE_FILE, {"accounts": kept})
+    def _loaded(self) -> dict:
+        if self._cache is None:
+            self._cache = _read_json(self._api, CONSUMPTION_CACHE_FILE, {"accounts": {}})
+            self._cache.setdefault("accounts", {})
+        return self._cache
+
+    def account(self, account_name: str) -> dict:
+        """`{months: {YYYY-MM: {fetched_at, currency, actual: {service: {}, subscription: {}},
+        amortized: {...}}}, forecast, synced_at, errors}` -- a deep copy."""
+        with self._lock:
+            entry = json.loads(json.dumps(self._loaded()["accounts"].get(account_name) or {"months": {}}))
+        # 0.1.x cached raw row lists; such a month is dropped, so the sync fetches it again.
+        entry["months"] = {month: data for month, data in (entry.get("months") or {}).items()
+                           if isinstance(data.get("actual"), dict)}
+        return entry
+
+    def save_account(self, account_name: str, entry: dict) -> None:
+        with self._lock:
+            self._loaded()["accounts"][account_name] = entry
+            _write_json(self._api, CONSUMPTION_CACHE_FILE, self._cache)
+
+    def forget_accounts_except(self, kept: set[str]) -> None:
+        with self._lock:
+            cache = self._loaded()
+            dropped = [name for name in cache["accounts"] if name not in kept]
+            for name in dropped:
+                del cache["accounts"][name]
+            if dropped:
+                _write_json(self._api, CONSUMPTION_CACHE_FILE, cache)
 
     @staticmethod
     def months_to_fetch(entry: dict, wanted: list[str]) -> list[str]:
-        """The wanted months that are missing or not yet settled, as one
-        contiguous run ending at the last wanted month -- one query, not many."""
-        unsettled = [month for month in wanted
-                     if not is_settled(month, (entry["months"].get(month) or {}).get("fetched_at"))]
-        if not unsettled:
-            return []
-        return months.span(min(unsettled), wanted[-1])
+        """The wanted months that are missing or not yet settled, oldest first."""
+        return [month for month in wanted
+                if not is_settled(month, (entry["months"].get(month) or {}).get("fetched_at"))]
