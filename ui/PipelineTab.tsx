@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SeriesChart } from './charts';
 import {
-  createAffiliateNote, createOpportunity, fetchEntityCustomers, saveCustomer, updateOpportunity,
+  createAffiliateNote, createOpportunity, fetchEntityCustomers, findHub, flattenHubs, saveCustomer, updateOpportunity,
   type Analysis, type EntityCustomer, type Opportunity, type PlanMonth,
 } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
@@ -151,6 +151,27 @@ function Editor({ analysis, owners, initial, onDone }: {
   );
 }
 
+/** The link picker's options: Customers, then Partners, each with its affiliates
+ *  indented under it at any depth. */
+export function HubOptions({ hubs }: { hubs: EntityCustomer[] }) {
+  const groups: [string, EntityCustomer[]][] = [
+    ['Customers', hubs.filter((hub) => (hub.kind ?? 'customer') === 'customer')],
+    ['Partners', hubs.filter((hub) => hub.kind === 'partner')]];
+  return (
+    <>
+      {groups.filter(([, members]) => members.length).map(([label, members]) => (
+        <optgroup key={label} label={label}>
+          {flattenHubs(members).map(({ hub, depth, parent }) => (
+            <option key={hub.stem} value={hub.stem}>
+              {depth ? `${'   '.repeat(depth)}↳ ${hub.name} (affiliate of ${parent?.name})` : hub.name}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+}
+
 function LinkCustomer({ analysis, onLinked }: { analysis: Analysis; onLinked: () => void }) {
   const [customers, setCustomers] = useState<EntityCustomer[]>([]);
   const [chosen, setChosen] = useState('');
@@ -174,7 +195,7 @@ function LinkCustomer({ analysis, onLinked }: { analysis: Analysis; onLinked: ()
       (failure) => setError(errorText(failure)));
   }
 
-  const parentHub = parentNote ? customers.find((customer) => customer.stem === parentNote) : undefined;
+  const parentHub = parentNote ? findHub(customers, parentNote) : undefined;
   return (
     <section className="card azure-cost-card">
       <h3>Link to the Customer note</h3>
@@ -184,13 +205,8 @@ function LinkCustomer({ analysis, onLinked }: { analysis: Analysis; onLinked: ()
       </p>
       <div className="azure-cost-toolbar">
         <select value={chosen} onChange={(event) => setChosen(event.target.value)} className="azure-cost-picker">
-          <option value="">Choose a Customer or affiliate note…</option>
-          {customers.flatMap((customer) => [
-            <option key={customer.stem} value={customer.stem}>{customer.name}</option>,
-            ...customer.affiliates.map((affiliate) => (
-              <option key={affiliate.stem} value={affiliate.stem}>{`   ↳ ${affiliate.name} (affiliate of ${customer.name})`}</option>
-            )),
-          ])}
+          <option value="">Choose a Customer, Partner or affiliate note…</option>
+          <HubOptions hubs={customers} />
         </select>
         <button type="button" className="btn" onClick={() => link(chosen)} disabled={!chosen}>Link</button>
       </div>
@@ -229,9 +245,10 @@ export function PipelineTab({ analysis, onChanged }: { analysis: Analysis; onCha
   useEffect(() => {
     if (!linked) return;
     fetchEntityCustomers().then((result) => {
-      const customer = result.customers.find((candidate) => candidate.stem === linked);
-      setOwners(customer ? [{ stem: customer.stem, name: customer.name },
-        ...customer.affiliates.map((affiliate) => ({ stem: affiliate.stem, name: `${affiliate.name} (affiliate)` }))]
+      const customer = findHub(result.customers, linked);
+      // Opportunities can sit under the linked note or any of its affiliates, at any depth.
+      setOwners(customer ? flattenHubs([customer]).map(({ hub, depth }) =>
+        ({ stem: hub.stem, name: depth ? `${hub.name} (affiliate)` : hub.name }))
         : [{ stem: linked, name: linked }]);
     }, () => setOwners([{ stem: linked, name: linked }]));
   }, [linked]);

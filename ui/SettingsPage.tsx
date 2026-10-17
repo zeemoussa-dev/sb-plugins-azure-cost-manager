@@ -3,11 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import {
   deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, fetchUnassigned,
-  saveCustomer, type BillingAccount, type Commitment, type Customer, type EntityCustomer, type UnassignedGroup,
+  findHub, saveCustomer, type BillingAccount, type Commitment, type Customer, type EntityCustomer, type UnassignedGroup,
 } from './client';
 import { agreementLabel, errorText, formatMoney, formatMonth, grouped } from './format';
 import { usePluginReturn } from '../../pluginHost/breadcrumbs';
 import { PLUGIN_ID } from './ReportsHome';
+import { HubOptions } from './PipelineTab';
 import { SyncControl } from './SyncControl';
 
 const SHOWN_WHILE_SEARCHING = 60;
@@ -161,7 +162,7 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
       <p className="text-muted azure-cost-note">
         What the customer committed to over the term. Azure does not report it for indirect agreements.{' '}
         {commitmentsOnNotes && value.entity_customer
-          ? <>Kept on the Customer note <strong>{entityCustomers?.find((customer) => customer.stem === value.entity_customer)?.name ?? value.entity_customer}</strong> in the vault, as its <code>macc_</code> properties: you can edit it there in Obsidian too.</>
+          ? <>Kept on the note <strong>{(entityCustomers ? findHub(entityCustomers, value.entity_customer)?.name : null) ?? value.entity_customer}</strong> in the vault, as its <code>macc_</code> properties: you can edit it there in Obsidian too.</>
           : commitmentsOnNotes
             ? 'Kept in these settings until the customer is linked to its Customer note below; it then moves to the note.'
             : ''}
@@ -214,17 +215,18 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
                onChange={(event) => setValue({ ...value, budget_monthly: event.target.value })} />
       </label>
 
-      <h4>Customer note</h4>
+      <h4>Customer or Partner note</h4>
       <p className="text-muted azure-cost-note">
-        The Customer note in the vault whose Opportunities (its affiliates' included) are this customer's pipeline.
+        The note in the vault -- a Customer, a Partner, or one of their affiliates -- whose Opportunities (its affiliates'
+        included) are this customer's pipeline, and which keeps its signed value.
       </p>
       {entityCustomers === null ? (
-        <p className="text-muted azure-cost-note">The Entities plugin (1.1 or later) is needed to link a Customer note.</p>
+        <p className="text-muted azure-cost-note">The Entities plugin (1.1 or later) is needed to link a note.</p>
       ) : (
         <select value={value.entity_customer} onChange={(event) => setValue({ ...value, entity_customer: event.target.value })}
                 className="azure-cost-picker">
           <option value="">Not linked</option>
-          {entityCustomers.map((customer) => <option key={customer.stem} value={customer.stem}>{customer.name}</option>)}
+          <HubOptions hubs={entityCustomers} />
         </select>
       )}
 

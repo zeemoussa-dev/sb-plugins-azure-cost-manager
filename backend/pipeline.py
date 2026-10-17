@@ -33,7 +33,13 @@ class Pipeline:
         return self._api.get_service(SERVICE) is not None
 
     def entity_customers(self) -> list[dict]:
-        return list(self._service().customers())
+        """The notes a customer can be linked to. Entities 1.5 adds Partners (and
+        affiliates at any depth) through `hubs()`, each with a `kind`; before it,
+        Customers only."""
+        service = self._service()
+        if hasattr(service, "hubs"):
+            return list(service.hubs())
+        return [{**customer, "kind": "customer"} for customer in service.customers()]
 
     def opportunities(self, customer: dict) -> list[dict]:
         if not customer.get("entity_customer"):

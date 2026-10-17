@@ -79,11 +79,24 @@ export interface PipelineState {
   by_month: Record<string, number>;
 }
 
+/** A note a customer can be linked to: a Customer or (Entities 1.5+) a Partner,
+ *  with its affiliates nested to any depth. */
 export interface EntityCustomer {
   name: string;
   stem: string;
   tag: string;
-  affiliates: { name: string; stem: string; tag: string }[];
+  kind?: 'customer' | 'partner';
+  affiliates: EntityCustomer[];
+}
+
+/** Every note in a hub tree, parents before their affiliates, with its depth. */
+export function flattenHubs(hubs: EntityCustomer[], depth = 0, parent: EntityCustomer | null = null):
+  { hub: EntityCustomer; depth: number; parent: EntityCustomer | null }[] {
+  return hubs.flatMap((hub) => [{ hub, depth, parent }, ...flattenHubs(hub.affiliates ?? [], depth + 1, hub)]);
+}
+
+export function findHub(hubs: EntityCustomer[], stem: string): EntityCustomer | undefined {
+  return flattenHubs(hubs).find((entry) => entry.hub.stem === stem)?.hub;
 }
 
 export interface CustomerAccount {
