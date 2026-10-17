@@ -22,6 +22,14 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from . import categories
+from .office_theme import THEME_XML
+
+
+def _workbook() -> Workbook:
+    """A workbook on the operator's theme, so charts and fonts default to its colours."""
+    workbook = Workbook()
+    workbook.loaded_theme = THEME_XML.encode("utf8")
+    return workbook
 
 # -- the operator's workbook palette and formats ------------------------------
 FONT = "Aptos Narrow"
@@ -714,12 +722,18 @@ def _credits(workbook: Workbook, analysis: dict) -> None:
            {0: MONTH, 2: MONEY_CENTS})
 
 
+def _period_text(period: dict) -> str:
+    if not period.get("first") or not period.get("last"):
+        return "No Marketplace data synced"
+    return f"{'From ' if period.get('from_start') else ''}{period['first']} to {period['last']}"
+
+
 def _marketplace_sheet(workbook: Workbook, report: dict) -> None:
     """One customer's partner solutions: what each cost by month, whether it counts
     toward the MACC, and the solutions adopted at no charge."""
-    first, last = report["period"]["first"], report["period"]["last"]
+    covered = _period_text(report["period"])
     sheet = _new_sheet(workbook, "Marketplace", "Marketplace – partner solutions",
-                       f"{first} to {last}  ·  every Marketplace dollar counts toward the MACC unless its offer is "
+                       f"{covered}  ·  every Marketplace dollar counts toward the MACC unless its offer is "
                        "marked not eligible in the plugin", tab=NAVY)
     _widths(sheet, {"A": 30, "B": 44, "C": 30, "D": 14, "E": 16, "F": 16, "G": 12, "H": 40})
     row = 4
@@ -762,10 +776,10 @@ def _marketplace_sheet(workbook: Workbook, report: dict) -> None:
 
 def build_marketplace(report: dict, today: date) -> bytes:
     """Every partner solution across every customer, styled like the operator's workbook."""
-    workbook = Workbook()
-    first, last = report["period"]["first"], report["period"]["last"]
+    workbook = _workbook()
+    covered = _period_text(report["period"])
     sheet = _new_sheet(workbook, "Marketplace Summary", "Azure Marketplace – all customers",
-                       f"{first} to {last}  ·  exported {today.isoformat()}  ·  every dollar counts toward the "
+                       f"{covered}  ·  exported {today.isoformat()}  ·  every dollar counts toward the "
                        "customer's MACC unless its offer is marked not eligible", tab=NAVY, sheet=workbook.active)
     sheet.sheet_view.zoomScale = 115
     _widths(sheet, {"A": 40, "B": 18, "C": 18, "D": 14, "E": 40})
@@ -836,7 +850,7 @@ def build_marketplace(report: dict, today: date) -> bytes:
 
 
 def build(customer: dict, analysis: dict, merged: dict, today: date, entries: dict[str, dict] | None = None) -> bytes:
-    workbook = Workbook()
+    workbook = _workbook()
     _dashboard(workbook, customer, analysis, merged, today)
     _forecast_auto(workbook, analysis, today)
     _forecast_scenarios(workbook, analysis)

@@ -5,7 +5,7 @@ import { useUrlFilters } from '../../pluginHost/state';
 import { SeriesChart } from './charts';
 import { fetchMarketplaceAcross, marketplaceExportPath, type MarketplaceAcross } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
-import { MaccSwitch, PERIODS, PeriodPicker, periodRange, type Period } from './MarketplaceTab';
+import { MaccSwitch, PERIODS, PeriodPicker, periodRange, periodText, type Period } from './MarketplaceTab';
 
 /** Every partner solution across every customer: who bought what, what it is
  *  worth, and how much of it burns the customers' MACCs. */
@@ -50,7 +50,7 @@ export function MarketplacePage() {
           <div className="azure-cost-kpis">
             <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Marketplace, all customers</span>
               <strong>{formatMoney(report.total, currency)}</strong>
-              <span className="azure-cost-kpi-detail">{formatMonth(report.period.first)} – {formatMonth(report.period.last)}</span></div>
+              <span className="azure-cost-kpi-detail">{periodText(report.period)}</span></div>
             <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Toward customers' MACCs</span>
               <strong>{formatMoney(report.macc, currency)}</strong>
               {report.not_macc ? <span className="azure-cost-kpi-detail">{formatMoney(report.not_macc, currency)} excluded</span> : null}</div>

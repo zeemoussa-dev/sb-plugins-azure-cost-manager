@@ -5,15 +5,22 @@ import { SeriesChart, type Series } from './charts';
 import { fetchCustomerMarketplace, setMaccEligible, type MarketplaceReport, type MarketplaceSolution } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 
-export const PERIODS = ['12m', 'ytd', 'all'] as const;
+export const PERIODS = ['12m', 'ytd', 'start'] as const;
 export type Period = typeof PERIODS[number];
-export const PERIOD_LABELS: Record<Period, string> = { '12m': 'Last 12 months', ytd: 'This year', all: 'All synced' };
+export const PERIOD_LABELS: Record<Period, string> = { '12m': 'Last 12 months', ytd: 'This year', start: 'From the start' };
 
 export function periodRange(period: Period): { first?: string; last?: string } {
   const now = new Date();
   if (period === 'ytd') return { first: `${now.getFullYear()}-01` };
-  if (period === 'all') return { first: '2000-01' };
+  // Everything synced; the report names the first month it actually has.
+  if (period === 'start') return { first: 'start' };
   return {};
+}
+
+/** "Jan 2024 – Oct 2026", and say so when it runs from the first month on record. */
+export function periodText(period: { first: string | null; last: string | null; from_start?: boolean }): string {
+  if (!period.first || !period.last) return 'no Marketplace data synced';
+  return `${period.from_start ? 'from ' : ''}${formatMonth(period.first)} – ${formatMonth(period.last)}`;
 }
 
 export function PeriodPicker({ period, onChange }: { period: Period; onChange: (period: Period) => void }) {
@@ -129,7 +136,7 @@ export function MarketplaceTab({ customerId, currency, syncedVersion }: {
       <div className="azure-cost-kpis">
         <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Marketplace</span>
           <strong>{formatMoney(report.total, currency)}</strong>
-          <span className="azure-cost-kpi-detail">{formatMonth(report.period.first)} – {formatMonth(report.period.last)}</span></div>
+          <span className="azure-cost-kpi-detail">{periodText(report.period)}</span></div>
         <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Toward the MACC</span>
           <strong>{formatMoney(report.macc, currency)}</strong>
           {report.not_macc ? <span className="azure-cost-kpi-detail">{formatMoney(report.not_macc, currency)} excluded</span> : null}</div>

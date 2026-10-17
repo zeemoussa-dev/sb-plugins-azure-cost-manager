@@ -57,8 +57,12 @@ class ConsumptionService:
     def _not_eligible(self) -> set[str]:
         return marketplace.not_eligible_keys(self._store.not_macc_eligible())
 
-    def _period(self, first: str | None, last: str | None) -> tuple[str, str]:
+    def _period(self, first: str | None, last: str | None) -> tuple[str | None, str]:
+        """The last twelve months unless asked otherwise; `first="start"` is everything
+        synced, from the first month there is data for."""
         default_first, default_last = marketplace.default_period(self._today().strftime("%Y-%m"))
+        if first == "start":
+            return None, last or default_last
         return first or default_first, last or default_last
 
     def marketplace(self, customer_id: str, first: str | None = None, last: str | None = None) -> dict:
@@ -193,7 +197,7 @@ class ConsumptionService:
         merged, _, entries = self._merged(analysis["customer"])
         # A parent's workbook covers its affiliates' enrollments too.
         exported = {**analysis["customer"], "accounts": analysis["group"]["accounts"]}
-        analysis = {**analysis, "marketplace": self.marketplace(customer_id, None, None)}
+        analysis = {**analysis, "marketplace": self.marketplace(customer_id, "start", None)}
         workbook = export_xlsx.build(exported, analysis, merged, self._today(), entries)
         return f"Azure consumption - {analysis['customer']['name']} - {self._today().isoformat()}.xlsx", workbook
 

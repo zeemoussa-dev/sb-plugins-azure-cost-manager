@@ -25,6 +25,13 @@ def _in_period(month: str, first: str | None, last: str | None) -> bool:
     return (not first or month >= first) and (not last or month <= last)
 
 
+def _covered(seen: set[str], first: str | None, last: str | None) -> dict:
+    """The period a report covers. With no lower bound ("from the start") it is the
+    first month that has any Marketplace data, never an invented date."""
+    return {"first": first or (min(seen) if seen else None), "last": last or (max(seen) if seen else None),
+            "from_start": first is None}
+
+
 def _items(entries: dict[str, dict], first: str | None, last: str | None):
     """`(account, month, item)` for every Marketplace item in the period."""
     for account, entry in entries.items():
@@ -38,7 +45,9 @@ def customer_report(entries: dict[str, dict], labels: dict[str, str], not_eligib
                     first: str | None = None, last: str | None = None) -> dict:
     solutions: dict[tuple, dict] = {}
     monthly: dict[str, dict] = {}
+    seen: set[str] = set()
     for account, month, item in _items(entries, first, last):
+        seen.add(month)
         key = (item["publisher"], item["offer"], item["plan"])
         counted = offer_key(item["publisher"], item["offer"]) not in not_eligible
         solution = solutions.setdefault(key, {
@@ -85,7 +94,7 @@ def customer_report(entries: dict[str, dict], labels: dict[str, str], not_eligib
     total = sum(row["total"] for row in month_rows)
     macc = sum(row["macc"] for row in month_rows)
     return {
-        "period": {"first": first, "last": last},
+        "period": _covered(seen, first, last),
         "total": round(total, 2), "macc": round(macc, 2), "not_macc": round(total - macc, 2),
         "solutions": billed, "adopted": adopted,
         "publishers": sorted(({**p, "total": round(p["total"], 2), "macc": round(p["macc"], 2)}
@@ -116,17 +125,19 @@ def across_customers(customers: list[tuple[dict, dict[str, dict]]], not_eligible
     """Every partner solution across every customer. Each enrollment is counted
     once, under the customer it belongs to, so a group and its affiliates do not
     double-count."""
+    seen_accounts: set[str] = set()
     seen: set[str] = set()
     solutions: dict[tuple, dict] = {}
     by_customer: dict[str, dict] = {}
     monthly: dict[str, dict] = {}
     for customer, entries in customers:
-        own = {account: entry for account, entry in entries.items() if account not in seen}
-        seen |= set(own)
+        own = {account: entry for account, entry in entries.items() if account not in seen_accounts}
+        seen_accounts |= set(own)
         record = by_customer.setdefault(customer["id"], {"id": customer["id"], "name": customer["name"],
                                                          "parent": customer.get("parent"), "total": 0.0,
                                                          "macc": 0.0, "solutions": set(), "publishers": {}})
         for _, month, item in _items(own, first, last):
+            seen.add(month)
             counted = offer_key(item["publisher"], item["offer"]) not in not_eligible
             key = (item["publisher"], item["offer"])
             solution = solutions.setdefault(key, {"publisher": item["publisher"], "offer": item["offer"],
@@ -175,7 +186,7 @@ def across_customers(customers: list[tuple[dict, dict[str, dict]]], not_eligible
     total = sum(row["total"] for row in monthly.values())
     macc = sum(row["macc"] for row in monthly.values())
     return {
-        "period": {"first": first, "last": last},
+        "period": _covered(seen, first, last),
         "total": round(total, 2), "macc": round(macc, 2), "not_macc": round(total - macc, 2),
         "solutions": solution_rows,
         "publishers": sorted(({"publisher": p["publisher"], "total": round(p["total"], 2), "macc": round(p["macc"], 2),

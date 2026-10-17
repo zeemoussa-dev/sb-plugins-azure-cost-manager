@@ -343,9 +343,16 @@ export interface MarketplaceSolution {
   last_month: string;
 }
 
+export interface MarketplacePeriod {
+  first: string | null;
+  last: string | null;
+  /** True when the report runs from the first month on record. */
+  from_start: boolean;
+}
+
 export interface MarketplaceReport {
   customer: { id: string; name: string };
-  period: { first: string; last: string };
+  period: MarketplacePeriod;
   total: number;
   macc: number;
   not_macc: number;
@@ -357,7 +364,7 @@ export interface MarketplaceReport {
 }
 
 export interface MarketplaceAcross {
-  period: { first: string; last: string };
+  period: MarketplacePeriod;
   total: number;
   macc: number;
   not_macc: number;

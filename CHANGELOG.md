@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.5.1] - 2026-10-17
+
+- fix: **the exported charts now take the operator's workbook colours** (operator, 2026-10-17: "The Report Charts Colors are Not Matching the Template"). Every chart colours its series from the workbook theme, and openpyxl writes the 2007 Office theme (Calibri; #4F81BD, #C0504D …) while the operator's workbook is on the current one (Aptos; #156082, #E97132, #196B24, #0F9ED5 …). Both exports now carry that theme (`backend/office_theme.py`, Excel's stock theme, no content of its own).
+- feat: **Marketplace from the start** (operator: "see all the Marketplace from start till now"). The period picker's last option is "From the start": everything synced, and the report names the first month it actually has data for instead of an invented date. A customer workbook's Marketplace sheet always runs from the start.
+
 ## [0.5.0] - 2026-10-17
 
 - feat: **Marketplace** (operator, 2026-10-17: Marketplace consumption per customer, which partner solutions they bought, and what it gives in all MACCs). The sync reads each EA billing period's Marketplace charges -- publisher, offer, plan, subscription, metered or SaaS -- which Cost Management cannot name at this scope; they match the invoiced Marketplace, and a month that does not is reported. Every Marketplace dollar counts toward the MACC unless its offer is marked not eligible (Azure does not say which are); one switch per offer, for every customer, and the burn-downs respect it. A **Marketplace tab** per customer (solutions bought, by month and publisher, toward MACC or not, and solutions adopted at no charge -- free plans, trials, models billed elsewhere), a **Marketplace page across all customers** (each partner solution, who bought it, revenue and MACC-counted revenue, by publisher, customer and month; a group's affiliates are not double-counted), a Marketplace sheet in each customer's workbook, and a cross-customer Marketplace workbook.

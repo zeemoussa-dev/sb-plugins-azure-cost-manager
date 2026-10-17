@@ -64,6 +64,16 @@ def test_a_customer_report_lists_solutions_adopted_ones_and_what_counts():
     assert report["reconciliation"] == []
 
 
+def test_from_the_start_names_the_first_month_on_record():
+    entries = {"1": {"months": {"2024-03": month([item("Northwind", "Linux", 10)]),
+                                "2026-09": month([item("Northwind", "Linux", 20)])}}}
+
+    report = marketplace.customer_report(entries, {}, set(), None, "2026-10")
+
+    assert report["period"] == {"first": "2024-03", "last": "2026-10", "from_start": True}
+    assert report["total"] == 30
+
+
 def test_a_month_whose_charges_disagree_with_the_invoice_is_reported():
     entries = {"1": {"months": {"2026-09": month([item("Northwind", "Linux", 200)], marketplace_invoiced=350)}}}
 
@@ -119,3 +129,19 @@ def test_the_marketplace_reaches_both_exports(fake_api):
     assert "Linux" in values and "no" in values
     assert across.sheetnames == ["Marketplace Summary", "Solutions", "Solution x Customer"]
     assert service.marketplace_across()["not_macc"] == 4500
+    # The customer workbook's Marketplace sheet runs from the first month on record.
+    assert sheet["A2"].value.startswith("From 2026-01 to 2026-10")
+
+
+def test_exports_carry_the_operators_theme_so_charts_take_its_colours(fake_api):
+    import zipfile
+
+    from backend import export_xlsx
+
+    data = export_xlsx.build_marketplace({"period": {"first": "2026-01", "last": "2026-09", "from_start": False},
+                                          "total": 0, "macc": 0, "not_macc": 0, "solutions": [], "publishers": [],
+                                          "customers": [], "monthly": []}, TODAY)
+    theme = zipfile.ZipFile(io.BytesIO(data)).read("xl/theme/theme1.xml").decode("utf8")
+
+    assert "156082" in theme and "E97132" in theme   # accent1 and accent2 of the operator's workbook
+    assert "Aptos" in theme and "4F81BD" not in theme  # not openpyxl's 2007 default
