@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing
+from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing, tags
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -271,6 +271,34 @@ class ConsumptionService:
                          "budget": found["budget"]})
         return sorted(rows, key=lambda row: (-row["candidates_monthly"], row["name"].lower()))
 
+    def _tags_of(self, customer: dict) -> dict:
+        merged, currency, entries = self._merged(customer)
+        totals = {month: sum(((data.get("actual") or {}).get("service") or {}).values())
+                  for month, data in merged.items()}
+        return {"customer": {"id": customer["id"], "name": customer["name"]},
+                "currency": (currency or "").strip() or None,
+                "synced": any((entry.get("tags") or {}).get("keys_fetched_at") for entry in entries.values()),
+                **tags.report(entries, totals, months.month_of(self._today()))}
+
+    def tags(self, customer_id: str) -> dict:
+        """A customer's cost by business tag -- Environment, Project, Application,
+        Business unit, Owner, Cost centre -- with coverage and the spellings behind
+        each. Nothing here is internal: the Customer view shows it all."""
+        return self._tags_of(self._customer(customer_id))
+
+    def tags_across(self) -> list[dict]:
+        """Every top-level customer's tag coverage, per dimension, last closed month."""
+        rows = []
+        for customer in self._book.list():
+            if customer.get("parent"):
+                continue
+            found = self._tags_of(customer)
+            rows.append({"id": customer["id"], "name": customer["name"], "synced": found["synced"],
+                         "tag_keys": found["tag_keys"],
+                         "coverage": {item["dimension"]: item["coverage_pct"] for item in found["dimensions"]},
+                         "spellings": {item["dimension"]: len(item["all_spellings"]) for item in found["dimensions"]}})
+        return sorted(rows, key=lambda row: row["name"].lower())
+
     def finops_digest(self, top: int = 5) -> dict:
         """The week's FinOps in a few lines, for a Hermes job to send: who is over
         budget, and where the largest savings are. Text, not a page."""
@@ -377,7 +405,8 @@ class ConsumptionService:
         to the customer: everything but the forecast scenarios (operator, 2026-10-17)."""
         if view not in VIEWS:
             raise ValueError("view is account or customer")
-        analysis = {**self.analysis(customer_id, measure), "finops": self.finops(customer_id)}
+        analysis = {**self.analysis(customer_id, measure), "finops": self.finops(customer_id),
+                    "tags": self.tags(customer_id)}
         if view == "customer":
             analysis = {**analysis, "customer_view": True, "scenarios": None}
         merged, _, entries = self._merged(analysis["customer"])

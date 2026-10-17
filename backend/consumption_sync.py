@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import months
+from . import months, tags
 from .billing_client import COST_TYPES, AzureApiError, AzureThrottled, BillingClient
-from .consumption_store import ConsumptionStore
+from .consumption_store import ConsumptionStore, is_settled
 from .customers import AccountDirectory
 
 WINDOW_MONTHS = 12
@@ -29,6 +29,10 @@ THROTTLE_WAITS_PER_QUERY = 12
 # FinOps reads a year of closed months plus the current one; amortized meter
 # detail older than that would cost queries and be read by nothing.
 FINOPS_MONTHS = 13
+# Cost by tag: the last six closed months and the current one. Each tag spelling is
+# a query on the throttling budget, so it reaches no further back than its reports read.
+TAG_MONTHS = 6
+TAG_KEYS_FRESH_FOR = timedelta(days=7)
 ENTERPRISE_AGREEMENT = "EnterpriseAgreement"
 
 
@@ -132,11 +136,27 @@ class ConsumptionSync:
                          name="azure-cost-manager-sync").start()
         return {"started": True, **self.status()}
 
+    def start_tags(self, customer_id: str | None = None) -> dict:
+        """Cost by tag only, in the background -- without waiting for a full sync."""
+        with self._lock:
+            if self._status["running"]:
+                return {"started": False, "reason": "a sync is already running", **self._status}
+            self._status.update(running=True, started_at=self._now().isoformat(), finished_at=None,
+                                scope=f"{customer_id or 'all'}:tags", current=None, accounts_done=0,
+                                accounts_total=0, errors=[])
+        threading.Thread(target=self._run_and_finish, args=(customer_id, "tags"), daemon=True,
+                         name="azure-cost-manager-tags").start()
+        return {"started": True, **self.status()}
+
     def _run_and_finish(self, customer_id: str | None, profiles: str = "none") -> None:
         try:
+            if profiles == "tags":
+                self.run_tags(customer_id)
+                return
             if profiles != "only":
                 self.run(customer_id)
                 self._price_candidates()
+                self.run_tags(customer_id)
             if profiles != "none":
                 self.run_profiles()
         except Exception as exc:  # the thread must always clear `running`
@@ -144,6 +164,60 @@ class ConsumptionSync:
         finally:
             with self._lock:
                 self._status.update(running=False, current=None, finished_at=self._now().isoformat())
+
+    def run_tags(self, customer_id: str | None = None) -> None:
+        """Cost by tag for the customers' enrollments: each enrollment's tag keys
+        (weekly), then, per business dimension, one query per spelling it uses, for
+        the months FinOps reads. A settled month is never fetched again."""
+        everyone = self._customers()
+        customers = [customer for customer in everyone if not customer_id
+                     or customer["id"] == customer_id or customer.get("parent") == customer_id]
+        accounts = sorted({name for customer in customers for name in customer["accounts"]})
+        self._set(accounts_done=0, accounts_total=len(accounts))
+        client = self._client_factory()
+        wanted = months.span(months.shift(months.month_of(self._today()), -TAG_MONTHS), months.month_of(self._today()))
+        for done, account in enumerate(accounts, start=1):
+            self._sync_account_tags(client, account, wanted)
+            self._set(accounts_done=done)
+
+    def _sync_account_tags(self, client: BillingClient, account: str, wanted: list[str]) -> None:
+        entry = self._store.account(account)
+        state = entry.setdefault("tags", {})
+        self._set(current={**self._named(account), "tags": True})
+        fetched = state.get("keys_fetched_at")
+        if not fetched or self._now() - datetime.fromisoformat(fetched) > TAG_KEYS_FRESH_FOR:
+            try:
+                state["keys"] = self._query(lambda: client.list_tag_keys(account), account)
+                state["keys_fetched_at"] = self._now().isoformat()
+            except AzureApiError as exc:
+                self._record_error(account, f"tag keys: {exc}")
+                return
+        by_key = state.setdefault("by_key", {})
+        for dimension, keys in tags.spellings(state.get("keys") or []).items():
+            for key in keys:
+                spelled = by_key.setdefault(key, {"dimension": dimension, "months": {}, "fetched": {}})
+                spelled["dimension"] = dimension
+                pending = [month for month in wanted
+                           if not is_settled(month, (spelled.get("fetched") or {}).get(month))]
+                for window in _windows(pending):
+                    self._set(current={**self._named(account), "tags": True, "tag": key,
+                                       "first_month": window[0], "last_month": window[-1]})
+                    try:
+                        rows = self._query(lambda: client.query_monthly_by_tag(account, key, window[0], window[-1]),
+                                           account)
+                    except AzureApiError as exc:
+                        self._record_error(account, f"tag {key} {window[0]}..{window[-1]}: {exc}")
+                        continue
+                    fetched_at = self._now().isoformat()
+                    for month in window:
+                        values: dict[str, float] = {}
+                        for row in rows:
+                            if row["month"] == month:
+                                values[row["value"]] = round(values.get(row["value"], 0.0) + row["cost"], 2)
+                        spelled["months"][month] = values
+                        spelled["fetched"][month] = fetched_at
+                    self._store.save_account(account, entry)
+        self._store.save_account(account, entry)
 
     def _price_candidates(self) -> None:
         if not self._after_customers:

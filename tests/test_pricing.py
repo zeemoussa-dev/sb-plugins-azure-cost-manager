@@ -86,3 +86,19 @@ def test_a_candidate_gets_a_saving_per_option_or_says_why_not():
     assert priced[0]["savings"] == {"sp_1y": 2_500, "ri_3y": 6_000}
     assert "next phase" in priced[1]["not_priced"]
     assert "next sync" in priced[2]["not_priced"]
+
+
+def test_a_rate_limited_query_waits_and_tries_again():
+    calls: list[int] = []
+    waits: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(429, headers={"Retry-After": "1"})
+        return httpx.Response(200, text=json.dumps({"Items": LINUX, "NextPageLink": None}))
+
+    prices = pricing.RetailPrices(transport=httpx.MockTransport(handler), sleep=waits.append)
+
+    assert len(prices.items("productName eq 'x'")) == len(LINUX)
+    assert waits == [1.0, 1.0]

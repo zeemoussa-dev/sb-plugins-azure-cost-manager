@@ -774,6 +774,37 @@ def _marketplace_sheet(workbook: Workbook, report: dict) -> None:
                 for s in report["adopted"]])
 
 
+def _tags(workbook: Workbook, found: dict) -> None:
+    """Cost by business tag: per dimension, its values by month and its coverage."""
+    sheet = _new_sheet(workbook, "Tags", "Cost by tag",
+                       "Each business tag under any of its spellings, values folded (prd, prod, production → "
+                       "Production). Untagged is the month's total less what any spelling tagged.", tab=BLUE_TAB)
+    _widths(sheet, {"A": 36})
+    row = 4
+    if not found["dimensions"]:
+        sheet.cell(row, 1, "Tags not synced for this customer yet, or none of the business tags is used.")
+        return
+    for dimension in found["dimensions"]:
+        months = sorted(dimension["months"])
+        coverage = f"{dimension['coverage_pct']}% tagged in {dimension['last_month']}" \
+            if dimension["coverage_pct"] is not None else "coverage not known yet"
+        _section(sheet, row, f"{dimension['dimension']} – {coverage} – spelled {len(dimension['all_spellings'])} ways",
+                 last_column=max(len(months) + 2, 4))
+        totals: dict[str, float] = {}
+        for values in dimension["months"].values():
+            for name, cost in values.items():
+                totals[name] = totals.get(name, 0.0) + cost
+        names = sorted(totals, key=lambda name: (name == "(untagged)", -totals[name]))
+        row = _table(sheet, row + 1, [dimension["dimension"]] + [_month_date(month) for month in months] + ["Total"],
+                     [[name] + [dimension["months"][month].get(name) for month in months] + [totals[name]] for name in names],
+                     {index: MONEY for index in range(1, len(months) + 2)}) + 1
+        for column in range(2, len(months) + 2):
+            sheet.cell(row - len(names) - 1, column).number_format = MONTH
+            sheet.column_dimensions[get_column_letter(column)].width = 14
+        sheet.cell(row, 1, "Spellings: " + ", ".join(dimension["all_spellings"])).font = _font(italic=True, color=GREY_TEXT)
+        row += 2
+
+
 BUDGET_STATUS = {"over": "Over budget last month", "forecast-over": "Forecast over budget this month",
                  "within": "Within budget"}
 
@@ -1009,6 +1040,8 @@ def build(customer: dict, analysis: dict, merged: dict, today: date, entries: di
         _marketplace_sheet(workbook, analysis["marketplace"])
     if analysis.get("finops"):
         _finops(workbook, analysis["finops"])
+    if analysis.get("tags"):
+        _tags(workbook, analysis["tags"])
     _breakdown(workbook, "Services", "Consumption by Service", merged, "service")
     _breakdown(workbook, "Subscriptions", "Consumption by Subscription", merged, "subscription")
     _gpu_and_ai(workbook, analysis)

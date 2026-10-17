@@ -20,6 +20,7 @@ API_ROOT = "https://management.azure.com"
 BILLING_API = "2020-05-01"
 COST_MANAGEMENT_API = "2023-11-01"
 CONSUMPTION_API = "2023-05-01"
+TAGS_API = CONSUMPTION_API
 
 # Cost Management throttles per sign-in and says how long to wait. A twelve-month
 # query costs about twelve query units, so back-to-back queries are routinely told
@@ -184,6 +185,46 @@ class BillingClient:
         share of the purchase instead of costing nothing -- what coverage is read from."""
         return self._grouped_monthly(account_name, cost_type, first_month, last_month,
                                      {"meter_subcategory": "MeterSubCategory", "pricing_model": "PricingModel"})
+
+    def list_tag_keys(self, account_name: str) -> list[str]:
+        """The tag keys used under an enrollment (Consumption API, so not Cost
+        Management's throttling budget). 480 on one customer's enrollment."""
+        url = f"{billing_account_scope(account_name)}/providers/Microsoft.Consumption/tags"
+        params: dict | None = {"api-version": TAGS_API}
+        keys: list[str] = []
+        while url:
+            properties = self._request("GET", url, params=params).get("properties") or {}
+            keys += [tag["key"] for tag in properties.get("tags") or [] if tag.get("key")]
+            url, params = properties.get("nextLink"), None
+        return sorted(set(keys))
+
+    def query_monthly_by_tag(self, account_name: str, tag_key: str, first_month: str, last_month: str) -> list[dict]:
+        """`[{month, value, cost}]`: an enrollment's actual cost by one tag key's
+        values; `value` is "" for what does not carry the key."""
+        body = {
+            "type": "ActualCost",
+            "timeframe": "Custom",
+            "timePeriod": _time_period(first_month, last_month),
+            "dataset": {"granularity": "Monthly",
+                        "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}},
+                        "grouping": [{"type": "TagKey", "name": tag_key}]},
+        }
+        url = f"{billing_account_scope(account_name)}/providers/Microsoft.CostManagement/query"
+        page = self._request("POST", url, params={"api-version": COST_MANAGEMENT_API}, body=body)
+        rows: list[dict] = []
+        while True:
+            properties = page.get("properties") or {}
+            columns = [column.get("name", "") for column in properties.get("columns") or []]
+            cost_at = _column_index(columns, "totalCost", "Cost", "PreTaxCost")
+            month_at = _column_index(columns, "BillingMonth", "UsageDate")
+            value_at = _column_index(columns, "TagValue")
+            if cost_at is not None and month_at is not None:
+                rows += [{"month": _month_from_cell(row[month_at]), "cost": float(row[cost_at] or 0),
+                          "value": (row[value_at] if value_at is not None else None) or ""}
+                         for row in properties.get("rows") or []]
+            if not properties.get("nextLink"):
+                return rows
+            page = self._request("POST", properties["nextLink"], body=body)
 
     @staticmethod
     def _cost_rows(properties: dict, dimensions: dict[str, str] | None = None) -> list[dict]:

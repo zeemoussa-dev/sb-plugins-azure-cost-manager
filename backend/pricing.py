@@ -17,6 +17,7 @@ never from a page view.
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from statistics import mean
 from typing import Callable
@@ -27,6 +28,7 @@ RETAIL_PRICES = "https://prices.azure.com/api/retail/prices"
 RETAIL_API_VERSION = "2023-01-01-preview"  # the first version that carries savings plan prices
 DEFAULT_REGION = "uaenorth"
 PRICES_FRESH_FOR = timedelta(days=30)
+RATE_LIMIT_ATTEMPTS = 5
 HOURS = {"1 Year": 8760, "3 Years": 26280}
 OPTIONS = ("sp_1y", "sp_3y", "ri_1y", "ri_3y")
 OPTION_LABELS = {"sp_1y": "1-year savings plan", "sp_3y": "3-year savings plan",
@@ -50,13 +52,24 @@ def product_names(meter_subcategory: str) -> tuple[list[str], bool]:
 
 
 class RetailPrices:
-    def __init__(self, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(self, transport: httpx.BaseTransport | None = None,
+                 sleep: Callable[[float], None] = time.sleep) -> None:
         self._http = httpx.Client(timeout=60, transport=transport)
+        self._sleep = sleep
+
+    def _get(self, url: str, params: dict | None) -> httpx.Response:
+        # The price list rate-limits a burst of queries (seen 2026-10-17, ~70 in a row).
+        for attempt in range(RATE_LIMIT_ATTEMPTS):
+            response = self._http.get(url, params=params)
+            if response.status_code != 429 or attempt == RATE_LIMIT_ATTEMPTS - 1:
+                return response
+            self._sleep(float(response.headers.get("Retry-After") or 2 ** (attempt + 1)))
+        return response
 
     def items(self, filter_expression: str) -> list[dict]:
         url, params, found = RETAIL_PRICES, {"api-version": RETAIL_API_VERSION, "$filter": filter_expression}, []
         while url:
-            response = self._http.get(url, params=params)
+            response = self._get(url, params)
             response.raise_for_status()
             page = response.json()
             found.extend(page.get("Items") or [])
