@@ -21,6 +21,8 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 
 - **[2026-10-17] Reports first, then the customer.** The landing page is a catalogue of reports; a per-customer report asks for the customer (groups with their affiliates under them) before it shows anything. Operator's navigation, over the 0.6 single page with a customer picker. Old `?customer=&tab=` links redirect.
 
+- **[2026-10-17] A linked customer's signed value lives on its Customer note** (`macc_*` properties, through `entities.customers` `commitment`/`set_commitment`, Entities 1.3+). The operator chose the vault as its single source of truth, so it is editable in Obsidian and visible to the vault. This plugin's data keeps it only for unlinked customers or an older Entities; a note that has one always wins over a value held here. *Supersedes, for linked customers, "the signed value is entered by the operator" being stored here.*
+
 ## Patterns
 
 - **[2026-10-16] The current month is never evidence.** It is partial: no month-over-month change, no run rate, no anomaly is computed from it.
