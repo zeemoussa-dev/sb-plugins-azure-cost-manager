@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
@@ -46,8 +47,15 @@ class AzureCliToken:
         self._now = now
         self._token: str | None = None
         self._expires_at: datetime | None = None
+        # The sync thread and page requests both ask for a token; two `az` processes
+        # at once contend for the CLI's token cache. One asks, the other waits for it.
+        self._lock = threading.Lock()
 
     def get(self) -> str:
+        with self._lock:
+            return self._get()
+
+    def _get(self) -> str:
         if self._token and self._expires_at and self._expires_at - _REFRESH_MARGIN > self._now():
             return self._token
         try:
@@ -69,5 +77,6 @@ class AzureCliToken:
 
     def forget(self) -> None:
         """After a 401: the cached token was revoked or the operator switched account."""
-        self._token = None
-        self._expires_at = None
+        with self._lock:
+            self._token = None
+            self._expires_at = None

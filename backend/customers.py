@@ -22,6 +22,7 @@ COMMITMENT_TYPES = ("MACC", "EA commitment", "Azure Prepayment", "Other")
 # a linked enrollment is named under its parent.
 _LINKED_ENROLLMENT = re.compile(r"^(?P<parent_name>.+?)-(?P<parent>\d{5,})-(?P<child>.+)$")
 _DIRECTORY_TTL = timedelta(hours=1)
+_RETRY_AFTER_FAILURE = timedelta(minutes=5)
 
 
 class CustomerError(ValueError):
@@ -54,7 +55,16 @@ class AccountDirectory:
     def accounts(self, fresh: bool = False) -> list[dict]:
         with self._lock:
             if fresh or self._accounts is None or self._now() - self._fetched_at > _DIRECTORY_TTL:
-                listed = self._list_accounts()
+                try:
+                    listed = self._list_accounts()
+                except Exception:
+                    # An hourly refresh that fails (throttled, `az` busy with the sync)
+                    # keeps the last good list: emptying Settings would stop the operator
+                    # from linking a customer until the next hour (operator, 2026-10-17).
+                    if self._accounts is None:
+                        raise
+                    self._fetched_at = self._now() - _DIRECTORY_TTL + _RETRY_AFTER_FAILURE
+                    return list(self._accounts)
                 by_name = {account["name"]: account for account in listed}
                 self._accounts = [{**account, "group_key": group_key(account, by_name)} for account in listed]
                 self._fetched_at = self._now()

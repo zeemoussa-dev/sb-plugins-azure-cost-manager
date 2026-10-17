@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import {
@@ -11,6 +11,7 @@ import { PLUGIN_ID } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
 const SHOWN_WHILE_SEARCHING = 60;
+const ACCOUNT_RETRY_SECONDS = [3, 10, 30, 60];
 
 interface Draft {
   id: string | null;
@@ -257,15 +258,35 @@ export function SettingsPage() {
     if (saved) load();
   };
 
+  const [accountsProblem, setAccountsProblem] = useState<string | null>(null);
+  const retry = useRef<number | undefined>(undefined);
+
+  // While the backend restarts -- a plugin install, a framework change -- the
+  // plugin's routes answer 404 for a few seconds. One failed fetch used to leave
+  // the billing accounts empty until a full reload, so nothing could be linked
+  // (operator, 2026-10-17); it now tries again, a little later each time.
+  const loadAccounts = useCallback((attempt = 0) => {
+    window.clearTimeout(retry.current);
+    fetchBillingAccounts().then((listed) => { setAccounts(listed); setAccountsProblem(null); }, (failure) => {
+      const delay = ACCOUNT_RETRY_SECONDS[attempt];
+      setAccountsProblem(`Billing accounts could not be loaded: ${errorText(failure)}.`
+        + (delay ? ` Trying again in ${delay} seconds.` : ''));
+      if (delay) retry.current = window.setTimeout(() => loadAccounts(attempt + 1), delay * 1000);
+    });
+  }, []);
+
+  useEffect(() => () => window.clearTimeout(retry.current), []);
+
   const load = useCallback(() => {
     fetchCustomers().then((listed) => {
       setCustomers(listed);
+      setError(null);
       const wanted = params.get('customer');
       const match = wanted ? listed.find((customer) => customer.id === wanted) : null;
       if (match) setEditing((current) => current ?? draftOf(match));
     }, (failure) => setError(errorText(failure)));
-    fetchBillingAccounts().then(setAccounts, (failure) => setError(errorText(failure)));
-  }, [params]);
+    loadAccounts();
+  }, [params, loadAccounts]);
 
   useEffect(() => {
     load();
@@ -287,6 +308,11 @@ export function SettingsPage() {
   return (
     <div className="azure-cost-settings">
       <h2>Azure Cost Manager</h2>
+      {accountsProblem ? (
+        <div className="azure-cost-error">{accountsProblem}{' '}
+          <button type="button" className="btn" onClick={() => loadAccounts()}>Try again</button>
+        </div>
+      ) : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
 
       {editing ? (

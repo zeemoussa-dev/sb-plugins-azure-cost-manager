@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.14.2] - 2026-10-17
+
+- fix: **the billing accounts disappeared and no customer could be linked** (operator, 2026-10-17). While the backend restarts -- a plugin install, a framework change -- the plugin's routes answer 404 for a few seconds, and Settings fetched the billing accounts once and kept the empty result. It now tries again after 3, 10, 30 and 60 seconds and has **Try again**. On the backend, an hourly refresh of the account list that fails keeps the last good list and retries in five minutes, so saving a customer never depends on that one call; and the sync and the pages no longer run two `az` token requests at once.
+
 ## [0.14.1] - 2026-10-17
 
 - fix: on the first real customer, Business unit showed 9,818 values: the tag key `revision` is two edits from "division" and holds timestamps. A typo must now start with the same letter as the name it misspells, a stored key is judged by today's rules, values that cost nothing are left out, and `npr`/`nprd` fold to Non-production.
