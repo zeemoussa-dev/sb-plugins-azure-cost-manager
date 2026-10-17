@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import consumption_analysis, export_xlsx
+from . import consumption_analysis, export_xlsx, marketplace
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -51,8 +51,54 @@ class ConsumptionService:
                     for account in member["accounts"]}
         entries = {name: self._store.account(name) for name in accounts}
         labels = {name: f"{account['display_name']} ({name})" for name, account in accounts.items()}
-        merged, currency = consumption_analysis.merge(entries, labels)
+        merged, currency = consumption_analysis.merge(entries, labels, self._not_eligible())
         return merged, currency, entries
+
+    def _not_eligible(self) -> set[str]:
+        return marketplace.not_eligible_keys(self._store.not_macc_eligible())
+
+    def _period(self, first: str | None, last: str | None) -> tuple[str, str]:
+        default_first, default_last = marketplace.default_period(self._today().strftime("%Y-%m"))
+        return first or default_first, last or default_last
+
+    def marketplace(self, customer_id: str, first: str | None = None, last: str | None = None) -> dict:
+        """The customer's (a group's: with its affiliates') Marketplace solutions."""
+        customer = self._customer(customer_id)
+        accounts = {account["name"]: account for member in self._group(customer) for account in member["accounts"]}
+        entries = {name: self._store.account(name) for name in accounts}
+        labels = {name: f"{account['display_name']} ({name})" for name, account in accounts.items()}
+        first, last = self._period(first, last)
+        return {"customer": {"id": customer["id"], "name": customer["name"]},
+                **marketplace.customer_report(entries, labels, self._not_eligible(), first, last)}
+
+    def marketplace_across(self, first: str | None = None, last: str | None = None) -> dict:
+        """Every partner solution across every customer, each enrollment counted once."""
+        first, last = self._period(first, last)
+        everyone = self._book.list()
+        # Affiliates before parents, so an affiliate's enrollment is credited to the affiliate.
+        ordered = sorted(everyone, key=lambda customer: 0 if customer.get("parent") else 1)
+        customers = [(customer, {account["name"]: self._store.account(account["name"])
+                                 for account in customer["accounts"]}) for customer in ordered]
+        return marketplace.across_customers(customers, self._not_eligible(), first, last)
+
+    def not_macc_eligible(self) -> list[dict]:
+        return self._store.not_macc_eligible()
+
+    def set_macc_eligible(self, publisher: str, offer: str, eligible: bool) -> list[dict]:
+        """Marks one offer as counting toward MACCs or not, for every customer."""
+        if not publisher or not offer:
+            raise ValueError("an offer is named by its publisher and its offer")
+        current = [item for item in self._store.not_macc_eligible()
+                   if (item["publisher"], item["offer"]) != (publisher, offer)]
+        if not eligible:
+            current.append({"publisher": publisher, "offer": offer})
+        self._store.save_not_macc_eligible(current)
+        return current
+
+    def export_marketplace(self, first: str | None = None, last: str | None = None) -> tuple[str, bytes]:
+        report = self.marketplace_across(first, last)
+        workbook = export_xlsx.build_marketplace(report, self._today())
+        return f"Azure Marketplace - all customers - {self._today().isoformat()}.xlsx", workbook
 
     def _allocations(self, parent: dict, affiliates: list[dict]) -> dict | None:
         """How the parent's MACC is carved up: each affiliate against its own MACC,
@@ -147,6 +193,7 @@ class ConsumptionService:
         merged, _, entries = self._merged(analysis["customer"])
         # A parent's workbook covers its affiliates' enrollments too.
         exported = {**analysis["customer"], "accounts": analysis["group"]["accounts"]}
+        analysis = {**analysis, "marketplace": self.marketplace(customer_id, None, None)}
         workbook = export_xlsx.build(exported, analysis, merged, self._today(), entries)
         return f"Azure consumption - {analysis['customer']['name']} - {self._today().isoformat()}.xlsx", workbook
 

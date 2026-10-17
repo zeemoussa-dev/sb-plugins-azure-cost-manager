@@ -50,6 +50,32 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
+    @router.get("/customers/{customer_id}/marketplace")
+    def get_customer_marketplace(customer_id: str, first_month: str | None = None, last_month: str | None = None) -> dict:
+        return _answered(lambda: service.marketplace(customer_id, first_month, last_month))
+
+    @router.get("/marketplace")
+    def get_marketplace(first_month: str | None = None, last_month: str | None = None) -> dict:
+        """Every partner solution across every customer."""
+        return _answered(lambda: service.marketplace_across(first_month, last_month))
+
+    @router.get("/marketplace/not-macc-eligible")
+    def get_not_macc_eligible() -> list[dict]:
+        return service.not_macc_eligible()
+
+    @router.put("/marketplace/macc-eligibility")
+    def put_macc_eligibility(change: dict = Body(...)) -> list[dict]:
+        """`{publisher, offer, eligible}`: one offer, for every customer."""
+        return _answered(lambda: service.set_macc_eligible((change.get("publisher") or "").strip(),
+                                                           (change.get("offer") or "").strip(),
+                                                           bool(change.get("eligible", True))))
+
+    @router.get("/marketplace/export.xlsx")
+    def get_marketplace_export(first_month: str | None = None, last_month: str | None = None) -> Response:
+        name, workbook = _answered(lambda: service.export_marketplace(first_month, last_month))
+        return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
+
     @router.put("/customers/{customer_id}/scenario")
     def put_scenario(customer_id: str, settings: dict = Body(...)) -> dict:
         return _answered(lambda: book.set_scenario(customer_id, settings))

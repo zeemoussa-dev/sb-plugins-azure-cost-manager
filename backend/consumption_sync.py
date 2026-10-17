@@ -60,6 +60,22 @@ def _aggregate_meters(rows: list[dict]) -> dict[str, dict[str, float]]:
             for month, meters in by_month.items()}
 
 
+def _aggregate_marketplace(charges: list[dict]) -> list[dict]:
+    """One month's charges by publisher, offer, plan, subscription and kind: a
+    metered VM image bills a line per hour, which nobody reads one at a time."""
+    grouped: dict[tuple, dict] = {}
+    for charge in charges:
+        key = (charge["publisher"], charge["offer"], charge["plan"], charge["subscription"], charge["recurring"])
+        item = grouped.setdefault(key, {"publisher": key[0], "offer": key[1], "plan": key[2], "subscription": key[3],
+                                        "recurring": key[4], "cost": 0.0, "quantity": 0.0, "unit": charge["unit"],
+                                        "lines": 0})
+        item["cost"] += charge["cost"]
+        item["quantity"] += charge["quantity"]
+        item["lines"] += 1
+    return [{**item, "cost": round(item["cost"], 2), "quantity": round(item["quantity"], 4)}
+            for item in grouped.values()]
+
+
 def _windows(wanted: list[str]) -> list[list[str]]:
     """Consecutive runs of months, each at most a query's length."""
     runs: list[list[str]] = []
@@ -195,6 +211,7 @@ class ConsumptionSync:
 
         if known.get("agreement_type") == ENTERPRISE_AGREEMENT:
             self._sync_balances(client, account, entry, wanted, errors)
+            self._sync_marketplace(client, account, entry, wanted, errors)
 
         entry["forecast"] = self._forecast(client, account, entry, current_month, errors)
         entry["synced_at"] = self._now().isoformat()
@@ -222,6 +239,30 @@ class ConsumptionSync:
                     self._record_error(account, f"balance {month}: {exc}")
                     continue
             entry["months"].setdefault(month, {})["balance"] = {**balance, "fetched_at": fetched_at}
+            if index % 6 == 0:
+                self._store.save_account(account, entry)
+        self._store.save_account(account, entry)
+
+    def _sync_marketplace(self, client: BillingClient, account: str, entry: dict, wanted: list[str],
+                          errors: dict[str, str]) -> None:
+        """Each billing period's Marketplace charges, by solution and subscription.
+        A period the enrollment did not exist in (its balance says so) is skipped."""
+        def exists(month: str) -> bool:
+            balance = (entry["months"].get(month) or {}).get("balance") or {}
+            return bool(balance) and not balance.get("missing")
+
+        pending = [month for month in self._store.marketplace_to_fetch(entry, wanted) if exists(month)]
+        for index, month in enumerate(pending, start=1):
+            self._set(current={"account": account, "first_month": month, "last_month": month, "marketplace": True})
+            fetched_at = self._now().isoformat()
+            try:
+                charges = self._query(lambda: client.marketplace_charges(account, month), account)
+            except AzureApiError as exc:
+                errors[f"marketplace {month}"] = str(exc)
+                self._record_error(account, f"marketplace {month}: {exc}")
+                continue
+            entry["months"].setdefault(month, {})["marketplace"] = {"items": _aggregate_marketplace(charges),
+                                                                    "fetched_at": fetched_at}
             if index % 6 == 0:
                 self._store.save_account(account, entry)
         self._store.save_account(account, entry)

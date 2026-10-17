@@ -22,9 +22,11 @@ from . import months
 
 CUSTOMERS_FILE = "Azure-Cost-Manager/Customers.json"
 CONSUMPTION_CACHE_FILE = "Azure-Cost-Manager/Consumption-Cache.json"
+# Offers the operator marked as not counting toward a MACC -- Azure does not say.
+MARKETPLACE_SETTINGS_FILE = "Azure-Cost-Manager/Marketplace-Settings.json"
 # 0.1.x tracked single accounts; read once to carry them over as customers.
 LEGACY_TRACKED_ACCOUNTS_FILE = "Azure-Cost-Manager/Tracked-Accounts.json"
-DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, LEGACY_TRACKED_ACCOUNTS_FILE)
+DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -135,6 +137,24 @@ class ConsumptionStore:
             data = entry["months"].get(month) or {}
             return "meters" in data and is_settled(month, data.get("fetched_at"))
         return [month for month in wanted if not complete(month)]
+
+    def not_macc_eligible(self) -> list[dict]:
+        """`[{publisher, offer}]` the operator marked as not counting toward a MACC."""
+        with self._lock:
+            settings = _read_json(self._api, MARKETPLACE_SETTINGS_FILE, {})
+            return list(settings.get("not_macc_eligible") or [])
+
+    def save_not_macc_eligible(self, offers: list[dict]) -> None:
+        with self._lock:
+            settings = _read_json(self._api, MARKETPLACE_SETTINGS_FILE, {})
+            settings["not_macc_eligible"] = offers
+            _write_json(self._api, MARKETPLACE_SETTINGS_FILE, settings)
+
+    @staticmethod
+    def marketplace_to_fetch(entry: dict, wanted: list[str]) -> list[str]:
+        """The wanted billing periods whose Marketplace charges are missing or not yet settled."""
+        return [month for month in wanted
+                if not is_settled(month, ((entry["months"].get(month) or {}).get("marketplace") or {}).get("fetched_at"))]
 
     @staticmethod
     def balances_to_fetch(entry: dict, wanted: list[str]) -> list[str]:

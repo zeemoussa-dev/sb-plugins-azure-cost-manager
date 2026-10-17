@@ -44,11 +44,18 @@ def _add(into: dict[str, float], name: str, cost: float) -> None:
 def _empty_month() -> dict:
     return {**{kind: {"service": {}, "subscription": {}, "account": {}} for kind in COST_KINDS},
             "meters": {},
-            "measured": {"usage": 0.0, "marketplace": 0.0, "credits": 0.0, "credit_details": {},
-                         "by_account": {}, "from_balance": 0}}
+            "measured": {"usage": 0.0, "marketplace": 0.0, "marketplace_macc": 0.0, "credits": 0.0,
+                         "credit_details": {}, "by_account": {}, "from_balance": 0}}
 
 
-def merge(entries: dict[str, dict], labels: dict[str, str] | None = None) -> tuple[dict, str | None]:
+def _not_eligible_marketplace(data: dict, not_eligible: set[str]) -> float:
+    """The month's Marketplace spend on offers marked as not counting toward a MACC."""
+    return sum(item["cost"] for item in (data.get("marketplace") or {}).get("items") or []
+               if f"{item['publisher']}|{item['offer']}" in not_eligible)
+
+
+def merge(entries: dict[str, dict], labels: dict[str, str] | None = None,
+          not_eligible: set[str] | None = None) -> tuple[dict, str | None]:
     """The customer's accounts as one: per month, per cost kind, spend by
     `service`, `subscription` and `account` (the enrollment, labelled); meter
     detail; and the month's measured components.
@@ -77,14 +84,16 @@ def merge(entries: dict[str, dict], labels: dict[str, str] | None = None) -> tup
                 _add(target["meters"], key, cost)
             balance = data.get("balance") or {}
             if balance and not balance.get("missing"):
-                parts = {"usage": balance.get("usage", 0.0), "marketplace": balance.get("marketplace", 0.0),
+                marketplace = balance.get("marketplace", 0.0)
+                parts = {"usage": balance.get("usage", 0.0), "marketplace": marketplace,
+                         "marketplace_macc": marketplace - _not_eligible_marketplace(data, not_eligible or set()),
                          "credits": balance.get("credits", 0.0)}
                 target["measured"]["from_balance"] += 1
                 for detail in balance.get("credit_details") or []:
                     _add(target["measured"]["credit_details"], detail.get("name") or "Credit", detail["value"])
             else:
                 parts = {"usage": sum(((data.get("actual") or {}).get("service") or {}).values()),
-                         "marketplace": 0.0, "credits": 0.0}
+                         "marketplace": 0.0, "marketplace_macc": 0.0, "credits": 0.0}
             for key, value in parts.items():
                 target["measured"][key] += value
             if any(parts.values()):
@@ -93,9 +102,14 @@ def merge(entries: dict[str, dict], labels: dict[str, str] | None = None) -> tup
 
 
 def measured_total(parts: dict, measure: dict | None = None) -> float:
+    """`measure["marketplace"]` is True (all of it), False (none), or "macc" (only
+    offers not marked as ineligible -- what burns a MACC)."""
     measure = {**DEFAULT_MEASURE, **(measure or {})}
-    return (parts.get("usage", 0.0) + (parts.get("marketplace", 0.0) if measure["marketplace"] else 0.0)
-            - (parts.get("credits", 0.0) if measure["credits"] else 0.0))
+    if measure["marketplace"] == "macc":
+        marketplace = parts.get("marketplace_macc", parts.get("marketplace", 0.0))
+    else:
+        marketplace = parts.get("marketplace", 0.0) if measure["marketplace"] else 0.0
+    return parts.get("usage", 0.0) + marketplace - (parts.get("credits", 0.0) if measure["credits"] else 0.0)
 
 
 def merge_forecasts(entries: dict[str, dict]) -> list[dict] | None:
@@ -191,7 +205,7 @@ def run_rate(trend: list[dict]) -> float | None:
 def commitment_measure(commitment: dict) -> dict:
     """What counts against the signed value: by default Marketplace burns the MACC
     and a credit lowers what was billed against it."""
-    return {"marketplace": commitment.get("include_marketplace", True),
+    return {"marketplace": "macc" if commitment.get("include_marketplace", True) else False,
             "credits": commitment.get("subtract_credits", True)}
 
 

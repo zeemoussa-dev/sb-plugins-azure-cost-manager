@@ -714,6 +714,127 @@ def _credits(workbook: Workbook, analysis: dict) -> None:
            {0: MONTH, 2: MONEY_CENTS})
 
 
+def _marketplace_sheet(workbook: Workbook, report: dict) -> None:
+    """One customer's partner solutions: what each cost by month, whether it counts
+    toward the MACC, and the solutions adopted at no charge."""
+    first, last = report["period"]["first"], report["period"]["last"]
+    sheet = _new_sheet(workbook, "Marketplace", "Marketplace – partner solutions",
+                       f"{first} to {last}  ·  every Marketplace dollar counts toward the MACC unless its offer is "
+                       "marked not eligible in the plugin", tab=NAVY)
+    _widths(sheet, {"A": 30, "B": 44, "C": 30, "D": 14, "E": 16, "F": 16, "G": 12, "H": 40})
+    row = 4
+    for label, value in (("Marketplace total", report["total"]), ("Counts toward the MACC", report["macc"]),
+                         ("Does not count", report["not_macc"])):
+        sheet.cell(row, 1, label).border = BOX
+        cell = sheet.cell(row, 2, value)
+        cell.border, cell.number_format, cell.font = BOX, MONEY, _font(bold=True)
+        row += 1
+    row += 1
+    _section(sheet, row, "Solutions bought")
+    rows = [[s["publisher"], s["offer"], s["plan"], s["kind"], s["total"], "yes" if s["macc_eligible"] else "no",
+             len(s["subscriptions"]), ", ".join(s["subscriptions"][:4]) + (" …" if len(s["subscriptions"]) > 4 else "")]
+            for s in report["solutions"]]
+    solutions_header = row + 1
+    last_row = _table(sheet, solutions_header, ["Publisher", "Offer", "Plan", "Kind", "Total", "Counts toward MACC",
+                                               "Subscriptions", "Where"], rows, {4: MONEY})
+    if report["publishers"]:
+        publisher_header = last_row + 2
+        publisher_last = _table(sheet, publisher_header, ["Publisher", "Total", "Toward MACC", "Solutions"],
+                                [[p["publisher"], p["total"], p["macc"], p["solutions"]] for p in report["publishers"]],
+                                {1: MONEY, 2: MONEY})
+        sheet.add_chart(_bar("Marketplace by Publisher", sheet, publisher_header, publisher_header + 1, publisher_last,
+                             [2], labelled=publisher_last - publisher_header < 14), "J4")
+        last_row = publisher_last
+    month_header = last_row + 2
+    month_last = _table(sheet, month_header, ["Month", "Total", "Toward MACC", "Not toward MACC"],
+                        [[_month_date(m["month"]), m["total"], m["macc"], m["not_macc"]] for m in report["monthly"]],
+                        {0: MONTH, 1: MONEY, 2: MONEY, 3: MONEY})
+    if report["monthly"]:
+        sheet.add_chart(_bar("Marketplace by Month", sheet, month_header, month_header + 1, month_last, [3, 4],
+                             stacked=True), "J21")
+    if report["adopted"]:
+        adopted_top = month_last + 2
+        _section(sheet, adopted_top, "Adopted, no charge in the period")
+        _table(sheet, adopted_top + 1, ["Publisher", "Offer", "Plan", "Kind", "First seen", "Subscriptions"],
+               [[s["publisher"], s["offer"], s["plan"], s["kind"], s["first_month"], len(s["subscriptions"])]
+                for s in report["adopted"]])
+
+
+def build_marketplace(report: dict, today: date) -> bytes:
+    """Every partner solution across every customer, styled like the operator's workbook."""
+    workbook = Workbook()
+    first, last = report["period"]["first"], report["period"]["last"]
+    sheet = _new_sheet(workbook, "Marketplace Summary", "Azure Marketplace – all customers",
+                       f"{first} to {last}  ·  exported {today.isoformat()}  ·  every dollar counts toward the "
+                       "customer's MACC unless its offer is marked not eligible", tab=NAVY, sheet=workbook.active)
+    sheet.sheet_view.zoomScale = 115
+    _widths(sheet, {"A": 40, "B": 18, "C": 18, "D": 14, "E": 40})
+    tiles = [("Marketplace total", report["total"], MONEY), ("Toward MACCs", report["macc"], MONEY),
+             ("Not toward MACCs", report["not_macc"], MONEY), ("Partner solutions", len(report["solutions"]), "0"),
+             ("Publishers", len(report["publishers"]), "0")]
+    for index, (label, value, number_format) in enumerate(tiles):
+        column = 1 + index
+        for line, (text, font) in enumerate([(label.upper(), _font(8, bold=True, color=SLATE)),
+                                             (value, _font(15, bold=True, color=NAVY))]):
+            cell = sheet.cell(3 + line, column, text)
+            cell.font, cell.fill, cell.border = font, _fill(TILE_BLUE), BOX
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            if line == 1:
+                cell.number_format = number_format
+    sheet.row_dimensions[4].height = 22
+    row = 7
+    _section(sheet, row, "By publisher", last_column=5)
+    publisher_header = row + 1
+    publisher_last = _table(sheet, publisher_header, ["Publisher", "Total", "Toward MACCs", "Solutions", "Customers"],
+                            [[p["publisher"], p["total"], p["macc"], p["solutions"], ", ".join(p["customers"])]
+                             for p in report["publishers"]], {1: MONEY, 2: MONEY})
+    chart_end = _place(sheet, [_bar("Marketplace Revenue by Publisher", sheet, publisher_header, publisher_header + 1,
+                                    publisher_last, [2], labelled=publisher_last - publisher_header < 14)], row)
+    row = max(publisher_last, chart_end) + 2
+    _section(sheet, row, "By customer", last_column=5)
+    customer_header = row + 1
+    customer_last = _table(sheet, customer_header, ["Customer", "Total", "Toward MACC", "Solutions", "Top publisher"],
+                           [[c["name"] + (" (affiliate)" if c["parent"] else ""), c["total"], c["macc"], c["solutions"],
+                             c["top_publisher"]] for c in report["customers"]], {1: MONEY, 2: MONEY})
+    chart_end = _place(sheet, [_bar("Marketplace by Customer", sheet, customer_header, customer_header + 1,
+                                    customer_last, [2], labelled=customer_last - customer_header < 14)], row)
+    row = max(customer_last, chart_end) + 2
+    _section(sheet, row, "By month", last_column=5)
+    month_header = row + 1
+    month_last = _table(sheet, month_header, ["Month", "Total", "Toward MACCs"],
+                        [[_month_date(m["month"]), m["total"], m["macc"]] for m in report["monthly"]],
+                        {0: MONTH, 1: MONEY, 2: MONEY})
+    if report["monthly"]:
+        _place(sheet, [_bar("Marketplace by Month", sheet, month_header, month_header + 1, month_last, [2])], row)
+
+    solutions = _new_sheet(workbook, "Solutions", "Partner solutions and who bought them",
+                           "One row per offer; plans and buyers beside it.", tab=BLUE_TAB)
+    _widths(solutions, {"A": 30, "B": 48, "C": 12, "D": 16, "E": 16, "F": 12, "G": 60, "H": 40})
+    _table(solutions, 4, ["Publisher", "Offer", "Kind", "Total", "Toward MACCs", "Customers", "Bought by", "Plans"],
+           [[s["publisher"], s["offer"], s["kind"], s["total"], s["macc"], s["adopted_by"],
+             ", ".join(f"{c['name']} ({c['total']:,.0f})" for c in s["customers"]), ", ".join(s["plans"])]
+            for s in report["solutions"]], {3: MONEY, 4: MONEY})
+    solutions.freeze_panes = "C5"
+
+    customers = [c["name"] for c in report["customers"]]
+    matrix = _new_sheet(workbook, "Solution x Customer", "Spend by solution and customer",
+                        "Each cell is what that customer spent on that offer in the period.", tab=BLUE_TAB)
+    rows = []
+    for s in report["solutions"]:
+        spend = {c["name"]: c["total"] for c in s["customers"]}
+        rows.append([s["publisher"], s["offer"]] + [spend.get(name) for name in customers] + [s["total"]])
+    _table(matrix, 4, ["Publisher", "Offer"] + customers + ["Total"], rows,
+           {index: MONEY for index in range(2, len(customers) + 3)})
+    _widths(matrix, {"A": 28, "B": 44})
+    for column in range(3, len(customers) + 4):
+        matrix.column_dimensions[get_column_letter(column)].width = 18
+    matrix.freeze_panes = "C5"
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
 def build(customer: dict, analysis: dict, merged: dict, today: date, entries: dict[str, dict] | None = None) -> bytes:
     workbook = Workbook()
     _dashboard(workbook, customer, analysis, merged, today)
@@ -721,6 +842,8 @@ def build(customer: dict, analysis: dict, merged: dict, today: date, entries: di
     _forecast_scenarios(workbook, analysis)
     _pipeline(workbook, analysis, today)
     _export(workbook, customer, entries or {}, analysis["measure"])
+    if analysis.get("marketplace"):
+        _marketplace_sheet(workbook, analysis["marketplace"])
     _breakdown(workbook, "Services", "Consumption by Service", merged, "service")
     _breakdown(workbook, "Subscriptions", "Consumption by Subscription", merged, "subscription")
     _gpu_and_ai(workbook, analysis)

@@ -40,6 +40,7 @@ class FakeAzure:
     def __init__(self) -> None:
         self.queries: list[tuple] = []
         self.balances: list[tuple] = []
+        self.marketplace: list[tuple] = []
         self.throttle_next = 0
         self.fail_windows: set[str] = set()
 
@@ -65,6 +66,13 @@ class FakeAzure:
                  "cost": 200, "currency": "USD"},
                 {"month": "2026-09", "meter_subcategory": "Azure OpenAI", "pricing_model": "Reservation",
                  "cost": 100, "currency": "USD"}]
+
+    def marketplace_charges(self, account_name, month):
+        self.marketplace.append((account_name, month))
+        return [{"publisher": "Northwind", "offer": "Linux image", "plan": "8.9", "subscription": "Prod",
+                 "cost": 30.0, "quantity": 30.0, "unit": "1 hour", "recurring": False},
+                {"publisher": "Northwind", "offer": "Linux image", "plan": "8.9", "subscription": "Prod",
+                 "cost": 20.0, "quantity": 20.0, "unit": "1 hour", "recurring": False}]
 
     def billing_period_balance(self, account_name, month):
         self.balances.append((account_name, month))

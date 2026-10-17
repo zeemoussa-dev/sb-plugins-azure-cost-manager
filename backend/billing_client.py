@@ -201,6 +201,30 @@ class BillingClient:
             rows.append(parsed)
         return rows
 
+    def marketplace_charges(self, account_name: str, month: str) -> list[dict]:
+        """An EA enrollment's Marketplace charges for one billing period, one row per
+        charge: publisher, offer, plan, subscription, cost, quantity, and whether it
+        recurs (SaaS) or is metered. Cost Management cannot name a Marketplace
+        product at this scope (no publisher or offer dimension); this can. Its
+        total matches the balance's Marketplace charges (checked 2026-10-17)."""
+        period = month.replace("-", "")
+        url = (f"{billing_account_scope(account_name)}/billingPeriods/{period}"
+               "/providers/Microsoft.Consumption/marketplaces")
+        rows = []
+        for item in self._get_all(url, {"api-version": CONSUMPTION_API}):
+            properties = item.get("properties") or {}
+            rows.append({
+                "publisher": (properties.get("publisherName") or "Unknown publisher").strip(),
+                "offer": (properties.get("offerName") or "Unknown offer").strip(),
+                "plan": (properties.get("planName") or "").strip(),
+                "subscription": properties.get("subscriptionName") or properties.get("subscriptionGuid") or "",
+                "cost": float(properties.get("pretaxCost") or 0),
+                "quantity": float(properties.get("consumedQuantity") or 0),
+                "unit": properties.get("unitOfMeasure") or "",
+                "recurring": bool(properties.get("isRecurringCharge")),
+            })
+        return rows
+
     def billing_period_balance(self, account_name: str, month: str) -> dict:
         """An EA enrollment's balance for one billing period: what the month billed
         as usage, as Marketplace, and the credits applied against it. Matches the
