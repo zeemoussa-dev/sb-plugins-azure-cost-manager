@@ -58,7 +58,7 @@ function CustomerView({ customerId, measure, syncedVersion, report, view }: {
       {report === 'Pipeline' ? <PipelineTab analysis={analysis} onChanged={reload} />
         : nothingSynced ? <p className="empty-state">Nothing synced for this customer yet. Sync it to load its consumption.</p>
           : report === 'Marketplace' ? <MarketplaceTab customerId={customerId} currency={analysis.currency} syncedVersion={syncedVersion} />
-          : report === 'FinOps' ? <FinOpsTab customerId={customerId} syncedVersion={syncedVersion} />
+          : report === 'FinOps' ? <FinOpsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
           : nothingBilled ? <p className="empty-state">Nothing was billed on these enrollments in the synced period.</p>
             : report === 'Overview' ? <OverviewTab analysis={analysis} />
               : report === 'Forecast' ? <ForecastTab analysis={analysis} onChanged={reload} />

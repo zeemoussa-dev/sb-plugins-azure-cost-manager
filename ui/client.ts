@@ -474,6 +474,12 @@ export const exportPath = (id: string, measure: Measure, view: View = 'account')
 export interface CoverageFamily { family: string; covered: number; on_demand: number; coverage_pct: number | null }
 export interface CoverageMonth extends CoverageFamily { month: string; families: CoverageFamily[] }
 
+export type CommitmentOption = 'sp_1y' | 'sp_3y' | 'ri_1y' | 'ri_3y';
+
+export const OPTION_LABELS: Record<CommitmentOption, string> = {
+  sp_1y: '1-year savings plan', sp_3y: '3-year savings plan', ri_1y: '1-year reservation', ri_3y: '3-year reservation',
+};
+
 export interface SteadyCandidate {
   meter: string;
   family: string;
@@ -482,6 +488,10 @@ export interface SteadyCandidate {
   variation_pct: number;
   annual_on_demand: number;
   months: Record<string, number>;
+  /** Estimated monthly saving per option, from the public price list; null when not priced. */
+  savings: Partial<Record<CommitmentOption, number>> | null;
+  priced_as: string | null;
+  not_priced: string | null;
 }
 
 export interface Growth { name: string; monthly_now: number; monthly_before: number; change: number; change_pct: number | null }
@@ -499,8 +509,10 @@ export interface Budget {
 }
 
 export interface FinOps {
-  customer: { id: string; name: string; parent: string | null; affiliates: string[] };
+  customer: { id: string; name: string; parent: string | null; affiliates: string[]; entity_customer: string | null };
   currency: string | null;
+  pricing_region: string;
+  savings_monthly: Partial<Record<CommitmentOption, number>>;
   has_meters: boolean;
   has_amortized_meters: boolean;
   coverage: { months: CoverageMonth[]; latest: CoverageMonth | null };
@@ -523,11 +535,14 @@ export interface FinOpsAcrossRow {
   candidates: number;
   candidates_monthly: number;
   top_candidate: string | null;
+  savings_monthly: Partial<Record<CommitmentOption, number>>;
   budget: Budget | null;
 }
 
 export const fetchFinOps = (id: string) => apiFetch<FinOps>(`${customer(id)}/finops`);
 export const fetchFinOpsAcross = () => apiFetch<FinOpsAcrossRow[]>(`${BASE}/finops`);
+export const refreshPrices = () =>
+  apiFetch<{ priced: number; failed: string[] }>(`${BASE}/finops/prices`, { method: 'POST' });
 
 export const saveScenario = (id: string, settings: ScenarioSettings) =>
   apiFetch<ScenarioSettings>(`${customer(id)}/scenario`, { method: 'PUT', body: JSON.stringify(settings) });

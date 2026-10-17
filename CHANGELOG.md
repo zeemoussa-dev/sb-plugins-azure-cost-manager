@@ -2,6 +2,13 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.13.0] - 2026-10-17
+
+- feat: **FinOps phase F2 -- savings in dollars.** Each steady VM or GPU candidate is priced from Azure's public **Retail Prices API** (no sign-in, not Cost Management): a 1- and 3-year savings plan and reservation, as the average discount across the series' sizes in the pricing region (`uaenorth` unless set through `PUT /finops/pricing-region`). A reservation's term price is spread over its hours; a Windows meter saves on compute only. The meter subcategory is found in the price list by its series ("Dlsv5 Series Linux" is "Dlsv5 Series", "Dv3/DSv3" either half, "NVadsA10_v5" is "NVadsA10v5 Series"). Prices are cached in `FinOps.json` and refreshed monthly by the sync after customers, or at once from **Price candidates now**. Databases, storage and capacities are listed but not priced yet.
+- feat: **Create opportunity** on a candidate (My view): an Opportunity under the linked Customer note, titled with the finding and its saving, **without a consumption plan**, so a saving never inflates the pipeline forecast.
+- feat: `GET /finops/digest`: the week's FinOps as text -- the largest savings and who is over budget -- for a Hermes job to send.
+- The FinOps report, Optimization opportunities and the FinOps sheet show the savings per option and in total.
+
 ## [0.12.1] - 2026-10-17
 
 - fix: FinOps money for a customer whose data came through the Consumption API read "1,803,971 USD" instead of "$1,803,971": its padded currency code ("USD  ") is trimmed, as the portfolio already does.

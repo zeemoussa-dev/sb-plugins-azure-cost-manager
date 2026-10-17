@@ -229,7 +229,7 @@ cannot leak it.
   profiles synced lightly have totals and Marketplace only; FinOps covers
   customers.
 
-### Phase F1 — from data this plugin can already reach
+### Phase F1 — from data this plugin can already reach (built 0.12.0, 2026-10-17)
 
 1. **Commitment coverage**: per customer and month, the share of compute, GPU and
    Azure OpenAI covered by reservations or savings plans, against on-demand; by
@@ -248,7 +248,7 @@ cannot leak it.
 7. The customer workbook gets a **FinOps** sheet; the Customer view has its own
    workbook, carrying only what that view shows.
 
-### Phase F2 — savings in dollars, and findings into pipeline
+### Phase F2 — savings in dollars, and findings into pipeline (built 0.13.0, 2026-10-17)
 
 - Price each steady on-demand series as a 1- and 3-year reservation and a savings
   plan from Azure's public **Retail Prices API** (no sign-in). The meter detail
