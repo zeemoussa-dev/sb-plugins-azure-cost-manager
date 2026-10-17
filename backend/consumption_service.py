@@ -235,7 +235,8 @@ class ConsumptionService:
         this_month = next((row["cost"] for row in outlook["months"] if row["month"] == current_month), None)
         return {"customer": {"id": customer["id"], "name": customer["name"], "parent": customer.get("parent"),
                              "affiliates": [member["id"] for member in members[1:]]},
-                "currency": currency,
+                # The Consumption API pads the currency code ("USD  ").
+                "currency": (currency or "").strip() or None,
                 **finops.analyse(entries, merged, trend, commitment, customer.get("budget_monthly"), this_month,
                                  self._today())}
 

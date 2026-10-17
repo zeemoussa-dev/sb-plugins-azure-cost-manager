@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.12.1] - 2026-10-17
+
+- fix: FinOps money for a customer whose data came through the Consumption API read "1,803,971 USD" instead of "$1,803,971": its padded currency code ("USD  ") is trimmed, as the portfolio already does.
+
 ## [0.12.0] - 2026-10-17
 
 - feat: **FinOps, phase F1** (operator, 2026-10-17; plan in `PLAN.md`). A **FinOps** report per customer: commitment coverage by month and by family (virtual machines, GPUs, Azure OpenAI, and anything the customer has reserved), steady on-demand candidates (on demand in each of the last six closed months, at least $1,000 a month, varying no more than 25%), commitments bought up front, the fastest-growing services and subscriptions, and the monthly budget -- the MACC spread over its term unless overridden in Settings. **Optimization opportunities** across customers ranks every customer by steady on-demand spend, with coverage and budget status. Both workbooks gain a **FinOps** sheet.
