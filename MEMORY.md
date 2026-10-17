@@ -36,7 +36,7 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 - **[2026-10-16] Charts are the host's `echarts`, imported piece by piece** (framework_api 8, `ADR-039`): `echarts/core` plus the chart types and components used, through `echarts-for-react/esm/core`. A canvas cannot resolve CSS variables, so colours are read from the stylesheet when a chart renders.
 
 - **[2026-10-17] A link into Settings carries `back`** (`settingsLink`). Settings lives under the framework's `/settings`, outside this plugin's pages, so without it the operator had no way back; `safeBack` accepts only this plugin's own paths. *Superseded below.*
-- **[2026-10-17] Trails and the way back are the framework's** (API 11, ADR-042): `Breadcrumbs`, `pluginSettingsLink` and `usePluginReturn` from `pluginHost/breadcrumbs`. Never validate a `back` path here -- the host checks it with the same rule that decides which routes the plugin may mount. The host renders the Settings trail; the Settings page draws none.
+- **[2026-10-17] Trails and the way back are the framework's** (API 11, ADR-043): `Breadcrumbs`, `pluginSettingsLink` and `usePluginReturn` from `pluginHost/breadcrumbs`. Never validate a `back` path here -- the host checks it with the same rule that decides which routes the plugin may mount. The host renders the Settings trail; the Settings page draws none.
 
 ## Constraints
 
