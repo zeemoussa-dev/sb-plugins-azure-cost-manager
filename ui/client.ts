@@ -415,6 +415,32 @@ export const fetchCommitmentTypes = () => apiFetch<string[]>(`${BASE}/commitment
 
 export const fetchCustomers = () => apiFetch<Customer[]>(`${BASE}/customers`);
 
+export type PortfolioStatus = 'not-synced' | 'no-macc' | 'consumed' | 'behind' | 'early' | 'on-track';
+
+/** One customer at a glance; a parent's figures include its affiliates. */
+export interface PortfolioRow {
+  id: string;
+  name: string;
+  parent: string | null;
+  affiliates: string[];
+  enrollments: number;
+  currency: string | null;
+  signed: number | null;
+  /** What the affiliates signed, carved out of a parent's MACC. */
+  allocated: number | null;
+  burn: {
+    consumed: number; remaining: number; consumed_pct: number; elapsed_pct: number;
+    projected_at_end: number; projected_shortfall: number; projected_exhaustion: string | null; end: string;
+  } | null;
+  last_month: { month: string; actual: number; mom_pct: number | null } | null;
+  recent: { month: string; actual: number }[];
+  status: PortfolioStatus;
+  synced_at: string | null;
+  stale: boolean;
+}
+
+export const fetchPortfolio = () => apiFetch<PortfolioRow[]>(`${BASE}/portfolio`);
+
 export const saveCustomer = (id: string | null, draft: CustomerDraft) =>
   apiFetch<Customer>(id ? customer(id) : `${BASE}/customers`, {
     method: id ? 'PUT' : 'POST',

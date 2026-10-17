@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.8.0] - 2026-10-17
+
+- feat: **the customer list is a portfolio** (operator, 2026-10-17: a better view for the customer list, with affiliates that collapse). Each row shows the signed MACC, a burn bar against the share of the term elapsed, the last closed month and its change, a six-month trend line, where the burn lands (exhausts in a month, or short by an amount at term end) and a status -- Behind, Exhausts early (three months or more before the term ends), On track, Consumed, No MACC set, Not synced. A group's row rolls up its affiliates, as its report does, and its affiliates fold under it: collapsed by default, one click per group or Expand all / Collapse all, remembered per browser; a search or a status filter opens the groups it matches in. Columns sort; filters are in the URL. All from local data through one new call, `GET /portfolio` -- opening the list never queries Azure.
+
 ## [0.7.0] - 2026-10-17
 
 - feat: **reports first, then the customer** (operator, 2026-10-17: the landing page shows the reports; a report opens a list of customers and affiliates; a customer opens the report). `/azure-cost-manager` is now a catalogue of reports -- Overview, Forecast, Pipeline, Marketplace and Breakdown per customer, and Marketplace across all customers. A per-customer report at `/azure-cost-manager/report?report=…` lists every customer with its affiliates under it (signed MACC, enrollments, last synced, searchable); choosing one opens the report, with a breadcrumb back and the other reports one click away. Links from 0.6 (`?customer=&tab=`) still land on the same report.

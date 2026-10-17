@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import { useRememberedState, useUrlSelection, useUrlState } from '../../pluginHost/state';
@@ -9,7 +9,8 @@ import {
   type Analysis, type Customer, type Measure, type SignInState,
 } from './client';
 import { ForecastTab } from './ForecastTab';
-import { errorText, formatMoney, grouped } from './format';
+import { CustomerPortfolio } from './CustomerPortfolio';
+import { errorText } from './format';
 import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
 import { REPORTS, reportLink, reportTitle, SETTINGS_PATH, type Report } from './ReportsHome';
@@ -61,59 +62,6 @@ function CustomerView({ customerId, measure, syncedVersion, report }: {
   );
 }
 
-function syncedText(syncedAt: string | null): string {
-  return syncedAt ? new Date(syncedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not synced';
-}
-
-/** Every customer, each group's affiliates under it; a click opens the report for that customer. */
-function CustomerChooser({ customers, report }: { customers: Customer[]; report: Report }) {
-  const [search, setSearch] = useUrlState<string>('search', '');
-  const byId = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
-  const needle = search.trim().toLowerCase();
-  // A match keeps its whole group in view, so an affiliate is never shown without its parent.
-  const shown = grouped(customers).filter((customer) => {
-    if (!needle) return true;
-    const group = customer.parent && byId.has(customer.parent) ? byId.get(customer.parent)! : customer;
-    return [group, ...customers.filter((member) => member.parent === group.id)]
-      .some((member) => member.name.toLowerCase().includes(needle));
-  });
-
-  if (customers.length === 0) {
-    return <p className="empty-state">No customers yet. <Link to={SETTINGS_PATH}>Add a customer</Link> and pick its enrollments.</p>;
-  }
-  return (
-    <section className="card azure-cost-card">
-      <div className="azure-cost-card-head">
-        <h3>Choose a customer</h3>
-        <input type="search" placeholder="Search customers" value={search}
-               onChange={(event) => setSearch(event.target.value)} aria-label="Search customers" />
-      </div>
-      <table className="azure-cost-table azure-cost-chooser">
-        <thead><tr><th>Customer</th><th>Signed MACC</th><th>Enrollments</th><th>Last synced</th></tr></thead>
-        <tbody>
-          {shown.map((customer) => {
-            const isAffiliate = Boolean(customer.parent && byId.has(customer.parent));
-            const isGroup = Boolean(customer.affiliates?.length);
-            return (
-              <tr key={customer.id} className={isAffiliate ? 'azure-cost-chooser-affiliate' : 'azure-cost-chooser-top'}>
-                <td>
-                  <Link to={reportLink(report, customer.id)}>{isAffiliate ? '↳ ' : ''}{customer.name}</Link>
-                  {isGroup ? <span className="text-muted"> · group of {customer.affiliates!.length + 1}</span> : null}
-                  {isAffiliate ? <span className="text-muted"> · affiliate</span> : null}
-                </td>
-                <td>{customer.commitment ? formatMoney(customer.commitment.amount, customer.commitment.currency) : '—'}</td>
-                <td>{customer.accounts.length}</td>
-                <td className="text-muted">{syncedText(customer.synced_at)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {shown.length === 0 ? <p className="text-muted">No customer matches “{search}”.</p> : null}
-    </section>
-  );
-}
-
 /** One report: without a customer in the URL it asks for one, with one it shows the report. */
 export function AzureCostPage() {
   const [signIn, setSignIn] = useState<SignInState | null>(null);
@@ -162,7 +110,7 @@ export function AzureCostPage() {
       {!customers ? <p className="text-muted">Loading…</p>
         : selected && !customer ? (
           <p className="empty-state">That customer no longer exists. <Link to={reportLink(report)}>Choose another</Link>.</p>
-        ) : !customer ? <CustomerChooser customers={customers} report={report} />
+        ) : !customer ? <CustomerPortfolio report={report} />
           : (
             <>
               <SyncControl customerId={customer.id} syncedAt={customer.synced_at} onSynced={onSynced} />

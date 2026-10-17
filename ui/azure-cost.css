@@ -437,10 +437,156 @@
   font-size: var(--font-size-sm);
 }
 
-.azure-cost-chooser-top td {
+.azure-cost-chooser-top td:first-child > a {
   font-weight: 600;
 }
 
 .azure-cost-chooser-affiliate td:first-child {
   padding-left: var(--space-6);
+}
+
+.azure-cost-chooser tbody tr:hover {
+  background: var(--color-accent-muted);
+}
+
+.azure-cost-chooser-affiliate {
+  background: var(--color-surface-raised);
+}
+
+.azure-cost-row-detail {
+  font-size: 0.85em;
+}
+
+.azure-cost-twisty,
+.azure-cost-twisty-space {
+  display: inline-block;
+  width: 1.5em;
+}
+
+.azure-cost-twisty {
+  border: none;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 0;
+}
+
+.azure-cost-twisty:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.azure-cost-sort {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+
+.azure-cost-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.azure-cost-chips button {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text);
+  padding: 2px var(--space-3);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.azure-cost-chips button.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.azure-cost-chip-count {
+  margin-left: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.azure-cost-burn {
+  min-width: 140px;
+}
+
+.azure-cost-burn-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-border);
+  margin-bottom: 2px;
+}
+
+.azure-cost-burn-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.azure-cost-burn-fill.ahead {
+  background: var(--color-success);
+}
+
+.azure-cost-burn-fill.behind {
+  background: var(--color-warning);
+}
+
+.azure-cost-burn-marker {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  background: var(--color-text);
+}
+
+.azure-cost-trend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.azure-cost-sparkline polyline {
+  stroke: var(--azure-cost-series-1);
+}
+
+.azure-cost-up {
+  color: var(--color-success);
+}
+
+.azure-cost-down {
+  color: var(--color-warning);
+}
+
+.azure-cost-status {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.azure-cost-status.behind {
+  background: rgba(185, 28, 28, 0.2);
+}
+
+.azure-cost-status.early {
+  background: rgba(180, 83, 9, 0.2);
+}
+
+.azure-cost-status.on-track,
+.azure-cost-status.consumed {
+  background: rgba(22, 163, 74, 0.2);
+}
+
+.azure-cost-status.no-macc,
+.azure-cost-status.not-synced {
+  background: rgba(107, 114, 128, 0.2);
+}
+
+.azure-cost-card:has(.azure-cost-chooser) {
+  overflow-x: auto;
 }
