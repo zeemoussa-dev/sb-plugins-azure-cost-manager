@@ -5,13 +5,32 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import consumption_analysis, export_xlsx, marketplace
+from . import consumption_analysis, export_xlsx, marketplace, months
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook
 from .pipeline import Pipeline, PipelineUnavailable, by_month
 
 # The weekly job keeps data at most a week old; past this the page says it is stale.
 STALE_AFTER = timedelta(days=8)
+# The customer list's trend line: the last half-year of closed months.
+RECENT_MONTHS = 6
+# Running out this many months before the term ends is worth a renewal conversation.
+EARLY_EXHAUSTION_MONTHS = 3
+
+
+def _status(burn: dict | None, synced_at: str | None) -> str:
+    if not synced_at:
+        return "not-synced"
+    if not burn:
+        return "no-macc"
+    if burn["remaining"] <= 0:
+        return "consumed"
+    if burn["projected_shortfall"] > 0:
+        return "behind"
+    exhaustion, end_month = burn["projected_exhaustion"], burn["end"][:7]
+    if exhaustion and len(months.span(exhaustion, end_month)) - 1 >= EARLY_EXHAUSTION_MONTHS:
+        return "early"
+    return "on-track"
 
 
 class CustomerNotFound(LookupError):
@@ -192,6 +211,54 @@ class ConsumptionService:
                                            measure=measure, scenario=customer.get("scenario"),
                                            pipeline=pipeline["by_month"]),
         }
+
+    def portfolio(self) -> list[dict]:
+        """Every customer at a glance -- burn, last month, recent trend, status -- for
+        the customer list. A parent rolls up its affiliates, as its report does."""
+        everyone = self._book.list()
+        today = self._today()
+        current_month = months.month_of(today)
+        cached: dict[str, dict] = {}
+
+        def entry(account: str) -> dict:
+            if account not in cached:
+                cached[account] = self._store.account(account)
+            return cached[account]
+
+        not_eligible = self._not_eligible()
+        rows = []
+        for customer in everyone:
+            members = [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]]
+            accounts = [account["name"] for member in members for account in member["accounts"]]
+            merged, currency = consumption_analysis.merge({name: entry(name) for name in accounts},
+                                                          None, not_eligible)
+            commitment = customer.get("commitment")
+            measure = consumption_analysis.commitment_measure(commitment or {})
+            trend = consumption_analysis.monthly_totals(merged, current_month, measure)
+            closed = [month for month in trend if not month["partial"]]
+            burn = consumption_analysis.burn_down(commitment, trend, today) if commitment else None
+            synced = [account["synced_at"] for member in members for account in member["accounts"]]
+            synced_at = min(synced) if synced and all(synced) else None
+            rows.append({
+                "id": customer["id"],
+                "name": customer["name"],
+                "parent": customer.get("parent"),
+                "affiliates": [member["id"] for member in members[1:]],
+                "enrollments": len(accounts),
+                "currency": (commitment or {}).get("currency") or currency,
+                "signed": (commitment or {}).get("amount"),
+                "allocated": round(sum((member.get("commitment") or {}).get("amount", 0.0) for member in members[1:]), 2)
+                if len(members) > 1 else None,
+                "burn": None if not burn else {key: burn[key] for key in (
+                    "consumed", "remaining", "consumed_pct", "elapsed_pct", "projected_at_end",
+                    "projected_shortfall", "projected_exhaustion", "end")},
+                "last_month": closed[-1] if closed else None,
+                "recent": [{"month": month["month"], "actual": month["actual"]} for month in closed[-RECENT_MONTHS:]],
+                "status": _status(burn, synced_at),
+                "synced_at": synced_at,
+                "stale": not synced_at or self._now() - datetime.fromisoformat(synced_at) > STALE_AFTER,
+            })
+        return rows
 
     def export(self, customer_id: str, measure: dict | None = None) -> tuple[str, bytes]:
         """`(file name, .xlsx bytes)` for one customer."""

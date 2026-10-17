@@ -143,6 +143,10 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         _answered(lambda: book.delete(customer_id))
         return {"deleted": customer_id}
 
+    @router.get("/portfolio")
+    def get_portfolio() -> list[dict]:
+        return service.portfolio()
+
     @router.get("/customers/{customer_id}/analysis")
     def get_analysis(customer_id: str, marketplace: bool = True, credits: bool = True) -> dict:
         return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits)))
