@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useRememberedState, useUrlFilters } from '../../pluginHost/state';
 import { fetchPortfolio, type PortfolioRow, type PortfolioStatus } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
-import { reportLink, SETTINGS_PATH, type Report } from './ReportsHome';
+import { reportLink, settingsLink, type Report } from './ReportsHome';
 
 const STATUS_LABELS: Record<PortfolioStatus, string> = {
   behind: 'Behind',
@@ -93,6 +93,7 @@ function syncedText(syncedAt: string): string {
 /** Every customer at a glance, each group's affiliates folded under it; a row opens the report. */
 export function CustomerPortfolio({ report }: { report: Report }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [rows, setRows] = useState<PortfolioRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilter] = useUrlFilters({ search: '', show: 'all', sort: 'status' });
@@ -129,7 +130,7 @@ export function CustomerPortfolio({ report }: { report: Report }) {
   if (error) return <div className="azure-cost-error">{error}</div>;
   if (!rows) return <p className="text-muted">Loading customers…</p>;
   if (rows.length === 0) {
-    return <p className="empty-state">No customers yet. <Link to={SETTINGS_PATH}>Add a customer</Link> and pick its enrollments.</p>;
+    return <p className="empty-state">No customers yet. <Link to={settingsLink(location)}>Add a customer</Link> and pick its enrollments.</p>;
   }
 
   const groups = rows.filter((row) => row.affiliates.length > 0).map((row) => row.id);

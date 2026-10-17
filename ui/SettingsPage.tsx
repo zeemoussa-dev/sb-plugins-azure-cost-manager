@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import {
   deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, saveCustomer,
   type BillingAccount, type Commitment, type Customer, type EntityCustomer,
 } from './client';
 import { agreementLabel, errorText, formatMoney, grouped } from './format';
+import { safeBack } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
 const SHOWN_WHILE_SEARCHING = 60;
@@ -226,6 +227,15 @@ export function SettingsPage() {
   const [editing, setEditing] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const back = safeBack(params.get('back'));
+  // A customer opened from a report is edited for that report: done, it goes back there.
+  const openedFromReport = Boolean(back && params.get('customer'));
+  const finish = (saved: boolean) => {
+    if (openedFromReport) { navigate(back!); return; }
+    setEditing(null);
+    if (saved) load();
+  };
 
   const load = useCallback(() => {
     fetchCustomers().then((listed) => {
@@ -253,13 +263,19 @@ export function SettingsPage() {
 
   return (
     <div className="azure-cost-settings">
-      <h2>Azure Cost Manager</h2>
+      <div className="azure-cost-header">
+        <h2>Azure Cost Manager</h2>
+        <Link to={back ?? '/azure-cost-manager'} className="azure-cost-settings-link">
+          ← {back?.startsWith('/azure-cost-manager/report?') && back.includes('customer=') ? 'Back to the report'
+            : back ? 'Back to Azure Cost' : 'Open Azure Cost'}
+        </Link>
+      </div>
       {error ? <div className="azure-cost-error">{error}</div> : null}
 
       {editing ? (
         <CustomerEditor draft={editing} accounts={accounts} types={types} entityCustomers={entityCustomers}
                         parents={(customers ?? []).filter((customer) => !customer.parent && customer.id !== editing.id)}
-                        onSaved={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />
+                        onSaved={() => finish(true)} onCancel={() => finish(false)} />
       ) : (
         <section className="card azure-cost-card">
           <div className="azure-cost-card-head">

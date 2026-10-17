@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.8.3] - 2026-10-17
+
+- fix: **Settings leads back** (operator, 2026-10-17: editing a MACC went to Settings with no way back). Every link into Settings carries where it came from: Settings shows "← Back to the report" (or "Open Azure Cost" when opened from the menu), and a customer opened from a report returns to that report on Save or Cancel. A customer's report has an "Edit … MACC, enrollments" button that opens its editor directly. Only this plugin's pages are accepted as a way back.
+
 ## [0.8.2] - 2026-10-17
 
 - fix: a customer never synced said "Not synced" and "Synced Never"; the status alone says it now.

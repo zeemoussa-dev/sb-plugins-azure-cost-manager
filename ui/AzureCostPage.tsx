@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import { useRememberedState, useUrlSelection, useUrlState } from '../../pluginHost/state';
 import { BreakdownTab } from './BreakdownTab';
@@ -13,7 +13,7 @@ import { CustomerPortfolio } from './CustomerPortfolio';
 import { errorText } from './format';
 import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
-import { REPORTS, reportLink, reportTitle, SETTINGS_PATH, type Report } from './ReportsHome';
+import { REPORTS, reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
 function CustomerView({ customerId, measure, syncedVersion, report }: {
@@ -64,6 +64,7 @@ function CustomerView({ customerId, measure, syncedVersion, report }: {
 
 /** One report: without a customer in the URL it asks for one, with one it shows the report. */
 export function AzureCostPage() {
+  const location = useLocation();
   const [signIn, setSignIn] = useState<SignInState | null>(null);
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   // What is looked at lives in the URL, so a refresh or a shared link lands on it;
@@ -103,7 +104,13 @@ export function AzureCostPage() {
       </nav>
       <header className="azure-cost-header">
         <h1>{customer ? customer.name : reportTitle(report)}</h1>
-        <Link to={SETTINGS_PATH} className="azure-cost-settings-link">Customers and enrollments</Link>
+        {customer ? (
+          <Link to={settingsLink(location, customer.id)} className="btn azure-cost-settings-link">
+            Edit {customer.name}: MACC, enrollments
+          </Link>
+        ) : (
+          <Link to={settingsLink(location)} className="azure-cost-settings-link">Customers and enrollments</Link>
+        )}
       </header>
       {signIn && !signIn.signed_in ? <div className="azure-cost-error">{signIn.message}</div> : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}

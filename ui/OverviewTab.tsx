@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { BurnDownChart, Change, CommitmentGauge, SeriesChart, TrendChart } from './charts';
 import type { Analysis } from './client';
 import { formatMoney, formatMonth } from './format';
+import { settingsLink } from './ReportsHome';
 
-const SETTINGS = '/settings/plugins/azure-cost-manager';
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function Kpi({ label, value, detail, warn }: { label: string; value: ReactNode; detail?: ReactNode; warn?: boolean }) {
@@ -70,6 +70,7 @@ function Kpis({ analysis }: { analysis: Analysis }) {
 }
 
 function CommitmentCard({ analysis }: { analysis: Analysis }) {
+  const location = useLocation();
   const commitment = analysis.commitment;
   if (!commitment) {
     return (
@@ -77,7 +78,7 @@ function CommitmentCard({ analysis }: { analysis: Analysis }) {
         <h3>Signed value</h3>
         <p className="text-muted">
           No signed value entered for this customer. Azure does not report it for indirect agreements —{' '}
-          <Link to={`${SETTINGS}?customer=${encodeURIComponent(analysis.customer.id)}`}>enter it in Settings</Link>.
+          <Link to={settingsLink(location, analysis.customer.id)}>enter it in Settings</Link>.
         </p>
       </section>
     );

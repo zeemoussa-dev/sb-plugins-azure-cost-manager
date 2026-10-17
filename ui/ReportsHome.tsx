@@ -21,6 +21,20 @@ export function reportTitle(report: Report): string {
   return REPORT_SUMMARIES[report].title;
 }
 
+/** Settings, opened on one customer's editor when `customerId` is given, carrying
+ *  where it was opened from so Settings can lead back there. */
+export function settingsLink(back: { pathname: string; search: string }, customerId?: string): string {
+  const search = new URLSearchParams();
+  if (customerId) search.set('customer', customerId);
+  search.set('back', `${back.pathname}${back.search}`);
+  return `${SETTINGS_PATH}?${search}`;
+}
+
+/** Only ever a page of this plugin, so a crafted link cannot send the operator elsewhere. */
+export function safeBack(back: string | null): string | null {
+  return back && /^\/azure-cost-manager(\/|\?|$)/.test(back) ? back : null;
+}
+
 export function reportLink(report: Report, customerId?: string): string {
   const search = new URLSearchParams({ report });
   if (customerId) search.set('customer', customerId);
@@ -51,13 +65,13 @@ export function ReportsHome() {
     <div className="page azure-cost-page">
       <header className="azure-cost-header">
         <h1>Azure Cost</h1>
-        <Link to={SETTINGS_PATH} className="azure-cost-settings-link">Customers and enrollments</Link>
+        <Link to={settingsLink(location)} className="azure-cost-settings-link">Customers and enrollments</Link>
       </header>
       {signIn && !signIn.signed_in ? <div className="azure-cost-error">{signIn.message}</div> : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
       {customers && customers.length === 0 ? (
         <p className="empty-state">
-          No customers yet. <Link to={SETTINGS_PATH}>Add a customer</Link> and pick its enrollments.
+          No customers yet. <Link to={settingsLink(location)}>Add a customer</Link> and pick its enrollments.
         </p>
       ) : null}
       <h2 className="azure-cost-section-title">Per customer</h2>
