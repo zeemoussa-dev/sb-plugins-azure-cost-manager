@@ -109,6 +109,10 @@ export interface Customer {
   parent?: string | null;
   /** Ids of this customer's affiliates, when it is a parent. */
   affiliates?: string[];
+  /** Where the signed value lives: the linked Customer note in the vault, or this plugin's settings. */
+  commitment_source?: 'note' | 'settings';
+  /** Why the note's signed value cannot be used -- e.g. left incomplete in Obsidian. */
+  commitment_problem?: string | null;
 }
 
 export interface CustomerDraft {
@@ -468,7 +472,8 @@ export const createAffiliateNote = (customerStem: string, name: string) =>
     { method: 'POST', body: JSON.stringify({ name }) });
 
 export const fetchEntityCustomers = () =>
-  apiFetch<{ available: boolean; reason?: string; customers: EntityCustomer[] }>(`${BASE}/entity-customers`);
+  apiFetch<{ available: boolean; reason?: string; customers: EntityCustomer[]; commitments_on_notes?: boolean }>(
+    `${BASE}/entity-customers`);
 
 export const createOpportunity = (id: string, ownerStem: string, title: string,
   fields: Partial<Opportunity>, plan: PlanMonth[]) =>

@@ -40,9 +40,9 @@ function draftOf(customer: Customer | null): Draft {
   };
 }
 
-function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSaved, onCancel }: {
+function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSaved, onCancel, commitmentsOnNotes, commitmentProblem }: {
   draft: Draft; accounts: BillingAccount[]; types: string[]; entityCustomers: EntityCustomer[] | null;
-  parents: Customer[];
+  parents: Customer[]; commitmentsOnNotes: boolean; commitmentProblem: string | null;
   onSaved: () => void; onCancel: () => void;
 }) {
   const [value, setValue] = useState<Draft>(draft);
@@ -154,8 +154,14 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
         ? `Signed MACC — carved out of ${parents.find((parent) => parent.id === value.parent)?.name ?? 'the group'}'s`
         : 'Signed value'}</h4>
       <p className="text-muted azure-cost-note">
-        What the customer committed to over the term. Azure does not report it for indirect agreements.
+        What the customer committed to over the term. Azure does not report it for indirect agreements.{' '}
+        {commitmentsOnNotes && value.entity_customer
+          ? <>Kept on the Customer note <strong>{entityCustomers?.find((customer) => customer.stem === value.entity_customer)?.name ?? value.entity_customer}</strong> in the vault, as its <code>macc_</code> properties: you can edit it there in Obsidian too.</>
+          : commitmentsOnNotes
+            ? 'Kept in these settings until the customer is linked to its Customer note below; it then moves to the note.'
+            : ''}
       </p>
+      {commitmentProblem ? <div className="azure-cost-error">{commitmentProblem}</div> : null}
       <div className="azure-cost-form-row">
         <label className="field-labeled">Type
           <select value={value.commitment.type} onChange={(event) => setCommitment('type', event.target.value)}>
@@ -224,6 +230,7 @@ export function SettingsPage() {
   const [accounts, setAccounts] = useState<BillingAccount[]>([]);
   const [types, setTypes] = useState<string[]>([]);
   const [entityCustomers, setEntityCustomers] = useState<EntityCustomer[] | null>(null);
+  const [commitmentsOnNotes, setCommitmentsOnNotes] = useState(false);
   const [editing, setEditing] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [params] = useSearchParams();
@@ -250,7 +257,10 @@ export function SettingsPage() {
   useEffect(() => {
     load();
     fetchCommitmentTypes().then(setTypes, () => setTypes(['MACC', 'EA commitment', 'Azure Prepayment', 'Other']));
-    fetchEntityCustomers().then((result) => setEntityCustomers(result.available ? result.customers : null),
+    fetchEntityCustomers().then((result) => {
+      setEntityCustomers(result.available ? result.customers : null);
+      setCommitmentsOnNotes(Boolean(result.commitments_on_notes));
+    },
       () => setEntityCustomers(null));
   }, [load]);
 
@@ -275,6 +285,8 @@ export function SettingsPage() {
       {editing ? (
         <CustomerEditor draft={editing} accounts={accounts} types={types} entityCustomers={entityCustomers}
                         parents={(customers ?? []).filter((customer) => !customer.parent && customer.id !== editing.id)}
+                        commitmentsOnNotes={commitmentsOnNotes}
+                        commitmentProblem={customers?.find((customer) => customer.id === editing.id)?.commitment_problem ?? null}
                         onSaved={() => finish(true)} onCancel={() => finish(false)} />
       ) : (
         <section className="card azure-cost-card">
@@ -296,7 +308,9 @@ export function SettingsPage() {
                     </td>
                     <td>{customer.commitment
                       ? `${formatMoney(customer.commitment.amount, customer.commitment.currency, true)} ${customer.commitment.type}`
-                      : <span className="text-muted">not entered</span>}</td>
+                      : <span className="text-muted">not entered</span>}
+                      {customer.commitment_source === 'note' ? <span className="text-muted"> · on its Customer note</span> : null}
+                      {customer.commitment_problem ? <div className="azure-cost-anomaly spike">{customer.commitment_problem}</div> : null}</td>
                     <td className="text-muted">{customer.commitment ? `${customer.commitment.start} → ${customer.commitment.end}` : ''}</td>
                     <td className="text-muted">{customer.synced_at ? new Date(customer.synced_at).toLocaleDateString() : 'never'}</td>
                     <td className="azure-cost-row-actions">

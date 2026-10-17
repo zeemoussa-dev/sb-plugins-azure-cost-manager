@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.9.0] - 2026-10-17
+
+- feat: **a linked customer's signed value lives on its Customer note** (operator, 2026-10-17: "Where does the MACC data being stored in the md vault" -- chose the Customer note as the single source of truth). With Entities 1.3 or later, the MACC of a customer linked to its Customer note is read from and saved to that note's `macc_*` properties (`entities.customers` `commitment` / `set_commitment`), so it can be edited in Obsidian too and the vault can answer about it. On first use, a value held in this plugin's data moves to its note, unless the note already has one, which wins; linking to a note that has one keeps the note's. A value left incomplete in Obsidian counts nothing and Settings says why; a missing note is reported. Unlinked customers, or an Entities older than 1.3, keep it in this plugin's data as before. The sync reads term starts the same way. Settings says where each value lives.
+
 ## [0.8.3] - 2026-10-17
 
 - fix: **Settings leads back** (operator, 2026-10-17: editing a MACC went to Settings with no way back). Every link into Settings carries where it came from: Settings shows "← Back to the report" (or "Open Azure Cost" when opened from the menu), and a customer opened from a report returns to that report on Save or Cancel. A customer's report has an "Edit … MACC, enrollments" button that opens its editor directly. Only this plugin's pages are accepted as a way back.
