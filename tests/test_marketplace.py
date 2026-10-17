@@ -146,7 +146,7 @@ def test_the_marketplace_reaches_both_exports(fake_api):
 
     values = [cell.value for row in sheet.iter_rows() for cell in row if cell.value is not None]
     assert "Linux" in values and "no" in values
-    assert across.sheetnames == ["Marketplace Summary", "Solutions", "Solution x Customer"]
+    assert across.sheetnames == ["Marketplace Summary", "Pivot", "Solutions", "Solution x Customer", "Marketplace data"]
     assert service.marketplace_across()["not_macc"] == 4500
     # The customer workbook's Marketplace sheet runs from the first month on record.
     assert sheet["A2"].value.startswith("From 2026-01 to 2026-10")
@@ -164,3 +164,51 @@ def test_exports_carry_the_operators_theme_so_charts_take_its_colours(fake_api):
 
     assert "156082" in theme and "E97132" in theme   # accent1 and accent2 of the operator's workbook
     assert "Aptos" in theme and "4F81BD" not in theme  # not openpyxl's 2007 default
+
+
+def test_who_bought_what_and_when_is_one_line_per_solution_buyer_and_month():
+    shared = {"2": {"months": {"2026-09": month([item("Northwind", "Linux", 100, "8.9"), item("Northwind", "Linux", 5, "8.9")])}}}
+    customers = [({"id": "affiliate", "name": "Affiliate", "parent": "group"}, shared),
+                 ({"id": "group", "name": "Group", "parent": None},
+                  {"1": {"months": {"2026-08": month([item("Litware", "AI", 25)])}}, **shared})]
+
+    lines = marketplace.across_customers(customers, {"Litware|AI"}, "2026-01", "2026-12")["lines"]
+
+    assert lines == [
+        {"publisher": "Litware", "solution": "AI", "plan": "", "buyer": "Group", "group": "Group",
+         "buyer_type": "Customer", "month": "2026-08", "amount": 25, "macc_eligible": False},
+        {"publisher": "Northwind", "solution": "Linux", "plan": "8.9", "buyer": "Affiliate", "group": "Group",
+         "buyer_type": "Affiliate", "month": "2026-09", "amount": 105, "macc_eligible": True},
+    ]
+
+
+def test_spellings_that_differ_only_in_case_become_one_for_the_pivot():
+    from backend import xlsx_pivot
+
+    rows = [["CommVault", 1.0], ["Commvault", 2.0], ["Commvault ", 3.0], ["Litware", 4.0]]
+
+    assert [row[0] for row in xlsx_pivot.fold_case(rows, [0])] == ["Commvault", "Commvault", "Commvault", "Litware"]
+
+
+def test_the_export_carries_a_pivot_table_over_its_data_sheet(fake_api):
+    import zipfile
+
+    from backend import export_xlsx
+
+    report = {"period": {"first": "2026-08", "last": "2026-09", "from_start": False}, "total": 130, "macc": 105,
+              "not_macc": 25, "solutions": [], "publishers": [], "customers": [], "monthly": [],
+              "lines": [{"publisher": "Litware", "solution": "AI", "plan": "", "buyer": "Group", "group": "Group",
+                         "buyer_type": "Customer", "month": "2026-08", "amount": 25, "macc_eligible": False},
+                        {"publisher": "Northwind", "solution": "Linux", "plan": "8.9", "buyer": "Affiliate",
+                         "group": "Group", "buyer_type": "Affiliate", "month": "2026-09", "amount": 105,
+                         "macc_eligible": True}]}
+
+    archive = zipfile.ZipFile(io.BytesIO(export_xlsx.build_marketplace(report, TODAY)))
+    table = next(archive.read(name).decode("utf8") for name in archive.namelist() if "pivotTables/" in name
+                 and name.endswith(".xml"))
+    cache = next(archive.read(name).decode("utf8") for name in archive.namelist()
+                 if "pivotCacheDefinition" in name and name.endswith(".xml"))
+
+    assert 'refreshOnLoad="1"' in cache and "Marketplace data" in cache
+    assert 'name="Amount (USD)"' in table
+    assert table.count("<rowFields") == 1 and table.count("<colFields") == 1 and table.count("<pageFields") == 1

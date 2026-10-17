@@ -21,7 +21,7 @@ from openpyxl.chart.label import DataLabelList
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from . import categories
+from . import categories, xlsx_pivot
 from .office_theme import THEME_XML
 
 
@@ -849,9 +849,50 @@ def build_marketplace(report: dict, today: date) -> bytes:
         matrix.column_dimensions[get_column_letter(column)].width = 18
     matrix.freeze_panes = "C5"
 
+    _marketplace_pivot(workbook, report, covered)
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
+
+
+PIVOT_HEADERS = ["Publisher", "Solution", "Plan", "Buyer", "Group", "Buyer type", "Month", "Amount", "Toward MACC"]
+
+
+def _marketplace_pivot(workbook: Workbook, report: dict, covered: str) -> None:
+    """Who bought which partner solution, when, for how much (operator, 2026-10-17):
+    the line-level data as an Excel Table, and a real PivotTable over it --
+    Publisher › Solution › Buyer down the side, months across -- placed second, so
+    it is the first thing after the summary."""
+    lines = report.get("lines") or []
+    amount_column = PIVOT_HEADERS.index("Amount")
+    rows = xlsx_pivot.fold_case(
+        [[line["publisher"], line["solution"], line["plan"], line["buyer"], line["group"], line["buyer_type"],
+          line["month"], line["amount"], "Yes" if line["macc_eligible"] else "No"] for line in lines],
+        [column for column in range(len(PIVOT_HEADERS)) if column != amount_column])
+
+    data = _new_sheet(workbook, "Marketplace data", "Marketplace lines",
+                      f"{covered}  ·  one row per solution, plan, buyer and month  ·  the Pivot sheet is built on it",
+                      tab=BLUE_TAB)
+    header_row = 4
+    _table(data, header_row, PIVOT_HEADERS, rows, {7: MONEY_CENTS})
+    _widths(data, {"A": 28, "B": 44, "C": 30, "D": 36, "E": 30, "F": 16, "G": 10, "H": 16, "I": 13})
+    data.freeze_panes = data.cell(header_row + 1, 1)
+    if rows:
+        data.auto_filter.ref = f"A{header_row}:{get_column_letter(len(PIVOT_HEADERS))}{header_row + len(rows)}"
+
+    pivot_sheet = _new_sheet(workbook, "Pivot", "Marketplace pivot – publisher, solution, buyer, month",
+                             f"{covered}  ·  an Excel PivotTable: drag fields, filter, expand or collapse. "
+                             "Excel builds it when the file opens; a file previewer shows it empty.", tab=NAVY)
+    workbook.move_sheet(pivot_sheet, offset=-(len(workbook.sheetnames) - 2))
+    if not rows:
+        pivot_sheet["A4"] = "No Marketplace lines in the period."
+        return
+    _widths(pivot_sheet, {"A": 48})
+    xlsx_pivot.add_pivot(pivot_sheet, data, header_row, PIVOT_HEADERS, rows,
+                         row_fields=["Publisher", "Solution", "Buyer"], column_fields=["Month"],
+                         page_fields=["Toward MACC", "Group", "Buyer type"],
+                         value_field="Amount", value_caption="Amount (USD)", top_left="A9",
+                         name="MarketplacePivot")
 
 
 def build(customer: dict, analysis: dict, merged: dict, today: date, entries: dict[str, dict] | None = None) -> bytes:

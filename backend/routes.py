@@ -56,8 +56,11 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
 
     @router.get("/marketplace")
     def get_marketplace(first_month: str | None = None, last_month: str | None = None) -> dict:
-        """Every partner solution across every customer."""
-        return _answered(lambda: service.marketplace_across(first_month, last_month))
+        """Every partner solution across every customer. The line-level detail is
+        the export's, not the page's -- thousands of rows the page never shows."""
+        report = _answered(lambda: service.marketplace_across(first_month, last_month))
+        report.pop("lines", None)
+        return report
 
     @router.get("/marketplace/not-macc-eligible")
     def get_not_macc_eligible() -> list[dict]:

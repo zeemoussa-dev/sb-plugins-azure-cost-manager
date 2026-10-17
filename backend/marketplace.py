@@ -162,6 +162,10 @@ def across_customers(customers: list[tuple[dict, dict[str, dict]]], not_eligible
     solutions: dict[tuple, dict] = {}
     by_customer: dict[str, dict] = {}
     monthly: dict[str, dict] = {}
+    # Who bought what, when: one line per solution, plan, buyer and month -- the
+    # export's PivotTable is built on these.
+    lines: dict[tuple, dict] = {}
+    names = {customer["id"]: customer["name"] for customer, _ in customers}
     for customer, entries in customers:
         own = {account: entry for account, entry in entries.items() if account not in seen_accounts}
         seen_accounts |= set(own)
@@ -191,6 +195,14 @@ def across_customers(customers: list[tuple[dict, dict[str, dict]]], not_eligible
             row = monthly.setdefault(month, {"month": month, "total": 0.0, "macc": 0.0})
             row["total"] += item["cost"]
             row["macc"] += item["cost"] if counted else 0.0
+            line = lines.setdefault((item["publisher"], item["offer"], item["plan"], customer["id"], month), {
+                "publisher": item["publisher"], "solution": item["offer"], "plan": item["plan"] or "",
+                "buyer": customer["name"],
+                "group": names.get(customer.get("parent"), customer["name"]),
+                "buyer_type": "Billing profile" if customer.get("profile")
+                else "Affiliate" if customer.get("parent") else "Customer",
+                "month": month, "amount": 0.0, "macc_eligible": counted})
+            line["amount"] += item["cost"]
 
     solution_rows = []
     for solution in solutions.values():
@@ -233,6 +245,8 @@ def across_customers(customers: list[tuple[dict, dict[str, dict]]], not_eligible
         "customers": sorted(customer_rows, key=lambda row: -row["total"]),
         "monthly": [{"month": row["month"], "total": round(row["total"], 2), "macc": round(row["macc"], 2)}
                     for row in sorted(monthly.values(), key=lambda row: row["month"])],
+        "lines": sorted(({**line, "amount": round(line["amount"], 2)} for line in lines.values()),
+                        key=lambda line: (line["publisher"], line["solution"], line["buyer"], line["month"])),
     }
 
 
