@@ -86,8 +86,8 @@ function projectedText(row: PortfolioRow): string {
   return 'Consumed by term end';
 }
 
-function syncedText(syncedAt: string | null): string {
-  return syncedAt ? new Date(syncedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : 'Never';
+function syncedText(syncedAt: string): string {
+  return new Date(syncedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
 /** Every customer at a glance, each group's affiliates folded under it; a row opens the report. */
@@ -183,10 +183,12 @@ export function CustomerPortfolio({ report }: { report: Report }) {
       <td>{projectedText(row)}</td>
       <td>
         <span className={`azure-cost-status ${row.status}`}>{STATUS_LABELS[row.status]}</span>
-        <div className="text-muted azure-cost-row-detail">
-          {row.synced_at && row.unsynced_enrollments ? `${row.unsynced_enrollments} of ${row.enrollments} not synced yet · `
-            : row.stale && row.synced_at ? 'Stale · ' : ''}Synced {syncedText(row.synced_at)}
-        </div>
+        {row.synced_at ? (
+          <div className="text-muted azure-cost-row-detail">
+            {row.unsynced_enrollments ? `${row.unsynced_enrollments} of ${row.enrollments} not synced yet · `
+              : row.stale ? 'Stale · ' : ''}Synced {syncedText(row.synced_at)}
+          </div>
+        ) : null}
       </td>
     </tr>
   );

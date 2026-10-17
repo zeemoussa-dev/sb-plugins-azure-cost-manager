@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.8.2] - 2026-10-17
+
+- fix: a customer never synced said "Not synced" and "Synced Never"; the status alone says it now.
+
 ## [0.8.1] - 2026-10-17
 
 - fix: a group with some affiliates still syncing showed "Not synced" and nothing else. It now shows what is synced, dated by its oldest synced enrollment, and says how many enrollments are not synced yet.
