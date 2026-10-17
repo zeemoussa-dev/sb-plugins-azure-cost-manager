@@ -107,6 +107,11 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def put_customer(customer_id: str, customer: dict = Body(...)) -> dict:
         return _answered(lambda: book.save(customer_id, customer))
 
+    @router.post("/entity-customers/{customer_stem}/affiliates")
+    def post_affiliate(customer_stem: str, affiliate: dict = Body(...)) -> dict:
+        """A new affiliate note under a Customer, written by the Entities plugin."""
+        return _answered(lambda: pipeline.create_affiliate(customer_stem, (affiliate.get("name") or "").strip()))
+
     @router.delete("/customers/{customer_id}")
     def delete_customer(customer_id: str) -> dict:
         _answered(lambda: book.delete(customer_id))

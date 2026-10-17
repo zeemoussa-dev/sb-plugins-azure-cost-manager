@@ -15,6 +15,8 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 - **[2026-10-16] A customer is a group of enrollments, synced into local data weekly.** One enrollment per customer was wrong on first contact: one customer was a parent plus two linked enrollments, and another's consumption moved to a new enrollment mid-year, so the old one read zero. Pages read local data only; a weekly Hermes cron job calls the sync route. *Supersedes the display-only, refresh-on-open model of 0.1.x.*
 - **[2026-10-16] The signed value is entered by the operator.** Indirect EA shows no prepayment and the commitment lots answer 401 to a partner's sign-in, so Azure cannot say what the customer signed for.
 
+- **[2026-10-17] An affiliate's MACC is carved out of its parent's.** A group signs one MACC; each affiliate signs its own fixed MACC that counts against the parent's, and every affiliate dollar burns both. Modelled as parent and affiliate customers, one level deep; the parent rolls everything up and shows allocated, unallocated and over-allocated.
+
 ## Patterns
 
 - **[2026-10-16] The current month is never evidence.** It is partial: no month-over-month change, no run rate, no anomaly is computed from it.

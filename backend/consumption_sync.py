@@ -120,14 +120,20 @@ class ConsumptionSync:
             self._status.update(fields)
 
     def run(self, customer_id: str | None = None) -> None:
-        customers = self._store.customers()
+        everyone = self._store.customers()
+        starts = {customer["id"]: (customer.get("commitment") or {}).get("start") for customer in everyone}
+        customers = everyone
         if customer_id:
-            customers = [customer for customer in customers if customer["id"] == customer_id]
+            # A parent's sync brings its affiliates: their consumption is part of its MACC.
+            customers = [customer for customer in everyone
+                         if customer["id"] == customer_id or customer.get("parent") == customer_id]
         visible = self._directory.by_name()
         # An account in two customers is fetched once, reaching as far back as either needs.
         first_month_by_account: dict[str, str] = {}
         for customer in customers:
-            commitment_start = (customer.get("commitment") or {}).get("start")
+            # An affiliate's dollars count against its parent's MACC from the parent's start.
+            own_and_parent = [day for day in (starts.get(customer["id"]), starts.get(customer.get("parent"))) if day]
+            commitment_start = min(own_and_parent) if own_and_parent else None
             for name in customer["accounts"]:
                 first = self._first_month(visible.get(name) or {}, commitment_start)
                 first_month_by_account[name] = min(first, first_month_by_account.get(name, first))

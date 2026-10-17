@@ -140,8 +140,10 @@ class CustomerBook:
                                  "term_start": known.get("term_start"), "term_end": known.get("term_end"),
                                  "synced_at": cached.get("synced_at"), "errors": cached.get("errors") or {}})
             synced = [account["synced_at"] for account in accounts]
-            listed.append({**customer, "accounts": accounts,
+            listed.append({**customer, "accounts": accounts, "parent": customer.get("parent"),
                            "synced_at": min(synced) if synced and all(synced) else None})
+        for customer in listed:
+            customer["affiliates"] = [other["id"] for other in listed if other["parent"] == customer["id"]]
         return listed
 
     def save(self, customer_id: str | None, submitted: dict) -> dict:
@@ -166,11 +168,15 @@ class CustomerBook:
             while customer_id in taken:
                 customer_id += "-2"
         existing = next((customer for customer in customers if customer["id"] == customer_id), {})
+        parent = (submitted.get("parent") or None) if "parent" in submitted else existing.get("parent")
+        self._check_parent(customer_id, parent, customers)
         saved = {"id": customer_id, "name": name, "accounts": account_names,
                  "commitment": _valid_commitment(submitted.get("commitment")),
                  # The Entities Customer hub this customer's Opportunity notes sit under.
                  "entity_customer": (submitted["entity_customer"] or None) if "entity_customer" in submitted
                  else existing.get("entity_customer"),
+                 # The group this customer is an affiliate of: its MACC is carved out of the parent's.
+                 "parent": parent,
                  "scenario": existing.get("scenario")}
         replaced = [saved if customer["id"] == customer_id else customer for customer in customers]
         if not any(customer["id"] == customer_id for customer in customers):
@@ -188,7 +194,25 @@ class CustomerBook:
         self._store.save_customers(customers)
         return customer["scenario"]
 
+    @staticmethod
+    def _check_parent(customer_id: str, parent: str | None, customers: list[dict]) -> None:
+        """Groups are one level deep: a parent is a top-level customer, and a
+        customer with affiliates of its own cannot become someone's affiliate."""
+        if not parent:
+            return
+        if parent == customer_id:
+            raise CustomerError("a customer cannot be its own parent")
+        parent_record = next((customer for customer in customers if customer["id"] == parent), None)
+        if parent_record is None:
+            raise CustomerError(f"no customer {parent!r} to be part of")
+        if parent_record.get("parent"):
+            raise CustomerError(f"{parent_record['name']} is itself an affiliate; groups are one level deep")
+        if any(customer.get("parent") == customer_id for customer in customers):
+            raise CustomerError("this customer has affiliates of its own, so it cannot be an affiliate")
+
     def delete(self, customer_id: str) -> None:
+        if any(customer.get("parent") == customer_id for customer in self._store.customers()):
+            raise CustomerError("remove its affiliates, or move them to another parent, first")
         customers = [customer for customer in self._store.customers() if customer["id"] != customer_id]
         self._store.save_customers(customers)
         self._forget_unused_accounts(customers)

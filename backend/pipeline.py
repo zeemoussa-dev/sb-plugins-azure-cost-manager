@@ -48,6 +48,16 @@ class Pipeline:
     def update(self, opportunity_id: str, fields: dict, plan: list[dict] | None) -> dict:
         return self._service().update(opportunity_id, fields, plan)
 
+    def create_affiliate(self, customer_stem: str, name: str) -> dict:
+        """An affiliate note under a Customer (Entities ≥ 1.2), for an affiliate the
+        vault does not know yet -- Azure often has more of them than the vault."""
+        if not name:
+            raise ValueError("an affiliate needs a name")
+        service = self._service()
+        if not hasattr(service, "create_affiliate"):
+            raise PipelineUnavailable("Creating an affiliate note needs the Entities plugin 1.2 or later.")
+        return service.create_affiliate(customer_stem, name)
+
 
 def by_month(opportunities: list[dict]) -> dict[str, float]:
     """The expected monthly $ of every opportunity still expected to land."""

@@ -124,6 +124,21 @@ reservations (`PricingModel = Reservation`).
 | Pipeline | The customer's **Opportunity notes** in the vault, including its affiliates'. The plugin lists, creates and edits them — status, stage, partner, billing profile, start month and a month-by-month ramp — and the ramp feeds the forecast and the burn-down projection |
 | Who writes Opportunity notes | **The Entities plugin**, which owns the `opportunity` Template. It provides the service below; this plugin calls it at request time and never writes those notes itself. Without Entities ≥ 1.1 the Pipeline tab says so and the rest works |
 
+## Phase 1e — groups: a parent's MACC carved out to affiliates (decided 2026-10-17)
+
+A holding group signs one MACC (say $50M); its affiliates each sign their own
+MACC (say $7M) that is **carved out of** the parent's. In Azure each affiliate is
+its own enrollment(s), linked under the parent's enrollment.
+
+| Topic | Decision |
+|---|---|
+| Structure | A **parent customer** and **affiliate customers**, each affiliate a full customer (enrollments, dashboard, export, pipeline) with `parent` set. One level only |
+| Signed values | The parent's commitment is the group's whole MACC. An affiliate's commitment is its own MACC, a **fixed amount**, counted against the parent's |
+| Burn | Every dollar an affiliate consumes counts against its own MACC **and** the parent's. The parent's view rolls up its own enrollments and all its affiliates' |
+| Allocation | The parent shows each affiliate's MACC, consumption, pace and projection; the **unallocated** part (parent MACC − affiliates' MACCs) against the parent's own enrollments; and over-allocation when affiliates' MACCs exceed the parent's |
+| Sync | Syncing the parent syncs its affiliates |
+| Vault | Affiliates link to their affiliate notes; the missing ones are created through `entities.opportunities.create_affiliate` (Entities ≥ 1.2) |
+
 ### The `entities.opportunities` service (provided by `sb-plugins-entities` ≥ 1.1)
 
 Asked for with `api.get_service("entities.opportunities")` at call time.

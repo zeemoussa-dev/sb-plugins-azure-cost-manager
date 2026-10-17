@@ -1,0 +1,125 @@
+"""Groups: a parent's MACC carved out to affiliates.
+
+Worth pinning: every affiliate dollar counts against its own MACC and the
+parent's; the unallocated rest is the parent's own enrollments' to burn; an
+over-allocated parent says so; groups are one level deep; and syncing a parent
+brings its affiliates.
+"""
+from __future__ import annotations
+
+from datetime import date, datetime, timezone
+
+import pytest
+
+from backend.consumption_service import ConsumptionService
+from backend.consumption_store import ConsumptionStore
+from backend.consumption_sync import ConsumptionSync
+from backend.customers import AccountDirectory, CustomerBook, CustomerError
+
+TODAY = date(2026, 10, 17)
+ACCOUNTS = [{"name": name, "display_name": display, "agreement_type": "MicrosoftCustomerAgreement",
+             "term_start": "2026-01-01", "term_end": "2028-12-31"}
+            for name, display in (("1", "Holding"), ("2", "Holding-1-Northwind"), ("3", "Holding-1-Litware"))]
+
+
+def month(total: float) -> dict:
+    spend = {"service": {"VM": total}, "subscription": {"Prod": total}}
+    return {"fetched_at": "2026-10-17T00:00:00+00:00", "currency": "USD", "actual": spend, "amortized": spend,
+            "meters": {}}
+
+
+def macc(amount: float) -> dict:
+    return {"type": "MACC", "amount": amount, "start": "2026-01-01", "end": "2028-12-31"}
+
+
+def group(fake_api, northwind_macc=7_000_000, litware_macc=3_000_000):
+    fake_api.get_service = lambda name: None
+    store = ConsumptionStore(fake_api)
+    book = CustomerBook(store, AccountDirectory(lambda: [dict(a) for a in ACCOUNTS]))
+    book.save(None, {"name": "Holding", "accounts": ["1"], "commitment": macc(50_000_000)})
+    book.save(None, {"name": "Northwind", "accounts": ["2"], "parent": "holding", "commitment": macc(northwind_macc)})
+    book.save(None, {"name": "Litware", "accounts": ["3"], "parent": "holding", "commitment": macc(litware_macc)})
+    for account, monthly in (("1", 1_000_000), ("2", 500_000), ("3", 250_000)):
+        store.save_account(account, {"months": {f"2026-{m:02d}": month(monthly) for m in range(1, 10)},
+                                     "synced_at": "2026-10-17T00:00:00+00:00"})
+    return book, ConsumptionService(store, book, today=lambda: TODAY)
+
+
+def test_the_parent_rolls_up_its_affiliates_against_the_whole_macc(fake_api):
+    _, service = group(fake_api)
+
+    result = service.analysis("holding")
+
+    assert result["months"][0]["actual"] == 1_750_000
+    assert result["commitment"]["consumed"] == 9 * 1_750_000
+    assert {account["name"] for account in result["group"]["accounts"]} == {"1", "2", "3"}
+
+
+def test_each_affiliate_burns_its_own_macc_and_the_rest_is_unallocated(fake_api):
+    _, service = group(fake_api)
+
+    allocations = service.analysis("holding")["allocations"]
+
+    assert (allocations["parent_amount"], allocations["allocated"], allocations["unallocated"]) == \
+        (50_000_000, 10_000_000, 40_000_000)
+    northwind = next(row for row in allocations["affiliates"] if row["name"] == "Northwind")
+    assert northwind["burn"]["consumed"] == 4_500_000
+    assert northwind["burn"]["amount"] == 7_000_000
+    assert allocations["own"] == {"consumed": 9_000_000, "remaining": 31_000_000}
+    assert allocations["consumed_total"] == 9 * 1_750_000
+    assert allocations["over_allocated"] is False
+
+
+def test_an_affiliate_sees_its_own_macc_and_the_group_it_belongs_to(fake_api):
+    _, service = group(fake_api)
+
+    result = service.analysis("northwind")
+
+    assert result["commitment"]["consumed"] == 4_500_000
+    assert result["group"]["parent"] == {"id": "holding", "name": "Holding", "amount": 50_000_000, "currency": "USD"}
+    assert result["allocations"] is None
+
+
+def test_affiliates_signing_more_than_the_parent_is_flagged(fake_api):
+    _, service = group(fake_api, northwind_macc=45_000_000, litware_macc=10_000_000)
+
+    allocations = service.analysis("holding")["allocations"]
+
+    assert allocations["over_allocated"] is True
+    assert allocations["unallocated"] == -5_000_000
+
+
+def test_groups_are_one_level_deep(fake_api):
+    book, _ = group(fake_api)
+
+    with pytest.raises(CustomerError, match="one level"):
+        book.save(None, {"name": "Contoso", "accounts": ["1"], "parent": "northwind"})
+    book.save(None, {"name": "Contoso", "accounts": ["1"]})
+    with pytest.raises(CustomerError, match="affiliates of its own"):
+        book.save("holding", {"name": "Holding", "accounts": ["1"], "parent": "contoso"})
+    with pytest.raises(CustomerError, match="affiliates"):
+        book.delete("holding")
+
+
+def test_syncing_a_parent_brings_its_affiliates(fake_api):
+    book, _ = group(fake_api)
+    asked: list[str] = []
+
+    class Azure:
+        def query_monthly_cost(self, account, cost_type, first, last):
+            asked.append(account)
+            return []
+
+        def query_monthly_meters(self, account, first, last):
+            return []
+
+        def forecast_monthly(self, account, first, last):
+            return []
+
+    store = ConsumptionStore(fake_api)
+    sync = ConsumptionSync(store, AccountDirectory(lambda: [dict(a) for a in ACCOUNTS]), lambda: Azure(),
+                           today=lambda: TODAY, now=lambda: datetime(2026, 10, 17, tzinfo=timezone.utc),
+                           sleep=lambda _: None)
+    sync.run("holding")
+
+    assert set(asked) == {"1", "2", "3"}
