@@ -389,9 +389,10 @@ class ConsumptionService:
         self._store.save_finops_state(state)
         return {"pricing_region": region}
 
-    def portfolio(self) -> list[dict]:
+    def portfolio(self, only: str | None = None) -> list[dict]:
         """Every customer at a glance -- burn, last month, recent trend, status -- for
-        the customer list. A parent rolls up its affiliates, as its report does."""
+        the customer list (`only`: just that customer). A parent rolls up its
+        affiliates, as its report does."""
         everyone = self._book.list()
         today = self._today()
         current_month = months.month_of(today)
@@ -405,6 +406,8 @@ class ConsumptionService:
         not_eligible = self._not_eligible()
         rows = []
         for customer in everyone:
+            if only and customer["id"] != only:
+                continue
             members = [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]]
             accounts = [account["name"] for member in members for account in member["accounts"]]
             merged, currency = consumption_analysis.merge({name: entry(name) for name in accounts},

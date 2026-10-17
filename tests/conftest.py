@@ -16,6 +16,7 @@ class FakeApi:
         self.files: dict[str, str] = {}
         self.seed_data_files: list[str] = []
         self.routers: list = []
+        self.services: dict = {}
         self.data = SimpleNamespace(
             read_text=lambda name: self.files.get(name),
             write_text=lambda name, text: self.files.__setitem__(name, text),
@@ -26,6 +27,9 @@ class FakeApi:
 
     def register_router(self, router) -> None:
         self.routers.append(router)
+
+    def provide_service(self, name: str, service) -> None:
+        self.services[name] = service
 
 
 @pytest.fixture

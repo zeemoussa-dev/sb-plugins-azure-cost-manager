@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.16.0] - 2026-10-17
+
+- feat: **the `azure-cost-manager.portfolio` service** (asked for by the Entities "Customers & Partners" work, 2026-10-17: the operator chose to show Cost Manager data on a Customer's page through a service). `for_entity(customer_stem)` returns the portfolio row of the customer linked to that Customer (or affiliate) note -- signed, burn, last month, trend, status, sync state -- plus `route`, the customer's page here; None when nothing is linked to the note. Local data only, never Azure: a page load asks it. `portfolio(only=...)` computes one customer.
+
 ## [0.15.0] - 2026-10-17
 
 - feat: **Enrollments in no customer** in Settings (operator, 2026-10-17: "Where can I see Enrollement not Assigned to Customer"). Every billing account the sign-in sees that belongs to no customer, grouped like the editor's suggestions (a renewal, or linked under one parent), with last month's and the last twelve months' spend from the light sync of billing profiles -- no Azure call -- the biggest first, searchable. **Create customer** opens the editor with the group's name and enrollments filled in. `GET /unassigned`.
