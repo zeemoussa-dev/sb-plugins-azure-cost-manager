@@ -194,6 +194,87 @@ Asked for with `api.get_service("entities.opportunities")` at call time.
   `POST /artifacts/import/preview` and `/import/commit`.
 - Optional Pipeline for a monthly refresh of every tracked account.
 
+## FinOps — pay less for the same, and keep it that way (proposed 2026-10-17)
+
+Operator, 2026-10-17: add FinOps "based on the consumption", as a report or a
+section; for **both** audiences — "Different Views One for me one for the
+Customer". The plugin already does FinOps' *Inform* phase (consumption, burn,
+anomalies, Marketplace); this adds *Optimize* (rates and usage) and *Operate*
+(budgets and alerts), and turns findings into pipeline.
+
+### Two views of the same findings
+
+| | **Account view** (the operator) | **Customer view** (handed to the customer) |
+|---|---|---|
+| Where | FinOps report per customer; **Optimization opportunities** across customers | the same report with **Customer view** on; a customer FinOps workbook |
+| Shows | everything below, plus MACC pace gap, pipeline, "Create opportunity", every customer ranked | the customer's own spend, coverage, savings, budget, growth, and its own MACC burn |
+| Never shows | — | other customers, Opportunities and pipeline, forecast scenarios, notes, MACC-eligibility exceptions, internal wording |
+
+The Customer view is a **filter on one set of findings**, not a second
+analysis: one engine, so the two never disagree. Whatever the Customer view
+leaves out is left out on the server, not hidden in the browser, so an export
+cannot leak it.
+
+### What the synced data supports (checked 2026-10-17 on this install)
+
+- The meter detail is every meter, not only GPU: `MeterSubCategory × PricingModel`
+  per month. September across synced enrollments: on-demand $12.6M, reservation
+  $2.2M, savings plan $0.18M, spot $8k. Top series: Premium SSD, Dsv5, Ddsv5,
+  Esv5, NDsr H100 v5, Azure OpenAI, Fabric, Databricks.
+- It is **actual** cost. Under actual cost a reservation shows as its purchase and
+  the usage it covers costs $0, so **coverage needs the amortized meter detail**:
+  one more Cost Management query per enrollment-year. Settled months are never
+  fetched again, so it is a one-off backfill, then a month at a time.
+- Only fully synced customers (31 enrollments today) have meters. Billing
+  profiles synced lightly have totals and Marketplace only; FinOps covers
+  customers.
+
+### Phase F1 — from data this plugin can already reach
+
+1. **Commitment coverage**: per customer and month, the share of compute, GPU and
+   Azure OpenAI covered by reservations or savings plans, against on-demand; by
+   VM series. Needs the amortized meter query (sync change, above).
+2. **Steady on-demand candidates**: a series running on-demand at a steady level
+   (low variation) for six or more months — the classic reservation or savings
+   plan case — ranked by monthly on-demand spend.
+3. **Reservation purchases**: months where actual and amortized part sharply,
+   which is a purchase, and how it amortizes after.
+4. **Growth hotspots**: the fastest-growing services and subscriptions, plus the
+   existing anomalies, framed as FinOps findings.
+5. **Budgets**: a monthly budget per customer (Settings), with the forecast
+   against it; over budget, or forecast to be, is flagged.
+6. **Optimization opportunities** across customers: every customer ranked by
+   on-demand spend on steady series and by coverage gap (Account view only).
+7. The customer workbook gets a **FinOps** sheet; the Customer view has its own
+   workbook, carrying only what that view shows.
+
+### Phase F2 — savings in dollars, and findings into pipeline
+
+- Price each steady on-demand series as a 1- and 3-year reservation and a savings
+  plan from Azure's public **Retail Prices API** (no sign-in). The meter detail
+  names a series, not a SKU or a region, so a first cut prices the series'
+  common SKU in the customer's main region and says so; exact figures need a
+  meter-level query (`MeterId`, `ResourceLocation`), which costs throttling
+  budget — decide after F1.
+- **Create opportunity** on a finding (Account view): an Opportunity note through
+  `entities.opportunities`, e.g. "ADNOC — 3-year savings plan for Dsv5", so FinOps
+  advice lands in the pipeline. The savings free up MACC for new workloads.
+- A weekly FinOps digest through Hermes (budget breaches, new candidates).
+
+### Phase F3 — after probing what the partner sign-in can reach
+
+- **Reservation utilization** (Consumption API reservation summaries at the
+  enrollment): may answer 401 to a partner sign-in, as the commitment lots did.
+- **Cost by tag** and tag coverage: possible at the enrollment, but more queries.
+- Not reachable: Azure Advisor's cost recommendations need access inside the
+  customer's tenant.
+
+### Open points
+
+- The Customer view's exclusions above are a proposal; the operator confirms them.
+- Whether the Customer view also exists as a PDF, or the workbook is enough.
+- Budget source: entered per customer, or derived (e.g. MACC ÷ term months).
+
 ---
 
 ## Framework work this needs (in `second_brain`, not here)
