@@ -2,6 +2,15 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.5.0] - 2026-10-17
+
+- feat: **Marketplace** (operator, 2026-10-17: Marketplace consumption per customer, which partner solutions they bought, and what it gives in all MACCs). The sync reads each EA billing period's Marketplace charges -- publisher, offer, plan, subscription, metered or SaaS -- which Cost Management cannot name at this scope; they match the invoiced Marketplace, and a month that does not is reported. Every Marketplace dollar counts toward the MACC unless its offer is marked not eligible (Azure does not say which are); one switch per offer, for every customer, and the burn-downs respect it. A **Marketplace tab** per customer (solutions bought, by month and publisher, toward MACC or not, and solutions adopted at no charge -- free plans, trials, models billed elsewhere), a **Marketplace page across all customers** (each partner solution, who bought it, revenue and MACC-counted revenue, by publisher, customer and month; a group's affiliates are not double-counted), a Marketplace sheet in each customer's workbook, and a cross-customer Marketplace workbook.
+- feat: the selected customer and tab are in the URL, and the Marketplace page's filters too, so a refresh or a shared link lands where you were; the Marketplace/credits switches are remembered per browser (framework API 10's `pluginHost/state`).
+
+## [0.4.1] - 2026-10-17
+
+- chore: `framework_api` 10 (made by the framework's session; recorded here).
+
 ## [0.4.0] - 2026-10-17
 
 - feat: **groups -- a parent's MACC carved out to affiliates** (operator, 2026-10-17: the parent signs a MACC, say $50M; an affiliate signs its own, say $7M, which deducts from the $50M, with its own allocation). A customer can be an affiliate of another (one level deep). The parent's page rolls up its own and its affiliates' enrollments against the group's MACC and adds a **MACC allocation** card -- each affiliate's signed MACC, consumption, pace and projection; the unallocated rest against the parent's own enrollments; the group total; over-allocation flagged. An affiliate's page is its own, with a banner naming the group. Syncing a parent syncs its affiliates, back to the parent's MACC start. Settings sets the group; the picker and the customer list show affiliates under their parent. The export's Dashboard gains a MACC Allocation section, and a parent's Export sheet covers every enrollment in the group.

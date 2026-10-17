@@ -29,6 +29,10 @@
   font-size: var(--font-size-sm);
 }
 
+.azure-cost-header-link {
+  font-size: var(--font-size-sm);
+}
+
 .azure-cost-toolbar {
   display: flex;
   flex-wrap: wrap;

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
+import { useRememberedState, useUrlSelection, useUrlState } from '../../pluginHost/state';
 import { BreakdownTab } from './BreakdownTab';
+import { MarketplaceTab } from './MarketplaceTab';
 import {
   exportPath, fetchAnalysis, fetchCustomers, fetchSignIn,
   type Analysis, type Customer, type Measure, type SignInState,
@@ -13,7 +15,7 @@ import { PipelineTab } from './PipelineTab';
 import { SyncControl } from './SyncControl';
 
 const SETTINGS = '/settings/plugins/azure-cost-manager';
-const TABS = ['Overview', 'Forecast', 'Pipeline', 'Breakdown'] as const;
+const TABS = ['Overview', 'Forecast', 'Pipeline', 'Marketplace', 'Breakdown'] as const;
 type Tab = typeof TABS[number];
 
 function CustomerView({ customerId, measure, syncedVersion, tab }: {
@@ -53,6 +55,7 @@ function CustomerView({ customerId, measure, syncedVersion, tab }: {
       ) : null}
       {tab === 'Pipeline' ? <PipelineTab analysis={analysis} onChanged={reload} />
         : nothingSynced ? <p className="empty-state">Nothing synced for this customer yet. Sync it to load its consumption.</p>
+          : tab === 'Marketplace' ? <MarketplaceTab customerId={customerId} currency={analysis.currency} syncedVersion={syncedVersion} />
           : nothingBilled ? <p className="empty-state">Nothing was billed on these enrollments in the synced period.</p>
             : tab === 'Overview' ? <OverviewTab analysis={analysis} />
               : tab === 'Forecast' ? <ForecastTab analysis={analysis} onChanged={reload} />
@@ -64,10 +67,13 @@ function CustomerView({ customerId, measure, syncedVersion, tab }: {
 export function AzureCostPage() {
   const [signIn, setSignIn] = useState<SignInState | null>(null);
   const [customers, setCustomers] = useState<Customer[] | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  // What is looked at lives in the URL, so a refresh or a shared link lands on it;
+  // how it is measured is a preference, remembered per browser (framework API 10).
+  const [selected, setSelected] = useUrlSelection('customer');
   const [syncedVersion, setSyncedVersion] = useState(0);
-  const [measure, setMeasure] = useState<Measure>({ marketplace: true, credits: true });
-  const [tab, setTab] = useState<Tab>('Overview');
+  const [measure, setMeasure] = useRememberedState<Measure>('azure-cost-manager.measure',
+    { marketplace: true, credits: true });
+  const [tab, setTab] = useUrlState<Tab>('tab', 'Overview', { valid: TABS });
   const [error, setError] = useState<string | null>(null);
 
   const loadCustomers = useCallback(() => {
@@ -104,7 +110,8 @@ export function AzureCostPage() {
             ))}
           </select>
         ) : null}
-        <Link to={SETTINGS} className="azure-cost-settings-link">Customers</Link>
+        <Link to="/azure-cost-manager/marketplace" className="azure-cost-settings-link">Marketplace, all customers</Link>
+        <Link to={SETTINGS} className="azure-cost-header-link">Customers</Link>
       </header>
       {signIn && !signIn.signed_in ? <div className="azure-cost-error">{signIn.message}</div> : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}

@@ -327,7 +327,66 @@ export interface SyncStatus {
   reason?: string;
 }
 
+export interface MarketplaceSolution {
+  publisher: string;
+  offer: string;
+  plan: string;
+  macc_eligible: boolean;
+  total: number;
+  by_month: Record<string, number>;
+  subscriptions: string[];
+  enrollments: string[];
+  kind: 'SaaS' | 'Metered' | 'SaaS + metered';
+  quantity: number;
+  unit: string;
+  first_month: string;
+  last_month: string;
+}
+
+export interface MarketplaceReport {
+  customer: { id: string; name: string };
+  period: { first: string; last: string };
+  total: number;
+  macc: number;
+  not_macc: number;
+  solutions: MarketplaceSolution[];
+  adopted: MarketplaceSolution[];
+  publishers: { publisher: string; total: number; macc: number; solutions: number }[];
+  monthly: { month: string; total: number; macc: number; not_macc: number; by_publisher: Record<string, number> }[];
+  reconciliation: { account: string; month: string; itemised: number; invoiced: number }[];
+}
+
+export interface MarketplaceAcross {
+  period: { first: string; last: string };
+  total: number;
+  macc: number;
+  not_macc: number;
+  solutions: {
+    publisher: string; offer: string; macc_eligible: boolean; total: number; macc: number; plans: string[];
+    customers: { name: string; total: number }[]; adopted_by: number; by_month: Record<string, number>; kind: string;
+  }[];
+  publishers: { publisher: string; total: number; macc: number; solutions: number; customers: string[] }[];
+  customers: { id: string; name: string; parent: string | null; total: number; macc: number; solutions: number; top_publisher: string | null }[];
+  monthly: { month: string; total: number; macc: number }[];
+}
+
 const customer = (id: string) => `${BASE}/customers/${encodeURIComponent(id)}`;
+const periodQuery = (first?: string, last?: string) =>
+  [first ? `first_month=${first}` : '', last ? `last_month=${last}` : ''].filter(Boolean).join('&');
+
+export const fetchCustomerMarketplace = (id: string, first?: string, last?: string) =>
+  apiFetch<MarketplaceReport>(`${customer(id)}/marketplace?${periodQuery(first, last)}`);
+
+export const fetchMarketplaceAcross = (first?: string, last?: string) =>
+  apiFetch<MarketplaceAcross>(`${BASE}/marketplace?${periodQuery(first, last)}`);
+
+export const setMaccEligible = (publisher: string, offer: string, eligible: boolean) =>
+  apiFetch<{ publisher: string; offer: string }[]>(`${BASE}/marketplace/macc-eligibility`,
+    { method: 'PUT', body: JSON.stringify({ publisher, offer, eligible }) });
+
+/** A path for an `<a href>`: the browser downloads the workbook itself. */
+export const marketplaceExportPath = (first?: string, last?: string) =>
+  `${BASE}/marketplace/export.xlsx?${periodQuery(first, last)}`;
 
 export const fetchSignIn = () => apiFetch<SignInState>(`${BASE}/sign-in`);
 
