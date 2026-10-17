@@ -38,3 +38,5 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 - **[2026-10-16] Through `az.cmd`, an `&` in a URL is eaten by cmd.** When probing Azure by hand, pass query parameters with `az rest --url-parameters`, not in `--url`.
 - **[2026-10-16] A month is settled five days after it ends**; until then it is fetched again on refresh, after that never.
 - **[2026-10-16] `az` must be on the backend's PATH and signed in as the operator.** A backend run as a service account would not see the operator's billing accounts.
+- **[2026-10-17] The Consumption API pads its currency code** (`"USD  "`). Trim it before it reaches `Intl.NumberFormat`, which rejects it and falls back to raw digits.
+- **[2026-10-17] Installing a backend change interrupts a running sync.** The plugin's backend loads only when the framework's backend reloads, and the reload stops the sync thread. Settled months survive, so start the sync again afterwards; a UI-only change needs just the frontend dev server restarted.
