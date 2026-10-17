@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.14.3] - 2026-10-17
+
+- fix: **a restarted sync redid every enrollment** (operator, 2026-10-17: "it should sync the ones that didn't sync yet and add the delta for the rest every week or when I click sync"). A sync of everyone now takes never-synced enrollments first, then the longest ago, and skips one synced in the last 20 hours -- for consumption and for tags alike -- so a restart resumes where it stopped. The weekly job and Sync all still bring every enrollment's delta (settled months were already never fetched again); syncing one customer always refreshes it.
+
 ## [0.14.2] - 2026-10-17
 
 - fix: **the billing accounts disappeared and no customer could be linked** (operator, 2026-10-17). While the backend restarts -- a plugin install, a framework change -- the plugin's routes answer 404 for a few seconds, and Settings fetched the billing accounts once and kept the empty result. It now tries again after 3, 10, 30 and 60 seconds and has **Try again**. On the backend, an hourly refresh of the account list that fails keeps the last good list and retries in five minutes, so saving a customer never depends on that one call; and the sync and the pages no longer run two `az` token requests at once.

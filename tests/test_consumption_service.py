@@ -163,6 +163,22 @@ def test_amortized_meters_reach_back_only_the_thirteen_months_finops_reads(fake_
     assert september == {"NDsr H100 v5 Series|Reservation": 200, "Azure OpenAI|Reservation": 100}
 
 
+def test_a_restarted_sync_skips_what_it_synced_today_and_starts_with_the_never_synced(fake_api):
+    azure = FakeAzure()
+    _, book, sync, *_ = build(fake_api, azure)
+    book.save(None, {"name": "Contoso", "accounts": ["10000002"]})
+    sync.run()
+    book.save(None, {"name": "Fabrikam", "accounts": ["20000001"]})
+    azure.queries.clear()
+
+    sync.run()
+
+    assert {account for account, *_ in azure.queries} == {"20000001"}
+    azure.queries.clear()
+    sync.run("contoso")   # one customer, asked for by name, is always refreshed
+    assert {account for account, *_ in azure.queries} == {"10000002"}
+
+
 def test_a_settled_month_is_never_asked_for_again(fake_api):
     azure = FakeAzure()
     _, book, sync, *_ = build(fake_api, azure)

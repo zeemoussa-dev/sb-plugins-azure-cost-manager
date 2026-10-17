@@ -90,9 +90,14 @@ def test_the_sync_queries_only_the_spellings_an_enrollment_has_once(fake_api):
     sync.run_tags()
     first_run = list(asked)
     sync.run_tags()
+    same_day = asked[len(first_run):]
+    next_day = ConsumptionSync(store, directory, lambda: Azure(), today=lambda: TODAY,
+                               now=lambda: datetime(2026, 10, 18, 9, tzinfo=timezone.utc), sleep=lambda _: None)
+    next_day.run_tags()
 
     assert sorted(first_run) == [("environment", "2026-04", "2026-10"), ("projectname", "2026-04", "2026-10")]
-    # Settled months are not asked for again; only October, still open.
+    assert same_day == []   # synced within the day: a restart resumes, it does not redo
+    # A day on, settled months are not asked for again; only October, still open.
     assert sorted(asked[len(first_run):]) == [("environment", "2026-10", "2026-10"), ("projectname", "2026-10", "2026-10")]
     saved = store.account("1")["tags"]["by_key"]["environment"]
     assert saved["months"]["2026-09"] == {"prd": 10.0, "": 5.0} and saved["dimension"] == "Environment"

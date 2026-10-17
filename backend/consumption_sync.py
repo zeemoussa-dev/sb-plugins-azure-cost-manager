@@ -33,6 +33,9 @@ FINOPS_MONTHS = 13
 # a query on the throttling budget, so it reaches no further back than its reports read.
 TAG_MONTHS = 6
 TAG_KEYS_FRESH_FOR = timedelta(days=7)
+# A sync of everyone skips an enrollment synced this recently: a restart resumes,
+# and the weekly job and the Sync button still bring every enrollment's delta.
+RESYNC_AFTER = timedelta(hours=20)
 ENTERPRISE_AGREEMENT = "EnterpriseAgreement"
 
 
@@ -176,8 +179,10 @@ class ConsumptionSync:
         self._set(accounts_done=0, accounts_total=len(accounts))
         client = self._client_factory()
         wanted = months.span(months.shift(months.month_of(self._today()), -TAG_MONTHS), months.month_of(self._today()))
-        for done, account in enumerate(accounts, start=1):
-            self._sync_account_tags(client, account, wanted)
+        tags_synced = {account: (self._store.account(account).get("tags") or {}).get("synced_at") for account in accounts}
+        for done, account in enumerate(sorted(accounts, key=lambda name: (tags_synced[name] or "", name)), start=1):
+            if customer_id or not self._recent(tags_synced[account]):
+                self._sync_account_tags(client, account, wanted)
             self._set(accounts_done=done)
 
     def _sync_account_tags(self, client: BillingClient, account: str, wanted: list[str]) -> None:
@@ -217,6 +222,7 @@ class ConsumptionSync:
                         spelled["months"][month] = values
                         spelled["fetched"][month] = fetched_at
                     self._store.save_account(account, entry)
+        state["synced_at"] = self._now().isoformat()
         self._store.save_account(account, entry)
 
     def _price_candidates(self) -> None:
@@ -261,11 +267,21 @@ class ConsumptionSync:
             for name in customer["accounts"]:
                 first = self._first_month(visible.get(name) or {}, commitment_start)
                 first_month_by_account[name] = min(first, first_month_by_account.get(name, first))
-        self._set(accounts_total=len(first_month_by_account))
+        # A sync of everyone resumes rather than restarts (operator, 2026-10-17: "it should
+        # sync the ones that didn't sync yet and add the delta for the rest"): never-synced
+        # enrollments first, then the longest ago, and one synced within the day is
+        # skipped. Syncing one customer always refreshes it.
+        synced_at = {name: self._store.account(name).get("synced_at") for name in first_month_by_account}
+        order = sorted(first_month_by_account, key=lambda name: (synced_at[name] or "", name))
+        self._set(accounts_total=len(order))
         client = self._client_factory()
-        for done, (name, first_month) in enumerate(sorted(first_month_by_account.items()), start=1):
-            self._sync_account(client, name, first_month, visible.get(name) or {})
+        for done, name in enumerate(order, start=1):
+            if customer_id or not self._recent(synced_at[name]):
+                self._sync_account(client, name, first_month_by_account[name], visible.get(name) or {})
             self._set(accounts_done=done)
+
+    def _recent(self, synced_at: str | None) -> bool:
+        return bool(synced_at) and self._now() - datetime.fromisoformat(synced_at) < RESYNC_AFTER
 
     def run_profiles(self) -> None:
         """Every billing profile that is in no customer, lightly: each month's
