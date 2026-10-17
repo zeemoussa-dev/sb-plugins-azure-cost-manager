@@ -60,8 +60,9 @@ class FakeAzure:
     def forecast_monthly(self, account_name, first_month, last_month):
         return [{"month": "2026-11", "cost": 950}]
 
-    def query_monthly_meters(self, account_name, first_month, last_month):
-        self.queries.append((account_name, "meters", first_month, last_month))
+    def query_monthly_meters(self, account_name, first_month, last_month, cost_type="ActualCost"):
+        self.queries.append((account_name, "meters" if cost_type == "ActualCost" else "meters-amortized",
+                             first_month, last_month))
         return [{"month": "2026-09", "meter_subcategory": "NDsr H100 v5 Series", "pricing_model": "Reservation",
                  "cost": 200, "currency": "USD"},
                 {"month": "2026-09", "meter_subcategory": "Azure OpenAI", "pricing_model": "Reservation",
@@ -147,6 +148,19 @@ def test_history_reaches_back_to_the_term_start_in_windows_of_a_year(fake_api):
 
     windows = sorted({(first, last) for _, _, first, last in azure.queries})
     assert windows == [("2024-10", "2025-09"), ("2025-10", "2026-09"), ("2026-10", "2026-10")]
+
+
+def test_amortized_meters_reach_back_only_the_thirteen_months_finops_reads(fake_api):
+    azure = FakeAzure()
+    store, book, sync, *_ = build(fake_api, azure)
+    book.save(None, {"name": "Fabrikam", "accounts": ["20000001"]})
+
+    sync.run()
+
+    amortized = sorted((first, last) for _, kind, first, last in azure.queries if kind == "meters-amortized")
+    assert amortized == [("2025-10", "2026-09"), ("2026-10", "2026-10")]
+    september = store.account("20000001")["months"]["2026-09"]["meters_amortized"]["by"]
+    assert september == {"NDsr H100 v5 Series|Reservation": 200, "Azure OpenAI|Reservation": 100}
 
 
 def test_a_settled_month_is_never_asked_for_again(fake_api):

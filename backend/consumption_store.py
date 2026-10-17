@@ -177,6 +177,15 @@ class ConsumptionStore:
                 if not is_settled(month, ((entry["months"].get(month) or {}).get("marketplace") or {}).get("fetched_at"))]
 
     @staticmethod
+    def amortized_meters_to_fetch(entry: dict, wanted: list[str]) -> list[str]:
+        """The wanted months with cost data whose amortized meter detail is missing
+        or not yet settled -- FinOps' coverage reads it (0.12.0)."""
+        return [month for month in wanted
+                if "actual" in (entry["months"].get(month) or {})
+                and not is_settled(month, ((entry["months"].get(month) or {}).get("meters_amortized") or {})
+                                   .get("fetched_at"))]
+
+    @staticmethod
     def balances_to_fetch(entry: dict, wanted: list[str]) -> list[str]:
         """The wanted billing periods whose balance is missing or not yet settled."""
         return [month for month in wanted

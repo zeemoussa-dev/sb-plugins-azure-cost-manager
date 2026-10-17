@@ -26,6 +26,9 @@ DEFAULT_HISTORY_MONTHS = 12
 # A term start further back than this is cut, so a typo cannot ask for decades.
 LONGEST_HISTORY_MONTHS = 72
 THROTTLE_WAITS_PER_QUERY = 12
+# FinOps reads a year of closed months plus the current one; amortized meter
+# detail older than that would cost queries and be read by nothing.
+FINOPS_MONTHS = 13
 ENTERPRISE_AGREEMENT = "EnterpriseAgreement"
 
 
@@ -257,6 +260,7 @@ class ConsumptionSync:
             # Saved per window: a sync stopped by a restart resumes from here.
             self._store.save_account(account, entry)
 
+        self._sync_amortized_meters(client, account, entry, wanted[-FINOPS_MONTHS:], errors)
         if known.get("agreement_type") == ENTERPRISE_AGREEMENT:
             self._sync_balances(client, account, entry, wanted, errors)
             self._sync_marketplace(client, account, entry, wanted, errors)
@@ -266,6 +270,26 @@ class ConsumptionSync:
         entry["light"] = False  # a customer's account now: fully synced
         entry["errors"] = errors
         self._store.save_account(account, entry)
+
+    def _sync_amortized_meters(self, client: BillingClient, account: str, entry: dict, wanted: list[str],
+                               errors: dict[str, str]) -> None:
+        """The meter detail again, amortized: under actual cost a reservation is its
+        purchase and the usage it covers costs nothing, so only the amortized view
+        says how much of a month was covered by commitments (FinOps)."""
+        for window in _windows(self._store.amortized_meters_to_fetch(entry, wanted)):
+            self._set(current={**self._named(account), "first_month": window[0], "last_month": window[-1],
+                               "amortized_meters": True})
+            try:
+                meters = _aggregate_meters(self._query(
+                    lambda: client.query_monthly_meters(account, window[0], window[-1], "AmortizedCost"), account))
+            except AzureApiError as exc:
+                errors[f"amortized meters {window[0]}..{window[-1]}"] = str(exc)
+                self._record_error(account, f"amortized meters {window[0]}..{window[-1]}: {exc}")
+                continue
+            fetched_at = self._now().isoformat()
+            for month in window:
+                entry["months"][month]["meters_amortized"] = {"by": meters.get(month, {}), "fetched_at": fetched_at}
+            self._store.save_account(account, entry)
 
     def _sync_balances(self, client: BillingClient, account: str, entry: dict, wanted: list[str],
                        errors: dict[str, str]) -> None:

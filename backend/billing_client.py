@@ -176,11 +176,13 @@ class BillingClient:
         return self._grouped_monthly(account_name, cost_type, first_month, last_month,
                                      {"service": "ServiceName", "subscription": "SubscriptionName"})
 
-    def query_monthly_meters(self, account_name: str, first_month: str, last_month: str) -> list[dict]:
-        """`[{month, meter_subcategory, pricing_model, cost, currency}]`, actual cost:
-        where GPU SKUs (`NDsr H100 v5 Series`) and Azure OpenAI reservations (PTU)
-        can be told apart from everything else."""
-        return self._grouped_monthly(account_name, "ActualCost", first_month, last_month,
+    def query_monthly_meters(self, account_name: str, first_month: str, last_month: str,
+                             cost_type: str = "ActualCost") -> list[dict]:
+        """`[{month, meter_subcategory, pricing_model, cost, currency}]`: where GPU SKUs
+        (`NDsr H100 v5 Series`) and Azure OpenAI reservations (PTU) can be told apart
+        from everything else. Under `AmortizedCost` a reservation's usage carries its
+        share of the purchase instead of costing nothing -- what coverage is read from."""
+        return self._grouped_monthly(account_name, cost_type, first_month, last_month,
                                      {"meter_subcategory": "MeterSubCategory", "pricing_model": "PricingModel"})
 
     @staticmethod

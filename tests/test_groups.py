@@ -129,7 +129,7 @@ def test_syncing_a_parent_brings_its_affiliates(fake_api):
             asked.append(account)
             return []
 
-        def query_monthly_meters(self, account, first, last):
+        def query_monthly_meters(self, account, first, last, cost_type="ActualCost"):
             return []
 
         def forecast_monthly(self, account, first, last):
