@@ -25,7 +25,8 @@ DIMENSIONS: dict[str, tuple[str, ...]] = {
     "Cost centre": ("costcenter", "costcentre", "costcode", "billingcode", "chargecode", "costgroup"),
 }
 # A spelling within this many edits of a dimension's name still counts:
-# "environemnt", "envirornment", "pojectname", "buisnessunit".
+# "environemnt", "envirornment", "pojectname", "buisnessunit" -- if it starts with the
+# same letter: "revision" is two edits from "division" and holds timestamps.
 TYPO_DISTANCE = 2
 # Spellings queried per dimension and enrollment -- each one is a Cost Management
 # query on the same per-sign-in budget as the sync.
@@ -37,7 +38,7 @@ ENVIRONMENT_VALUES = {
     "development": "Development", "dev": "Development", "develop": "Development",
     "test": "Test", "testing": "Test", "uat": "Test", "qa": "Test", "sit": "Test", "staging": "Test", "stg": "Test",
     "preprod": "Test", "preproduction": "Test", "nonproduction": "Non-production", "nonprod": "Non-production",
-    "np": "Non-production",
+    "np": "Non-production", "npr": "Non-production", "nprd": "Non-production", "nonprd": "Non-production",
     "dr": "DR", "disasterrecovery": "DR",
     "poc": "PoC", "pilot": "PoC", "sandbox": "Sandbox", "sbx": "Sandbox",
 }
@@ -71,7 +72,8 @@ def dimension_of(key: str) -> str | None:
     best: tuple[int, str] | None = None
     for dimension, names in DIMENSIONS.items():
         for name in names:
-            distance = 0 if plain == name else (_distance(plain, name) if len(name) >= 6 else TYPO_DISTANCE + 1)
+            typo_allowed = len(name) >= 6 and plain[0] == name[0]
+            distance = 0 if plain == name else (_distance(plain, name) if typo_allowed else TYPO_DISTANCE + 1)
             if distance <= TYPO_DISTANCE and (best is None or distance < best[0]):
                 best = (distance, dimension)
     return best[1] if best else None
@@ -116,13 +118,14 @@ def dimension_by_month(entries: dict[str, dict], dimension: str, totals: dict[st
     (the month's actual cost)."""
     by_month: dict[str, dict[str, float]] = {}
     for entry in entries.values():
-        for spelling_data in (((entry.get("tags") or {}).get("by_key") or {}).values()):
-            if spelling_data.get("dimension") != dimension:
+        for key, spelling_data in (((entry.get("tags") or {}).get("by_key") or {}).items()):
+            # Judged by today's rules, not the label stored when it was synced.
+            if dimension_of(key) != dimension:
                 continue
             for month, values in (spelling_data.get("months") or {}).items():
                 target = by_month.setdefault(month, {})
                 for value, cost in values.items():
-                    if not value.strip():
+                    if not value.strip() or abs(cost) < 0.01:
                         continue  # untagged under this spelling: may be tagged under another
                     name = folded_value(dimension, value)
                     target[name] = target.get(name, 0.0) + cost

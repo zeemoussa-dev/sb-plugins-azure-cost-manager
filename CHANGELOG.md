@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.14.1] - 2026-10-17
+
+- fix: on the first real customer, Business unit showed 9,818 values: the tag key `revision` is two edits from "division" and holds timestamps. A typo must now start with the same letter as the name it misspells, a stored key is judged by today's rules, values that cost nothing are left out, and `npr`/`nprd` fold to Non-production.
+
 ## [0.14.0] - 2026-10-17
 
 - feat: **reports by tag** (operator, 2026-10-17: "find Tags and Build some Reports Against the Tags"). Six business dimensions -- Environment, Project, Application, Business unit, Owner, Cost centre -- found among each enrollment's tag keys by spelling (case, spaces, `_`, an `x_` prefix and small typos ignored: `environemnt`, `pojectname`, `buisnessunit`), values folded (prd/prod/production → Production). A new sync stage lists each enrollment's tag keys (Consumption API, weekly) and queries Cost Management once per spelling it uses -- at most four per dimension, the last six closed months and the current one, settled months never again; **Sync tags** runs it alone. A **Tags** report per customer (values by month, coverage, untagged spend, and the spellings found -- tag hygiene), **Tag coverage** across customers, and a **Tags** sheet in both workbooks. Untagged is the month's total less what any spelling tagged.

@@ -19,7 +19,7 @@ TODAY = date(2026, 10, 17)
 def test_a_dimension_is_found_under_its_spellings_and_typos():
     keys = ["environment", "Environemnt", "x_Environment", " envirornment", "env", "projectname", "Project Name",
             "pojectname", "projectstartdate", "createdon", "created", "veeam01", "costcenter", "cost_centre",
-            "Business Unit", "buisnessunit", "app", "applciation"]
+            "Business Unit", "buisnessunit", "app", "applciation", "revision"]
 
     found = {key: tags.dimension_of(key) for key in keys}
 
@@ -27,6 +27,7 @@ def test_a_dimension_is_found_under_its_spellings_and_typos():
         {"environment", "Environemnt", "x_Environment", " envirornment", "env"}
     assert {key for key, dimension in found.items() if dimension == "Project"} == {"projectname", "Project Name", "pojectname"}
     assert found["projectstartdate"] is None and found["createdon"] is None and found["veeam01"] is None
+    assert found["revision"] is None   # two edits from "division", but it holds timestamps
     assert found["cost_centre"] == "Cost centre" and found["buisnessunit"] == "Business unit"
     assert found["applciation"] == "Application" and found["app"] == "Application"
 
@@ -45,7 +46,7 @@ def test_environment_values_are_folded():
 
 def test_spellings_add_up_and_untagged_is_what_none_tagged():
     entries = {"1": {"tags": {"keys": ["environment", "env"], "by_key": {
-        "environment": {"dimension": "Environment", "months": {"2026-09": {"prd": 100, "dev": 50, "": 350}}},
+        "environment": {"dimension": "Environment", "months": {"2026-09": {"prd": 100, "dev": 50, "npr": 0.0, "": 350}}},
         "env": {"dimension": "Environment", "months": {"2026-09": {"Prod": 30, "": 470}}},
     }}}}
 
@@ -95,3 +96,10 @@ def test_the_sync_queries_only_the_spellings_an_enrollment_has_once(fake_api):
     assert sorted(asked[len(first_run):]) == [("environment", "2026-10", "2026-10"), ("projectname", "2026-10", "2026-10")]
     saved = store.account("1")["tags"]["by_key"]["environment"]
     assert saved["months"]["2026-09"] == {"prd": 10.0, "": 5.0} and saved["dimension"] == "Environment"
+
+
+def test_a_key_stored_under_an_old_rule_is_judged_by_todays():
+    entries = {"1": {"tags": {"keys": ["revision"], "by_key": {
+        "revision": {"dimension": "Business unit", "months": {"2026-09": {"20260831-0517": 5}}}}}}}
+
+    assert tags.dimension_by_month(entries, "Business unit", {"2026-09": 5}) == {}
