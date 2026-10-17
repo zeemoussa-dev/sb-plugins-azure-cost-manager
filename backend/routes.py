@@ -45,8 +45,8 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return {"marketplace": marketplace, "credits": credits}
 
     @router.get("/customers/{customer_id}/export.xlsx")
-    def get_export(customer_id: str, marketplace: bool = True, credits: bool = True) -> Response:
-        name, workbook = _answered(lambda: service.export(customer_id, measure(marketplace, credits)))
+    def get_export(customer_id: str, marketplace: bool = True, credits: bool = True, view: str = "account") -> Response:
+        name, workbook = _answered(lambda: service.export(customer_id, measure(marketplace, credits), view))
         return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
@@ -152,8 +152,17 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return service.portfolio()
 
     @router.get("/customers/{customer_id}/analysis")
-    def get_analysis(customer_id: str, marketplace: bool = True, credits: bool = True) -> dict:
-        return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits)))
+    def get_analysis(customer_id: str, marketplace: bool = True, credits: bool = True, view: str = "account") -> dict:
+        return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits), view))
+
+    @router.get("/customers/{customer_id}/finops")
+    def get_finops(customer_id: str) -> dict:
+        return _answered(lambda: service.finops(customer_id))
+
+    @router.get("/finops")
+    def get_finops_across() -> list[dict]:
+        """Every customer's FinOps at a glance -- the operator's view only."""
+        return service.finops_across()
 
     @router.get("/customers/{customer_id}/consumption")
     def get_consumption(customer_id: str, first_month: str | None = None, last_month: str | None = None,

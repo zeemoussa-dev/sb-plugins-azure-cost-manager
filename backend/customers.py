@@ -98,6 +98,18 @@ def _valid_commitment(commitment: dict | None) -> dict | None:
             "subtract_credits": bool(commitment.get("subtract_credits", True))}
 
 
+def _valid_budget(value) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        budget = float(value)
+    except (TypeError, ValueError) as exc:
+        raise CustomerError("the monthly budget must be a number") from exc
+    if budget <= 0:
+        raise CustomerError("the monthly budget must be above zero")
+    return budget
+
+
 def _valid_scenario(settings: dict) -> dict:
     growth = settings.get("growth") or {}
     try:
@@ -254,6 +266,9 @@ class CustomerBook:
             raise CustomerError(f"the Customer note did not take the signed value: {exc}") from exc
         saved = {"id": customer_id, "name": name, "accounts": account_names,
                  "commitment": None if on_note else commitment,
+                 # Overrides the FinOps budget, which is otherwise the MACC spread over its term.
+                 "budget_monthly": _valid_budget(submitted["budget_monthly"]) if "budget_monthly" in submitted
+                 else existing.get("budget_monthly"),
                  "entity_customer": entity_customer,
                  # The group this customer is an affiliate of: its MACC is carved out of the parent's.
                  "parent": parent,

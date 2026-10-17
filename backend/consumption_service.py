@@ -5,13 +5,15 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import consumption_analysis, export_xlsx, marketplace, months
+from . import consumption_analysis, export_xlsx, finops, marketplace, months
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook
 from .pipeline import Pipeline, PipelineUnavailable, by_month
 
 # The weekly job keeps data at most a week old; past this the page says it is stale.
 STALE_AFTER = timedelta(days=8)
+# Who an analysis or a workbook is for: the operator, or the customer it is about.
+VIEWS = ("account", "customer")
 # The customer list's trend line: the last half-year of closed months.
 RECENT_MONTHS = 6
 # Running out this many months before the term ends is worth a renewal conversation.
@@ -191,7 +193,17 @@ class ConsumptionService:
                 "affiliates": [{"id": member["id"], "name": member["name"]} for member in members[1:]],
                 "accounts": [{**account, "member": member["name"]} for member in members for account in member["accounts"]]}
 
-    def analysis(self, customer_id: str, measure: dict | None = None) -> dict:
+    def analysis(self, customer_id: str, measure: dict | None = None, view: str = "account") -> dict:
+        if view not in VIEWS:
+            raise ValueError("view is account or customer")
+        found = self._analysis(customer_id, measure)
+        if view == "customer":
+            # Left out on the server, so nothing the Customer view hides reaches the browser.
+            return {**found, "scenarios": None, "customer": {**found["customer"], "scenario": None},
+                    "customer_view": True}
+        return found
+
+    def _analysis(self, customer_id: str, measure: dict | None = None) -> dict:
         customer = self._customer(customer_id)
         members = self._group(customer)
         merged, currency, entries = self._merged(customer)
@@ -211,6 +223,46 @@ class ConsumptionService:
                                            measure=measure, scenario=customer.get("scenario"),
                                            pipeline=pipeline["by_month"]),
         }
+
+    def _finops_of(self, customer: dict) -> dict:
+        members = self._group(customer)
+        merged, currency, entries = self._merged(customer)
+        current_month = months.month_of(self._today())
+        commitment = customer.get("commitment")
+        trend = consumption_analysis.monthly_totals(merged, current_month,
+                                                    consumption_analysis.commitment_measure(commitment or {}))
+        outlook = consumption_analysis.forecast(trend, consumption_analysis.merge_forecasts(entries), self._today())
+        this_month = next((row["cost"] for row in outlook["months"] if row["month"] == current_month), None)
+        return {"customer": {"id": customer["id"], "name": customer["name"], "parent": customer.get("parent"),
+                             "affiliates": [member["id"] for member in members[1:]]},
+                "currency": currency,
+                **finops.analyse(entries, merged, trend, commitment, customer.get("budget_monthly"), this_month,
+                                 self._today())}
+
+    def finops(self, customer_id: str) -> dict:
+        """The FinOps findings for one customer (a group: with its affiliates). The
+        Customer view shows the same findings: nothing here is internal."""
+        return self._finops_of(self._customer(customer_id))
+
+    def finops_across(self) -> list[dict]:
+        """Every top-level customer's FinOps at a glance, the largest steady
+        on-demand spend first -- where the savings conversations are."""
+        everyone = self._book.list()
+        rows = []
+        for customer in everyone:
+            if customer.get("parent"):
+                continue
+            found = self._finops_of(customer)
+            latest = found["coverage"]["latest"]
+            rows.append({"id": customer["id"], "name": customer["name"], "affiliates": found["customer"]["affiliates"],
+                         "currency": found["currency"], "has_meters": found["has_meters"],
+                         "coverage_pct": latest["coverage_pct"] if latest else None,
+                         "on_demand": latest["on_demand"] if latest else None,
+                         "coverage_month": latest["month"] if latest else None,
+                         "candidates": len(found["candidates"]), "candidates_monthly": found["candidates_monthly"],
+                         "top_candidate": found["candidates"][0]["meter"] if found["candidates"] else None,
+                         "budget": found["budget"]})
+        return sorted(rows, key=lambda row: (-row["candidates_monthly"], row["name"].lower()))
 
     def portfolio(self) -> list[dict]:
         """Every customer at a glance -- burn, last month, recent trend, status -- for
@@ -265,15 +317,21 @@ class ConsumptionService:
             })
         return rows
 
-    def export(self, customer_id: str, measure: dict | None = None) -> tuple[str, bytes]:
-        """`(file name, .xlsx bytes)` for one customer."""
-        analysis = self.analysis(customer_id, measure)
+    def export(self, customer_id: str, measure: dict | None = None, view: str = "account") -> tuple[str, bytes]:
+        """`(file name, .xlsx bytes)` for one customer. `view="customer"` is the workbook handed
+        to the customer: everything but the forecast scenarios (operator, 2026-10-17)."""
+        if view not in VIEWS:
+            raise ValueError("view is account or customer")
+        analysis = {**self.analysis(customer_id, measure), "finops": self.finops(customer_id)}
+        if view == "customer":
+            analysis = {**analysis, "customer_view": True, "scenarios": None}
         merged, _, entries = self._merged(analysis["customer"])
         # A parent's workbook covers its affiliates' enrollments too.
         exported = {**analysis["customer"], "accounts": analysis["group"]["accounts"]}
         analysis = {**analysis, "marketplace": self.marketplace(customer_id, "start", None)}
         workbook = export_xlsx.build(exported, analysis, merged, self._today(), entries)
-        return f"Azure consumption - {analysis['customer']['name']} - {self._today().isoformat()}.xlsx", workbook
+        audience = " - for the customer" if view == "customer" else ""
+        return f"Azure consumption - {analysis['customer']['name']}{audience} - {self._today().isoformat()}.xlsx", workbook
 
     def consumption(self, customer_id: str, first_month: str | None, last_month: str | None,
                     group_by: str, cost_kind: str) -> dict:

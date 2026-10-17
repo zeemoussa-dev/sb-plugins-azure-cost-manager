@@ -774,6 +774,95 @@ def _marketplace_sheet(workbook: Workbook, report: dict) -> None:
                 for s in report["adopted"]])
 
 
+BUDGET_STATUS = {"over": "Over budget last month", "forecast-over": "Forecast over budget this month",
+                 "within": "Within budget"}
+
+
+def _finops(workbook: Workbook, found: dict) -> None:
+    """Commitment coverage, steady on-demand candidates, up-front purchases,
+    growth and the budget -- the FinOps report as a sheet."""
+    sheet = _new_sheet(workbook, "FinOps", "FinOps – paying less for the same consumption",
+                       "Coverage: the share of reservable spend (VMs, GPUs, Azure OpenAI and anything this customer "
+                       "has reserved) under a reservation or savings plan, amortized. Closed months only.", tab=NAVY)
+    _widths(sheet, {"A": 38, "B": 18, "C": 18, "D": 16, "E": 16, "F": 18, "G": 16})
+    latest, budget = found["coverage"]["latest"], found["budget"]
+    tiles = [("Commitment coverage", _fraction(latest["coverage_pct"]) if latest else None, PERCENT),
+             ("On-demand, reservable", latest["on_demand"] if latest else None, MONEY),
+             ("Steady on-demand / month", found["candidates_monthly"], MONEY),
+             ("Monthly budget", budget["amount"] if budget else None, MONEY)]
+    for index, (label, value, number_format) in enumerate(tiles):
+        for line, (text, font) in enumerate([(label.upper(), _font(8, bold=True, color=SLATE)),
+                                             (value if value is not None else "—", _font(15, bold=True, color=NAVY))]):
+            cell = sheet.cell(4 + line, 1 + index, text)
+            cell.font, cell.fill, cell.border = font, _fill(TILE_BLUE), BOX
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            if line == 1 and value is not None:
+                cell.number_format = number_format
+    sheet.row_dimensions[5].height = 22
+    row = 7
+    if not found["has_meters"]:
+        sheet.cell(row, 1, "No meter detail synced for this customer yet: sync it to see FinOps.")
+        return
+
+    _section(sheet, row, "Commitment coverage by month", last_column=5)
+    header = row + 1
+    last = _table(sheet, header, ["Month", "Covered", "On demand", "Coverage"],
+                  [[_month_date(m["month"]), m["covered"], m["on_demand"], _fraction(m["coverage_pct"])]
+                   for m in found["coverage"]["months"]], {0: MONTH, 1: MONEY, 2: MONEY, 3: PERCENT})
+    if found["coverage"]["months"]:
+        _place(sheet, [_bar("Covered vs On Demand", sheet, header, header + 1, last, [2, 3], stacked=True)], row)
+    else:
+        sheet.cell(header + 1, 1, "Amortized meter detail not synced yet: the next sync brings it.")
+        last = header + 1
+    row = max(last, row + CHART_ROWS) + 2
+
+    if latest:
+        _section(sheet, row, f"Coverage by family – {latest['month']}", last_column=5)
+        row = _table(sheet, row + 1, ["Family", "Covered", "On demand", "Coverage"],
+                     [[f["family"], f["covered"], f["on_demand"], _fraction(f["coverage_pct"])] for f in latest["families"]],
+                     {1: MONEY, 2: MONEY, 3: PERCENT}) + 2
+
+    _section(sheet, row, "Steady on-demand candidates – a reservation or savings plan pays here", last_column=6)
+    row = _table(sheet, row + 1, ["Meter", "Family", "On demand / month", "Lowest month", "Variation", "On demand / year"],
+                 [[c["meter"], c["family"], c["monthly_on_demand"], c["lowest_month"], _fraction(c["variation_pct"]),
+                   c["annual_on_demand"]] for c in found["candidates"]],
+                 {2: MONEY, 3: MONEY, 4: PERCENT, 5: MONEY}) + 2
+    if not found["candidates"]:
+        sheet.cell(row - 1, 1, "None: nothing ran on demand at a steady level for the last six months.")
+        row += 1
+
+    if found["purchases"]:
+        _section(sheet, row, "Commitments bought up front", last_column=4)
+        row = _table(sheet, row + 1, ["Month", "Charged", "Amortized", "Bought up front"],
+                     [[_month_date(p["month"]), p["charged"], p["amortized"], p["bought_up_front"]]
+                      for p in found["purchases"]], {0: MONTH, 1: MONEY, 2: MONEY, 3: MONEY}) + 2
+
+    for key, title in (("services", "Fastest-growing services"), ("subscriptions", "Fastest-growing subscriptions")):
+        rows = found["growth"][key]
+        if not rows:
+            continue
+        _section(sheet, row, f"{title} – last three months against the three before", last_column=5)
+        row = _table(sheet, row + 1, ["Name", "Monthly now", "Monthly before", "Change", "Change %"],
+                     [[g["name"], g["monthly_now"], g["monthly_before"], g["change"], _fraction(g["change_pct"])]
+                      for g in rows], {1: MONEY, 2: MONEY, 3: MONEY, 4: PERCENT}) + 2
+
+    if budget:
+        _section(sheet, row, "Budget", last_column=4)
+        source = ("set in the plugin" if budget["source"] == "set"
+                  else f"the MACC spread over its {budget['term_months']} months")
+        details = [("Monthly budget", budget["amount"], MONEY), ("From", source, None),
+                   (f"Last month ({budget['last_month']})", budget["last_month_actual"], MONEY),
+                   ("This month, forecast", budget["current_month_forecast"], MONEY),
+                   ("Months over budget, last 12", len(budget["over_in_last_12"]), "0"),
+                   ("Status", BUDGET_STATUS[budget["status"]], None)]
+        for offset, (label, value, number_format) in enumerate(details, start=row + 1):
+            sheet.cell(offset, 1, label).border = BOX
+            cell = sheet.cell(offset, 2, value)
+            cell.border = BOX
+            if number_format and value is not None:
+                cell.number_format = number_format
+
+
 def build_marketplace(report: dict, today: date) -> bytes:
     """Every partner solution across every customer, styled like the operator's workbook."""
     workbook = _workbook()
@@ -899,11 +988,16 @@ def build(customer: dict, analysis: dict, merged: dict, today: date, entries: di
     workbook = _workbook()
     _dashboard(workbook, customer, analysis, merged, today)
     _forecast_auto(workbook, analysis, today)
-    _forecast_scenarios(workbook, analysis)
+    # The Customer view leaves out only the scenarios -- the operator's assumptions
+    # (operator, 2026-10-17).
+    if not analysis.get("customer_view"):
+        _forecast_scenarios(workbook, analysis)
     _pipeline(workbook, analysis, today)
     _export(workbook, customer, entries or {}, analysis["measure"])
     if analysis.get("marketplace"):
         _marketplace_sheet(workbook, analysis["marketplace"])
+    if analysis.get("finops"):
+        _finops(workbook, analysis["finops"])
     _breakdown(workbook, "Services", "Consumption by Service", merged, "service")
     _breakdown(workbook, "Subscriptions", "Consumption by Subscription", merged, "subscription")
     _gpu_and_ai(workbook, analysis)
