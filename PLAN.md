@@ -208,7 +208,7 @@ anomalies, Marketplace); this adds *Optimize* (rates and usage) and *Operate*
 |---|---|---|
 | Where | FinOps report per customer; **Optimization opportunities** across customers | the same report with **Customer view** on; a customer FinOps workbook |
 | Shows | everything below, plus MACC pace gap, pipeline, "Create opportunity", every customer ranked | the customer's own spend, coverage, savings, budget, growth, and its own MACC burn |
-| Never shows | — | other customers, Opportunities and pipeline, forecast scenarios, notes, MACC-eligibility exceptions, internal wording |
+| Never shows | — | other customers, and the forecast scenarios (Base/Upside/Downside assumptions) |
 
 The Customer view is a **filter on one set of findings**, not a second
 analysis: one engine, so the two never disagree. Whatever the Customer view
@@ -269,11 +269,15 @@ cannot leak it.
 - Not reachable: Azure Advisor's cost recommendations need access inside the
   customer's tenant.
 
-### Open points
+### Decided (operator, 2026-10-17)
 
-- The Customer view's exclusions above are a proposal; the operator confirms them.
-- Whether the Customer view also exists as a PDF, or the workbook is enough.
-- Budget source: entered per customer, or derived (e.g. MACC ÷ term months).
+- The Customer view leaves out **only the forecast scenarios** (and, always, other
+  customers). It keeps the pipeline and Opportunities, the MACC pace and gap, and
+  the Marketplace MACC exceptions -- the operator chose not to hide those.
+- It is handed over as a **workbook**, plus the in-app Customer view for screen-
+  sharing. No PDF.
+- The monthly **budget is the MACC spread evenly over its term months**, overridable
+  per customer in Settings; a customer with no MACC and no override has none.
 
 ---
 
