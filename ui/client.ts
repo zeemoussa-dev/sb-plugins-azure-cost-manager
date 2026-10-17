@@ -422,6 +422,21 @@ export const fetchCommitmentTypes = () => apiFetch<string[]>(`${BASE}/commitment
 
 export const fetchCustomers = () => apiFetch<Customer[]>(`${BASE}/customers`);
 
+/** Enrollments in no customer, grouped as Settings suggests, with what they consumed. */
+export interface UnassignedGroup {
+  key: string;
+  name: string;
+  accounts: { name: string; display_name: string; agreement_type: string | null; term_start: string | null;
+    term_end: string | null; last_month: number; last_twelve_months: number }[];
+  last_month: number;
+  last_month_label: string;
+  last_twelve_months: number;
+  /** False when no billing period of it has been synced: nothing to say about its spend yet. */
+  synced: boolean;
+}
+
+export const fetchUnassigned = () => apiFetch<UnassignedGroup[]>(`${BASE}/unassigned`);
+
 export type PortfolioStatus = 'not-synced' | 'no-macc' | 'consumed' | 'behind' | 'early' | 'on-track';
 
 /** One customer at a glance; a parent's figures include its affiliates. */

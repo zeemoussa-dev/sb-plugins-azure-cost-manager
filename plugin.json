@@ -2,7 +2,7 @@
   "id": "azure-cost-manager",
   "name": "Azure Cost Manager",
   "description": "Customers' Azure agreements and monthly consumption, read from Cost Management with your own az login: trend, top services, anomalies, commitment burn-down and forecast.",
-  "version": "0.14.3",
+  "version": "0.15.0",
   "framework_api": 11,
   "requires": []
 }

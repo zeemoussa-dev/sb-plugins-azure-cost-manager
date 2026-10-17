@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import {
-  deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, saveCustomer,
-  type BillingAccount, type Commitment, type Customer, type EntityCustomer,
+  deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, fetchUnassigned,
+  saveCustomer, type BillingAccount, type Commitment, type Customer, type EntityCustomer, type UnassignedGroup,
 } from './client';
-import { agreementLabel, errorText, formatMoney, grouped } from './format';
+import { agreementLabel, errorText, formatMoney, formatMonth, grouped } from './format';
 import { usePluginReturn } from '../../pluginHost/breadcrumbs';
 import { PLUGIN_ID } from './ReportsHome';
 import { SyncControl } from './SyncControl';
@@ -237,6 +237,63 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
   );
 }
 
+/** Every enrollment this sign-in sees that belongs to no customer, grouped the
+ *  way the editor suggests, biggest spend first; one click starts a customer
+ *  from a group (operator, 2026-10-17). */
+function UnassignedEnrollments({ version, onCreate }: {
+  version: unknown; onCreate: (group: UnassignedGroup) => void;
+}) {
+  const [groups, setGroups] = useState<UnassignedGroup[] | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    fetchUnassigned().then((listed) => { setGroups(listed); setProblem(null); },
+      (failure) => setProblem(errorText(failure)));
+  }, [version]);
+
+  if (problem) return <div className="azure-cost-error">Enrollments in no customer could not be loaded: {problem}</div>;
+  if (!groups) return null;
+  const needle = search.trim().toLowerCase();
+  const shown = groups.filter((group) => !needle || group.accounts.some((account) =>
+    `${account.display_name} ${account.name}`.toLowerCase().includes(needle)));
+  const enrollments = groups.reduce((sum, group) => sum + group.accounts.length, 0);
+  return (
+    <section className="card azure-cost-card">
+      <div className="azure-cost-card-head">
+        <h3>Enrollments in no customer</h3>
+        <input type="search" placeholder="Search by name or number" value={search}
+               onChange={(event) => setSearch(event.target.value)} aria-label="Search enrollments in no customer" />
+      </div>
+      <p className="text-muted azure-cost-note">
+        {enrollments} enrollment{enrollments === 1 ? '' : 's'} in {groups.length} group{groups.length === 1 ? '' : 's'},
+        grouped like the editor's suggestions (a renewal, or linked under one parent), the largest spend first. Spend comes
+        from <strong>Sync all billing profiles</strong> below; a group with no spend shown has not been synced that way.
+      </p>
+      {groups.length === 0 ? <p className="empty-state">Every enrollment belongs to a customer.</p> : (
+        <table className="azure-cost-table">
+          <thead><tr><th>Group</th><th>Enrollments</th>
+            <th>{groups[0] ? formatMonth(groups[0].last_month_label) : 'Last month'}</th><th>Last 12 months</th><th /></tr></thead>
+          <tbody>
+            {shown.map((group) => (
+              <tr key={group.key}>
+                <td>{group.name}
+                  <div className="text-muted azure-cost-row-detail">
+                    {group.accounts.map((account) => `${account.display_name} (${account.name}${account.agreement_type ? `, ${agreementLabel(account.agreement_type)}` : ''})`).join(' · ')}
+                  </div></td>
+                <td>{group.accounts.length}</td>
+                <td>{group.synced ? formatMoney(group.last_month, 'USD') : <span className="text-muted">not synced</span>}</td>
+                <td>{group.synced ? formatMoney(group.last_twelve_months, 'USD') : '—'}</td>
+                <td><button type="button" className="btn" onClick={() => onCreate(group)}>Create customer</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 /** Customers -- groups of enrollments with what each signed -- and the sync
  *  that brings their consumption into local data. */
 export function SettingsPage() {
@@ -357,6 +414,12 @@ export function SettingsPage() {
           ) : null}
         </section>
       )}
+
+      {!editing ? (
+        <UnassignedEnrollments version={customers}
+                               onCreate={(group) => setEditing({ ...draftOf(null), name: group.name,
+                                                                 accounts: group.accounts.map((account) => account.name) })} />
+      ) : null}
 
       <section className="card azure-cost-card">
         <h3>Sync</h3>

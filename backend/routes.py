@@ -121,6 +121,11 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return _answered(lambda: [{**account, "customer": in_customer.get(account["name"])}
                                   for account in directory.accounts(fresh=fresh)])
 
+    @router.get("/unassigned")
+    def get_unassigned() -> list[dict]:
+        """Enrollments in no customer, grouped, biggest first -- the customers to add."""
+        return _answered(lambda: service.unassigned(directory.accounts()))
+
     @router.get("/commitment-types")
     def get_commitment_types() -> list[str]:
         return list(COMMITMENT_TYPES)

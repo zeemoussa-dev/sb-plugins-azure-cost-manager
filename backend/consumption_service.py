@@ -299,6 +299,48 @@ class ConsumptionService:
                          "spellings": {item["dimension"]: len(item["all_spellings"]) for item in found["dimensions"]}})
         return sorted(rows, key=lambda row: row["name"].lower())
 
+    def unassigned(self, visible: list[dict]) -> list[dict]:
+        """Billing accounts this sign-in sees that belong to no customer, grouped as
+        Settings suggests (a renewal, or linked under one parent), each group with
+        what it consumed -- from the light sync of billing profiles, so no Azure call.
+        The biggest first: those are the customers worth adding."""
+        assigned = {account["name"] for customer in self._book.list() for account in customer["accounts"]}
+        current = months.month_of(self._today())
+        last_closed = months.shift(current, -1)
+        year = set(months.span(months.shift(current, -12), last_closed))
+        groups: dict[str, dict] = {}
+        for account in visible:
+            if account["name"] in assigned:
+                continue
+            entry = self._store.account(account["name"])
+            by_month: dict[str, float] = {}
+            for month, data in (entry.get("months") or {}).items():
+                balance = data.get("balance") or {}
+                if balance and not balance.get("missing"):
+                    by_month[month] = balance.get("usage", 0.0) + balance.get("marketplace", 0.0) - balance.get("credits", 0.0)
+                elif data.get("actual"):
+                    by_month[month] = sum(((data.get("actual") or {}).get("service") or {}).values())
+            group = groups.setdefault(account.get("group_key") or account["name"], {
+                "key": account.get("group_key") or account["name"], "accounts": [], "last_month": 0.0,
+                "last_twelve_months": 0.0, "synced": False})
+            group["accounts"].append({"name": account["name"], "display_name": account.get("display_name") or account["name"],
+                                      "agreement_type": account.get("agreement_type"),
+                                      "term_start": account.get("term_start"), "term_end": account.get("term_end"),
+                                      "last_month": round(by_month.get(last_closed, 0.0), 2),
+                                      "last_twelve_months": round(sum(cost for month, cost in by_month.items()
+                                                                      if month in year), 2)})
+            group["last_month"] += by_month.get(last_closed, 0.0)
+            group["last_twelve_months"] += sum(cost for month, cost in by_month.items() if month in year)
+            group["synced"] = group["synced"] or bool(by_month)
+        listed = []
+        for group in groups.values():
+            names = [account["display_name"] for account in group["accounts"]]
+            listed.append({**group, "name": min(names, key=len), "last_month_label": last_closed,
+                           "last_month": round(group["last_month"], 2),
+                           "last_twelve_months": round(group["last_twelve_months"], 2),
+                           "accounts": sorted(group["accounts"], key=lambda account: account["display_name"].lower())})
+        return sorted(listed, key=lambda group: (-group["last_twelve_months"], group["name"].lower()))
+
     def finops_digest(self, top: int = 5) -> dict:
         """The week's FinOps in a few lines, for a Hermes job to send: who is over
         budget, and where the largest savings are. Text, not a page."""

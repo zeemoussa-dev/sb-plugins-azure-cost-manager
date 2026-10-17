@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.15.0] - 2026-10-17
+
+- feat: **Enrollments in no customer** in Settings (operator, 2026-10-17: "Where can I see Enrollement not Assigned to Customer"). Every billing account the sign-in sees that belongs to no customer, grouped like the editor's suggestions (a renewal, or linked under one parent), with last month's and the last twelve months' spend from the light sync of billing profiles -- no Azure call -- the biggest first, searchable. **Create customer** opens the editor with the group's name and enrollments filled in. `GET /unassigned`.
+
 ## [0.14.3] - 2026-10-17
 
 - fix: **a restarted sync redid every enrollment** (operator, 2026-10-17: "it should sync the ones that didn't sync yet and add the delta for the rest every week or when I click sync"). A sync of everyone now takes never-synced enrollments first, then the longest ago, and skips one synced in the last 20 hours -- for consumption and for tags alike -- so a restart resumes where it stopped. The weekly job and Sync all still bring every enrollment's delta (settled months were already never fetched again); syncing one customer always refreshes it.
