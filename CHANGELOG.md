@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.8.1] - 2026-10-17
+
+- fix: a group with some affiliates still syncing showed "Not synced" and nothing else. It now shows what is synced, dated by its oldest synced enrollment, and says how many enrollments are not synced yet.
+- fix: money for billing-profile customers read "8,827,323 USD" instead of "$8.8M": the Consumption API pads its currency code ("USD  "). The portfolio trims it.
+
 ## [0.8.0] - 2026-10-17
 
 - feat: **the customer list is a portfolio** (operator, 2026-10-17: a better view for the customer list, with affiliates that collapse). Each row shows the signed MACC, a burn bar against the share of the term elapsed, the last closed month and its change, a six-month trend line, where the burn lands (exhausts in a month, or short by an amount at term end) and a status -- Behind, Exhausts early (three months or more before the term ends), On track, Consumed, No MACC set, Not synced. A group's row rolls up its affiliates, as its report does, and its affiliates fold under it: collapsed by default, one click per group or Expand all / Collapse all, remembered per browser; a search or a status filter opens the groups it matches in. Columns sort; filters are in the URL. All from local data through one new call, `GET /portfolio` -- opening the list never queries Azure.

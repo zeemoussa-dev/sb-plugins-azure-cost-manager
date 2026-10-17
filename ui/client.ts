@@ -436,6 +436,8 @@ export interface PortfolioRow {
   recent: { month: string; actual: number }[];
   status: PortfolioStatus;
   synced_at: string | null;
+  /** Enrollments in the row (a group's: its affiliates' too) not synced yet. */
+  unsynced_enrollments: number;
   stale: boolean;
 }
 

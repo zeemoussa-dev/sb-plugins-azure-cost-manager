@@ -237,15 +237,19 @@ class ConsumptionService:
             trend = consumption_analysis.monthly_totals(merged, current_month, measure)
             closed = [month for month in trend if not month["partial"]]
             burn = consumption_analysis.burn_down(commitment, trend, today) if commitment else None
-            synced = [account["synced_at"] for member in members for account in member["accounts"]]
-            synced_at = min(synced) if synced and all(synced) else None
+            # A group whose affiliates are mid-sync still has something to show: its
+            # oldest synced enrollment dates it, and the rest are counted.
+            synced = [account["synced_at"] for member in members for account in member["accounts"]
+                      if account.get("synced_at")]
+            synced_at = min(synced) if synced else None
             rows.append({
                 "id": customer["id"],
                 "name": customer["name"],
                 "parent": customer.get("parent"),
                 "affiliates": [member["id"] for member in members[1:]],
                 "enrollments": len(accounts),
-                "currency": (commitment or {}).get("currency") or currency,
+                # The Consumption API pads the currency code ("USD  ").
+                "currency": ((commitment or {}).get("currency") or currency or "").strip() or None,
                 "signed": (commitment or {}).get("amount"),
                 "allocated": round(sum((member.get("commitment") or {}).get("amount", 0.0) for member in members[1:]), 2)
                 if len(members) > 1 else None,
@@ -256,6 +260,7 @@ class ConsumptionService:
                 "recent": [{"month": month["month"], "actual": month["actual"]} for month in closed[-RECENT_MONTHS:]],
                 "status": _status(burn, synced_at),
                 "synced_at": synced_at,
+                "unsynced_enrollments": len(accounts) - len(synced),
                 "stale": not synced_at or self._now() - datetime.fromisoformat(synced_at) > STALE_AFTER,
             })
         return rows

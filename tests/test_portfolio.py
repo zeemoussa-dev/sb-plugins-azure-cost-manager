@@ -87,3 +87,30 @@ def test_an_unsynced_customer_says_so_before_anything_else(fake_api):
 
     assert {row["status"] for row in rows.values()} == {"not-synced"}
     assert rows["holding"]["stale"] is True
+
+
+def test_a_group_partly_synced_shows_what_it_has_and_counts_the_rest(fake_api):
+    portfolio(fake_api)
+    store = ConsumptionStore(fake_api)
+    store.save_account("3", {**store.account("3"), "synced_at": None})
+    book = CustomerBook(store, AccountDirectory(lambda: [dict(a) for a in ACCOUNTS]))
+    service = ConsumptionService(store, book, today=lambda: TODAY,
+                                 now=lambda: datetime(2026, 10, 17, tzinfo=timezone.utc))
+
+    holding = next(row for row in service.portfolio() if row["id"] == "holding")
+
+    assert holding["status"] == "early"
+    assert holding["synced_at"] == SYNCED
+    assert holding["unsynced_enrollments"] == 1
+
+
+def test_a_padded_currency_code_is_trimmed(fake_api):
+    fake_api.get_service = lambda name: None
+    store = ConsumptionStore(fake_api)
+    book = CustomerBook(store, AccountDirectory(lambda: [dict(a) for a in ACCOUNTS]))
+    book.save(None, {"name": "Contoso", "accounts": ["4"]})
+    store.save_account("4", {"months": {"2026-09": {**month(10), "currency": "USD  "}}, "synced_at": SYNCED})
+
+    rows = ConsumptionService(store, book, today=lambda: TODAY).portfolio()
+
+    assert rows[0]["currency"] == "USD"
