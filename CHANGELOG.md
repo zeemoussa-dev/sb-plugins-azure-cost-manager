@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.16.1] - 2026-10-17
+
+- perf: **the customer list copied every enrollment's synced months to read two fields.** Each listing deep-copied all enrollments (131 JSON round-trips of a 15 MB cache on this install) for `synced_at` and `errors`; `account_status` reads them in place. `for_entity` went from 1.2 s to 0.01 s for a small customer (reported by the Entities session), and every page that lists customers is faster.
+
 ## [0.16.0] - 2026-10-17
 
 - feat: **the `azure-cost-manager.portfolio` service** (asked for by the Entities "Customers & Partners" work, 2026-10-17: the operator chose to show Cost Manager data on a Customer's page through a service). `for_entity(customer_stem)` returns the portfolio row of the customer linked to that Customer (or affiliate) note -- signed, burn, last month, trend, status, sync state -- plus `route`, the customer's page here; None when nothing is linked to the note. Local data only, never Azure: a page load asks it. `portfolio(only=...)` computes one customer.

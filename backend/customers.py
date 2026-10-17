@@ -222,7 +222,7 @@ class CustomerBook:
                         "commitment_problem": problem}
             accounts = []
             for name in customer["accounts"]:
-                cached = self._store.account(name)
+                cached = self._store.account_status(name)
                 known = visible.get(name) or {}
                 accounts.append({"name": name, "display_name": known.get("display_name", name),
                                  "agreement_type": known.get("agreement_type"),

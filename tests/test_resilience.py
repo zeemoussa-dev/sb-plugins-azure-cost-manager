@@ -47,3 +47,18 @@ def test_a_first_load_that_fails_says_so():
 
     with pytest.raises(RuntimeError, match="no sign-in"):
         AccountDirectory(failing, now=lambda: START).accounts()
+
+
+def test_the_customer_list_reads_sync_status_without_copying_months(fake_api):
+    from backend.consumption_store import ConsumptionStore
+
+    store = ConsumptionStore(fake_api)
+    store.save_account("1", {"months": {"2026-09": {"actual": {"service": {"VM": 1.0}}}},
+                             "synced_at": "2026-10-17T00:00:00+00:00", "errors": {"x": "boom"}})
+
+    status = store.account_status("1")
+    status["errors"]["y"] = "mine"
+
+    assert status == {"synced_at": "2026-10-17T00:00:00+00:00", "errors": {"x": "boom", "y": "mine"}}
+    assert store.account("1")["errors"] == {"x": "boom"}   # the caller's change does not reach the store
+    assert store.account_status("missing") == {"synced_at": None, "errors": {}}

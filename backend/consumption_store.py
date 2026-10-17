@@ -127,6 +127,14 @@ class ConsumptionStore:
                            if isinstance(data.get("actual"), dict) or "actual" not in data}
         return entry
 
+    def account_status(self, account_name: str) -> dict:
+        """`{synced_at, errors}` of one account, without copying its months: the
+        customer list reads these for every account on every request, and a deep
+        copy of each (15 MB of months on this install) cost a second a list."""
+        with self._lock:
+            entry = self._loaded()["accounts"].get(account_name) or {}
+            return {"synced_at": entry.get("synced_at"), "errors": dict(entry.get("errors") or {})}
+
     def profile_accounts(self, excluded: set[str]) -> dict[str, dict]:
         """Every cached account outside `excluded` (the customers' accounts): the
         billing profiles synced lightly, or left behind by a removed customer."""
