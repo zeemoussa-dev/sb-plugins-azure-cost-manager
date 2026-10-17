@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.7.0] - 2026-10-17
+
+- feat: **reports first, then the customer** (operator, 2026-10-17: the landing page shows the reports; a report opens a list of customers and affiliates; a customer opens the report). `/azure-cost-manager` is now a catalogue of reports -- Overview, Forecast, Pipeline, Marketplace and Breakdown per customer, and Marketplace across all customers. A per-customer report at `/azure-cost-manager/report?report=…` lists every customer with its affiliates under it (signed MACC, enrollments, last synced, searchable); choosing one opens the report, with a breadcrumb back and the other reports one click away. Links from 0.6 (`?customer=&tab=`) still land on the same report.
+
 ## [0.6.0] - 2026-10-17
 
 - feat: **every billing profile, not just customers** (operator, 2026-10-17: the Marketplace report needs every customer that signed with the partner). "Sync all billing profiles" (and `POST /sync?profiles=only|also`) syncs each billing profile that is in no customer, one at a time from its term start, **lightly**: each month's invoice totals and Marketplace charges, through the Consumption API -- not Cost Management, whose per-sign-in throttling would make 135 profiles take days. The cross-customer Marketplace lists them beside customers, grouped the way Settings suggests and marked "not a customer yet", with each buyer's consumption and Marketplace share. The weekly job should call `?profiles=also`.

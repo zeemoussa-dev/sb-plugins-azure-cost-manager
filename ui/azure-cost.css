@@ -393,3 +393,54 @@
   max-width: 24rem;
   margin-bottom: var(--space-3);
 }
+
+.azure-cost-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.azure-cost-section-title {
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.azure-cost-report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.azure-cost-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--color-text);
+  text-decoration: none;
+  border: 1px solid var(--color-border);
+}
+
+.azure-cost-report-card:hover,
+.azure-cost-report-card:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.azure-cost-report-card .text-muted {
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-chooser-top td {
+  font-weight: 600;
+}
+
+.azure-cost-chooser-affiliate td:first-child {
+  padding-left: var(--space-6);
+}

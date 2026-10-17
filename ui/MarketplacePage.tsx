@@ -38,9 +38,13 @@ export function MarketplacePage() {
 
   return (
     <div className="page azure-cost-page">
+      <nav className="azure-cost-breadcrumb" aria-label="Breadcrumb">
+        <Link to="/azure-cost-manager">Reports</Link>
+        <span aria-hidden="true">›</span>
+        <span>Marketplace, all customers</span>
+      </nav>
       <header className="azure-cost-header">
         <h1>Azure Marketplace</h1>
-        <Link to="/azure-cost-manager" className="azure-cost-settings-link">Back to customers</Link>
       </header>
       <SyncControl profiles="only" label="Sync all billing profiles" onSynced={reload} />
       <p className="text-muted azure-cost-note">
