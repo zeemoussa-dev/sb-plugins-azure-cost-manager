@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.11.0] - 2026-10-17
+
+- feat: **a PivotTable in the Marketplace export** (operator, 2026-10-17: "a Pivot Table with Each Publisher, What Solution Who Purchased and When with the Amount"; chose a real Excel PivotTable). The cross-customer workbook's second sheet, **Pivot**, is an Excel PivotTable -- Publisher › Solution › Buyer down the side, months across, Sum of Amount, filters for Group, Buyer type and Toward MACC -- over a new **Marketplace data** sheet, one row per solution, plan, buyer and month. Excel builds it when the file opens (`refreshOnLoad`); a previewer shows it empty. Spellings that differ only in case are made one (Azure bills "CommVault" and "Commvault", "Pay-As-You-Go" and "Pay-as-you-go"): Excel compares pivot items ignoring case, and a cache holding both does not open at all. Checked in Excel against this install's data: 5,724 lines, grand total equal to the report's to the cent. `backend/xlsx_pivot.py` builds the pivot from openpyxl's pivot parts; the page's `/marketplace` response leaves the lines out.
+
 ## [0.10.1] - 2026-10-17
 
 - fix: **the move of signed values onto Customer notes gave up after one failed try.** Installing Entities 1.3.0 restarts the backend, and right after a restart the vault index is empty, so every Customer note read as missing; the move kept the values here but marked itself done, and every linked customer then read its (empty) note and showed no MACC. The move now counts as done only once every value has moved, and a value not moved yet is the one that counts.
