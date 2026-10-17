@@ -28,6 +28,8 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 - **[2026-10-16] Charts are SVG drawn in the plugin.** The host has no chart library, and a screen may not bring one. *Superseded below.*
 - **[2026-10-16] Charts are the host's `echarts`, imported piece by piece** (framework_api 8, `ADR-039`): `echarts/core` plus the chart types and components used, through `echarts-for-react/esm/core`. A canvas cannot resolve CSS variables, so colours are read from the stylesheet when a chart renders.
 
+- **[2026-10-17] A link into Settings carries `back`** (`settingsLink`). Settings lives under the framework's `/settings`, outside this plugin's pages, so without it the operator had no way back; `safeBack` accepts only this plugin's own paths.
+
 ## Constraints
 
 - **[2026-10-16] A Cost Management query covers at most a year**; history is twelve months.
