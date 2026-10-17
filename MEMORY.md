@@ -25,6 +25,7 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 
 - **[2026-10-17] FinOps findings are one engine with two views.** The Customer view filters the same analysis on the server (today: no forecast scenarios), never a second analysis and never a browser-side hide, so the two cannot disagree and an export cannot leak what the view leaves out.
 
+- **[2026-10-18] Services other plugins depend on: `azure-cost-manager.portfolio` (Entities' Accounts page) and `azure-cost-manager.consumption` (Core42 Insight, own enrollments only, run-rate forecast).** Extend their shapes, never reshape them.
 - **[2026-10-17] Other plugins read this one through `azure-cost-manager.portfolio`** (`for_entity(customer_stem)`), never its HTTP routes. Its shape is the portfolio row plus `route`; changing it breaks Entities' customer page, so extend it, do not reshape it.
 
 ## Patterns

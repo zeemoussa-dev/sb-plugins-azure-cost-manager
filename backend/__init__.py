@@ -14,6 +14,7 @@ from __future__ import annotations
 from .azure_token import AzureCliToken
 from .billing_client import BillingClient
 from .commitment_notes import CommitmentNotes
+from .consumption_provider import SERVICE as CONSUMPTION_SERVICE, ConsumptionProvider
 from .consumption_service import ConsumptionService
 from .consumption_store import DATA_FILES, ConsumptionStore
 from .consumption_sync import ConsumptionSync
@@ -36,3 +37,4 @@ def register(api) -> None:
                            after_customers=service.refresh_prices)
     api.register_router(build_router(service, book, directory, sync, token, pipeline))
     api.provide_service(PORTFOLIO_SERVICE, PortfolioService(service, book))
+    api.provide_service(CONSUMPTION_SERVICE, ConsumptionProvider(service, book))

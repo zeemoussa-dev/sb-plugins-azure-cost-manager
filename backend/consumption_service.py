@@ -341,6 +341,14 @@ class ConsumptionService:
                            "accounts": sorted(group["accounts"], key=lambda account: account["display_name"].lower())})
         return sorted(listed, key=lambda group: (-group["last_twelve_months"], group["name"].lower()))
 
+    def own_monthly(self, customer_id: str, measure: dict) -> tuple[list[dict], str | None, dict | None]:
+        """`(monthly totals, currency, commitment)` of a customer's OWN enrollments --
+        a parent without its affiliates' -- measured with `measure`."""
+        customer = self._customer(customer_id)
+        merged, currency, _ = self._merged(customer, rolled_up=False)
+        trend = consumption_analysis.monthly_totals(merged, months.month_of(self._today()), measure)
+        return trend, (currency or "").strip() or None, customer.get("commitment")
+
     def finops_digest(self, top: int = 5) -> dict:
         """The week's FinOps in a few lines, for a Hermes job to send: who is over
         budget, and where the largest savings are. Text, not a page."""

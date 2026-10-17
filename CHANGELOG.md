@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.17.0] - 2026-10-18
+
+- feat: **the `azure-cost-manager.consumption` service**, for Core42 Insight, which bills on consumption. `linked()` lists every customer linked to a Customer note (its stem, name, parent's stem, currency, route); `monthly(stem, include_marketplace, subtract_credits)` gives that customer's OWN enrollments by month (a parent without its affiliates) -- usage, Marketplace, credits, the total under the two switches, and whether the month is closed -- with a forecast at the burn-down's run rate to the MACC term's end (or the year's end), and the commitment. Local data only; two customers on one note: the top-level one answers, as in `for_entity`.
+
 ## [0.16.1] - 2026-10-17
 
 - perf: **the customer list copied every enrollment's synced months to read two fields.** Each listing deep-copied all enrollments (131 JSON round-trips of a 15 MB cache on this install) for `synced_at` and `errors`; `account_status` reads them in place. `for_entity` went from 1.2 s to 0.01 s for a small customer (reported by the Entities session), and every page that lists customers is faster.
