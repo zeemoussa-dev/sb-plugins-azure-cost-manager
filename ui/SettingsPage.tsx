@@ -5,7 +5,7 @@ import {
   deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, saveCustomer,
   type BillingAccount, type Commitment, type Customer, type EntityCustomer,
 } from './client';
-import { agreementLabel, errorText, formatMoney } from './format';
+import { agreementLabel, errorText, formatMoney, grouped } from './format';
 import { SyncControl } from './SyncControl';
 
 const SHOWN_WHILE_SEARCHING = 60;
@@ -15,6 +15,7 @@ interface Draft {
   name: string;
   accounts: string[];
   entity_customer: string;
+  parent: string;
   commitment: {
     type: string; amount: string; currency: string; start: string; end: string; note: string;
     include_marketplace: boolean; subtract_credits: boolean;
@@ -28,6 +29,7 @@ function draftOf(customer: Customer | null): Draft {
     name: customer?.name ?? '',
     accounts: customer?.accounts.map((account) => account.name) ?? [],
     entity_customer: customer?.entity_customer ?? '',
+    parent: customer?.parent ?? '',
     commitment: {
       type: commitment.type ?? 'MACC', amount: commitment.amount != null ? String(commitment.amount) : '',
       currency: commitment.currency ?? 'USD', start: commitment.start ?? '', end: commitment.end ?? '',
@@ -37,8 +39,9 @@ function draftOf(customer: Customer | null): Draft {
   };
 }
 
-function CustomerEditor({ draft, accounts, types, entityCustomers, onSaved, onCancel }: {
+function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSaved, onCancel }: {
   draft: Draft; accounts: BillingAccount[]; types: string[]; entityCustomers: EntityCustomer[] | null;
+  parents: Customer[];
   onSaved: () => void; onCancel: () => void;
 }) {
   const [value, setValue] = useState<Draft>(draft);
@@ -89,7 +92,7 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, onSaved, onCa
     const commitment = value.commitment.amount.trim()
       ? { ...value.commitment, amount: Number(value.commitment.amount) } : null;
     saveCustomer(value.id, { name: value.name, accounts: value.accounts, commitment,
-      entity_customer: value.entity_customer || null }).then(() => {
+      entity_customer: value.entity_customer || null, parent: value.parent || null }).then(() => {
       setSaving(false);
       onSaved();
     }, (failure) => {
@@ -136,7 +139,19 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, onSaved, onCa
         </tbody>
       </table>
 
-      <h4>Signed value</h4>
+      <h4>Group</h4>
+      <p className="text-muted azure-cost-note">
+        An affiliate's MACC is carved out of its group's: every dollar it consumes counts against both.
+      </p>
+      <select value={value.parent} onChange={(event) => setValue({ ...value, parent: event.target.value })}
+              className="azure-cost-picker">
+        <option value="">Not part of a group</option>
+        {parents.map((parent) => <option key={parent.id} value={parent.id}>Affiliate of {parent.name}</option>)}
+      </select>
+
+      <h4>{value.parent
+        ? `Signed MACC — carved out of ${parents.find((parent) => parent.id === value.parent)?.name ?? 'the group'}'s`
+        : 'Signed value'}</h4>
       <p className="text-muted azure-cost-note">
         What the customer committed to over the term. Azure does not report it for indirect agreements.
       </p>
@@ -243,6 +258,7 @@ export function SettingsPage() {
 
       {editing ? (
         <CustomerEditor draft={editing} accounts={accounts} types={types} entityCustomers={entityCustomers}
+                        parents={(customers ?? []).filter((customer) => !customer.parent && customer.id !== editing.id)}
                         onSaved={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />
       ) : (
         <section className="card azure-cost-card">
@@ -255,9 +271,10 @@ export function SettingsPage() {
             <table className="azure-cost-table">
               <thead><tr><th>Customer</th><th>Enrollments</th><th>Signed value</th><th>Term</th><th>Synced</th><th /></tr></thead>
               <tbody>
-                {customers.map((customer) => (
+                {grouped(customers).map((customer) => (
                   <tr key={customer.id}>
-                    <td>{customer.name}</td>
+                    <td>{customer.parent ? <span className="azure-cost-affiliate-name">↳ {customer.name}</span> : customer.name}
+                      {customer.affiliates?.length ? <span className="text-muted"> · group of {customer.affiliates.length + 1}</span> : null}</td>
                     <td title={customer.accounts.map((account) => `${account.display_name} (${account.name})`).join('\n')}>
                       {customer.accounts.length}
                     </td>

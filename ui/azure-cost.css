@@ -259,6 +259,23 @@
   transition: width 0.4s ease;
 }
 
+.azure-cost-total-row td {
+  font-weight: 600;
+  border-top: 2px solid var(--color-border);
+}
+
+.azure-cost-affiliate-name {
+  padding-left: var(--space-4);
+}
+
+.azure-cost-group-banner {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-accent-muted);
+  font-size: var(--font-size-sm);
+}
+
 .azure-cost-check {
   display: inline-flex;
   align-items: center;

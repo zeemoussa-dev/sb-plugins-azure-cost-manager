@@ -76,8 +76,27 @@ def test_an_affiliate_sees_its_own_macc_and_the_group_it_belongs_to(fake_api):
     result = service.analysis("northwind")
 
     assert result["commitment"]["consumed"] == 4_500_000
-    assert result["group"]["parent"] == {"id": "holding", "name": "Holding", "amount": 50_000_000, "currency": "USD"}
+    assert result["group"]["parent"] == {"id": "holding", "name": "Holding", "amount": 50_000_000, "currency": "USD",
+                                         "entity_customer": None}
     assert result["allocations"] is None
+
+
+def test_the_parents_export_carries_the_allocation_and_every_enrollment(fake_api):
+    import io
+
+    import openpyxl
+
+    _, service = group(fake_api)
+
+    _, data = service.export("holding")
+    dashboard = openpyxl.load_workbook(io.BytesIO(data))["Dashboard"]
+    values = [cell.value for row in dashboard.iter_rows() for cell in row if cell.value is not None]
+    export = openpyxl.load_workbook(io.BytesIO(data))["Export"]
+    profiles = {cell.value for cell in export["B"] if cell.value and cell.row > 1}
+
+    assert "MACC Allocation across the Group" in values
+    assert "Holding – unallocated (own enrollments)" in values
+    assert profiles == {"1", "2", "3"}
 
 
 def test_affiliates_signing_more_than_the_parent_is_flagged(fake_api):

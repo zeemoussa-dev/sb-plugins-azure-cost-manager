@@ -396,6 +396,35 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
     ], row)
     row = max(quarter_last, chart_end) + 2
 
+    allocations = analysis.get("allocations")
+    if allocations:
+        _section(sheet, row, "MACC Allocation across the Group")
+        allocation_header = row + 1
+        rows = []
+        for item in allocations["affiliates"]:
+            burn = item["burn"]
+            signed = (item["commitment"] or {}).get("amount")
+            rows.append([item["name"], signed, burn["consumed"] if burn else item["consumed_against_parent"],
+                         _fraction(burn["consumed_pct"]) if burn else None, burn["remaining"] if burn else None,
+                         burn["pace_gap"] if burn else None, burn["projected_at_end"] if burn else None])
+        rows.append([f"{customer['name']} – unallocated (own enrollments)", allocations["unallocated"],
+                     allocations["own"]["consumed"],
+                     (allocations["own"]["consumed"] / allocations["unallocated"]) if allocations["unallocated"] else None,
+                     allocations["own"]["remaining"], None, None])
+        amount = allocations["parent_amount"]
+        total = ["Group total", amount, allocations["consumed_total"],
+                 (allocations["consumed_total"] / amount) if amount else None,
+                 (amount - allocations["consumed_total"]) if amount is not None else None, None, None]
+        allocation_last = _table(sheet, allocation_header, ["Affiliate", "Signed MACC", "Consumed", "% consumed",
+                                                            "Remaining", "Against even pace", "At term end (run rate)"],
+                                 rows, {1: MONEY, 2: MONEY, 3: PERCENT, 4: MONEY, 5: MONEY, 6: MONEY}, total_row=total)
+        if allocations["over_allocated"]:
+            note = sheet.cell(allocation_last + 1, 1, "The affiliates' MACCs add up to more than the group's.")
+            note.font = _font(bold=True, color=PEACH_TEXT)
+        chart_end = _place(sheet, [_bar("Signed MACC vs Consumed, by Affiliate", sheet, allocation_header,
+                                        allocation_header + 1, allocation_last - 1, [2, 3], labelled=False)], row)
+        row = max(allocation_last, chart_end) + 2
+
 
 def _forecast_auto(workbook: Workbook, analysis: dict, today: date) -> None:
     automatic = analysis.get("automatic_forecast")

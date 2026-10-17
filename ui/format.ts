@@ -35,6 +35,12 @@ export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Parents followed by their affiliates, so a group reads as one block. */
+export function grouped<T extends { id: string; parent?: string | null }>(customers: T[]): T[] {
+  const tops = customers.filter((customer) => !customer.parent || !customers.some((c) => c.id === customer.parent));
+  return tops.flatMap((top) => [top, ...customers.filter((customer) => customer.parent === top.id)]);
+}
+
 export function agreementLabel(agreementType: string): string {
   if (agreementType === 'EnterpriseAgreement') return 'EA';
   if (agreementType === 'MicrosoftCustomerAgreement') return 'MCA';

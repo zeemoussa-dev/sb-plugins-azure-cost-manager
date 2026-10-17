@@ -114,7 +114,8 @@ class ConsumptionService:
             if record:
                 parent = {"id": record["id"], "name": record["name"],
                           "amount": (record.get("commitment") or {}).get("amount"),
-                          "currency": (record.get("commitment") or {}).get("currency")}
+                          "currency": (record.get("commitment") or {}).get("currency"),
+                          "entity_customer": record.get("entity_customer")}
         return {"parent": parent,
                 "affiliates": [{"id": member["id"], "name": member["name"]} for member in members[1:]],
                 "accounts": [{**account, "member": member["name"]} for member in members for account in member["accounts"]]}

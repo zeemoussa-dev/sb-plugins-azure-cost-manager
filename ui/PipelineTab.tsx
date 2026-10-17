@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SeriesChart } from './charts';
 import {
-  createOpportunity, fetchEntityCustomers, saveCustomer, updateOpportunity,
+  createAffiliateNote, createOpportunity, fetchEntityCustomers, saveCustomer, updateOpportunity,
   type Analysis, type EntityCustomer, type Opportunity, type PlanMonth,
 } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
@@ -154,31 +154,65 @@ function Editor({ analysis, owners, initial, onDone }: {
 function LinkCustomer({ analysis, onLinked }: { analysis: Analysis; onLinked: () => void }) {
   const [customers, setCustomers] = useState<EntityCustomer[]>([]);
   const [chosen, setChosen] = useState('');
+  const [newAffiliate, setNewAffiliate] = useState(analysis.customer.name);
   const [error, setError] = useState<string | null>(null);
+  const parentNote = analysis.group.parent?.entity_customer ?? null;
   useEffect(() => {
     fetchEntityCustomers().then((result) => setCustomers(result.customers), (failure) => setError(errorText(failure)));
   }, []);
 
-  function link() {
+  function link(stem: string) {
     const customer = analysis.customer;
     saveCustomer(customer.id, { name: customer.name, accounts: customer.accounts.map((account) => account.name),
-      commitment: customer.commitment, entity_customer: chosen }).then(onLinked, (failure) => setError(errorText(failure)));
+      commitment: customer.commitment, entity_customer: stem }).then(onLinked, (failure) => setError(errorText(failure)));
   }
 
+  function createAndLink() {
+    if (!parentNote) return;
+    setError(null);
+    createAffiliateNote(parentNote, newAffiliate.trim()).then((created) => link(created.stem),
+      (failure) => setError(errorText(failure)));
+  }
+
+  const parentHub = parentNote ? customers.find((customer) => customer.stem === parentNote) : undefined;
   return (
     <section className="card azure-cost-card">
       <h3>Link to the Customer note</h3>
       <p className="text-muted azure-cost-note">
-        The pipeline is this customer's Opportunity notes in the vault, its affiliates' included. Pick the Customer note
-        they sit under — the Azure name often differs from it.
+        The pipeline is this customer's Opportunity notes in the vault. Pick the Customer note — or, for an affiliate,
+        its affiliate note — they sit under; the Azure name often differs from it.
       </p>
       <div className="azure-cost-toolbar">
         <select value={chosen} onChange={(event) => setChosen(event.target.value)} className="azure-cost-picker">
-          <option value="">Choose a Customer note…</option>
-          {customers.map((customer) => <option key={customer.stem} value={customer.stem}>{customer.name}</option>)}
+          <option value="">Choose a Customer or affiliate note…</option>
+          {customers.flatMap((customer) => [
+            <option key={customer.stem} value={customer.stem}>{customer.name}</option>,
+            ...customer.affiliates.map((affiliate) => (
+              <option key={affiliate.stem} value={affiliate.stem}>{`   ↳ ${affiliate.name} (affiliate of ${customer.name})`}</option>
+            )),
+          ])}
         </select>
-        <button type="button" className="btn" onClick={link} disabled={!chosen}>Link</button>
+        <button type="button" className="btn" onClick={() => link(chosen)} disabled={!chosen}>Link</button>
       </div>
+      {analysis.group.parent ? (
+        parentNote ? (
+          <>
+            <p className="text-muted azure-cost-note">
+              No affiliate note for it under {parentHub?.name ?? parentNote}? Create one — the Entities plugin writes it.
+            </p>
+            <div className="azure-cost-toolbar">
+              <input value={newAffiliate} onChange={(event) => setNewAffiliate(event.target.value)} />
+              <button type="button" className="btn" onClick={createAndLink} disabled={!newAffiliate.trim()}>
+                Create the affiliate note and link
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="text-muted azure-cost-note">
+            Link {analysis.group.parent.name} to its Customer note first; then an affiliate note can be created here.
+          </p>
+        )
+      ) : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
     </section>
   );

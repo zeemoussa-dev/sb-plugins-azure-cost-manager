@@ -115,6 +115,89 @@ function CommitmentCard({ analysis }: { analysis: Analysis }) {
   );
 }
 
+/** How the parent's MACC is carved up: each affiliate's own MACC and its burn,
+ *  and the unallocated rest, which the parent's own enrollments consume. */
+function AllocationsCard({ analysis }: { analysis: Analysis }) {
+  const allocations = analysis.allocations;
+  if (!allocations) return null;
+  const currency = analysis.commitment?.currency ?? analysis.currency;
+  const pct = (value: number, of: number | null | undefined) => (of ? `${Math.round((value / of) * 1000) / 10}%` : '—');
+  const rows = allocations.affiliates;
+  return (
+    <section className="card azure-cost-card azure-cost-wide">
+      <h3>MACC allocation across the group</h3>
+      {allocations.parent_amount == null ? (
+        <p className="text-muted azure-cost-note">Enter the group's signed MACC on this customer to see what is left unallocated.</p>
+      ) : null}
+      {allocations.over_allocated ? (
+        <div className="azure-cost-error">
+          The affiliates' MACCs add up to {formatMoney(allocations.allocated, currency)}, more than the group's{' '}
+          {formatMoney(allocations.parent_amount ?? 0, currency)}.
+        </div>
+      ) : null}
+      <table className="azure-cost-table">
+        <thead><tr><th>Affiliate</th><th>Signed MACC</th><th>Consumed</th><th>%</th><th>Remaining</th>
+          <th>Against even pace</th><th>At term end (run rate)</th><th /></tr></thead>
+        <tbody>
+          {rows.map((row) => {
+            const burn = row.burn;
+            return (
+              <tr key={row.id}>
+                <td>{row.name}</td>
+                <td>{row.commitment ? formatMoney(row.commitment.amount, currency) : <span className="text-muted">not entered</span>}</td>
+                <td>{formatMoney(burn ? burn.consumed : row.consumed_against_parent, currency)}</td>
+                <td>{burn ? `${burn.consumed_pct}%` : '—'}</td>
+                <td>{burn ? formatMoney(burn.remaining, currency) : '—'}</td>
+                <td className={burn && burn.pace_gap < 0 ? 'azure-cost-warning' : undefined}>
+                  {burn ? `${burn.pace_gap >= 0 ? 'ahead ' : 'behind '}${formatMoney(Math.abs(burn.pace_gap), currency)}` : '—'}</td>
+                <td>{burn ? formatMoney(burn.projected_at_end, currency) : '—'}</td>
+                <td className="text-muted">{burn?.projected_shortfall ? 'shortfall projected' : burn ? 'on track' : ''}</td>
+              </tr>
+            );
+          })}
+          <tr>
+            <td>{analysis.customer.name} — unallocated, own enrollments</td>
+            <td>{allocations.unallocated != null ? formatMoney(allocations.unallocated, currency) : '—'}</td>
+            <td>{formatMoney(allocations.own.consumed, currency)}</td>
+            <td>{pct(allocations.own.consumed, allocations.unallocated)}</td>
+            <td>{allocations.own.remaining != null ? formatMoney(allocations.own.remaining, currency) : '—'}</td>
+            <td /><td /><td />
+          </tr>
+          <tr className="azure-cost-total-row">
+            <td>Group total</td>
+            <td>{allocations.parent_amount != null ? formatMoney(allocations.parent_amount, currency) : '—'}</td>
+            <td>{formatMoney(allocations.consumed_total, currency)}</td>
+            <td>{pct(allocations.consumed_total, allocations.parent_amount)}</td>
+            <td>{allocations.parent_amount != null ? formatMoney(allocations.parent_amount - allocations.consumed_total, currency) : '—'}</td>
+            <td /><td /><td />
+          </tr>
+        </tbody>
+      </table>
+      <SeriesChart label="Signed against consumed, by affiliate" currency={currency} height={280}
+                   categories={[...rows.map((row) => row.name), 'Unallocated (own)']}
+                   series={[
+                     { name: 'Signed MACC', data: [...rows.map((row) => row.commitment?.amount ?? null), allocations.unallocated], color: 'other' },
+                     { name: 'Consumed', data: [...rows.map((row) => row.burn?.consumed ?? row.consumed_against_parent), allocations.own.consumed], color: 1 },
+                   ]} />
+      <p className="text-muted azure-cost-note">
+        Every affiliate dollar counts against its own MACC and the group's. Consumption here is since each MACC's own
+        start; the group total counts from the group's start.
+      </p>
+    </section>
+  );
+}
+
+function GroupBanner({ analysis }: { analysis: Analysis }) {
+  const parent = analysis.group.parent;
+  if (!parent) return null;
+  return (
+    <p className="azure-cost-group-banner">
+      An affiliate of <strong>{parent.name}</strong>
+      {parent.amount != null ? <> — its MACC is carved out of the group's {formatMoney(parent.amount, parent.currency)}</> : null}.
+    </p>
+  );
+}
+
 function Card({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
   return (
     <section className={`card azure-cost-card${wide ? ' azure-cost-wide' : ''}`}>
@@ -134,8 +217,10 @@ export function OverviewTab({ analysis }: { analysis: Analysis }) {
 
   return (
     <>
+      <GroupBanner analysis={analysis} />
       <Kpis analysis={analysis} />
       <CommitmentCard analysis={analysis} />
+      <AllocationsCard analysis={analysis} />
       <Card title="Monthly consumption" wide>
         <TrendChart months={analysis.months} forecast={analysis.forecast.months} currency={currency} />
       </Card>

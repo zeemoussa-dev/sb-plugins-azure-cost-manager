@@ -105,6 +105,10 @@ export interface Customer {
   /** The Entities Customer note whose Opportunities are this customer's pipeline. */
   entity_customer?: string | null;
   scenario?: ScenarioSettings | null;
+  /** The group this customer is an affiliate of; its MACC is carved out of the parent's. */
+  parent?: string | null;
+  /** Ids of this customer's affiliates, when it is a parent. */
+  affiliates?: string[];
 }
 
 export interface CustomerDraft {
@@ -112,6 +116,23 @@ export interface CustomerDraft {
   accounts: string[];
   commitment: Partial<Commitment> | null;
   entity_customer?: string | null;
+  parent?: string | null;
+}
+
+export interface GroupInfo {
+  parent: { id: string; name: string; amount: number | null; currency: string | null; entity_customer: string | null } | null;
+  affiliates: { id: string; name: string }[];
+  accounts: (CustomerAccount & { member: string })[];
+}
+
+export interface Allocations {
+  parent_amount: number | null;
+  allocated: number;
+  unallocated: number | null;
+  over_allocated: boolean;
+  own: { consumed: number; remaining: number | null };
+  affiliates: { id: string; name: string; commitment: Commitment | null; burn: BurnDown | null; consumed_against_parent: number }[];
+  consumed_total: number;
 }
 
 export interface MonthTotal {
@@ -259,6 +280,8 @@ export interface Dashboard {
 
 export interface Analysis {
   customer: Customer;
+  group: GroupInfo;
+  allocations: Allocations | null;
   synced_at: string | null;
   stale: boolean;
   errors: Record<string, Record<string, string>>;
@@ -333,6 +356,11 @@ export const exportPath = (id: string, measure: Measure) => `${customer(id)}/exp
 
 export const saveScenario = (id: string, settings: ScenarioSettings) =>
   apiFetch<ScenarioSettings>(`${customer(id)}/scenario`, { method: 'PUT', body: JSON.stringify(settings) });
+
+export const createAffiliateNote = (customerStem: string, name: string) =>
+  apiFetch<{ name: string; stem: string; tag: string }>(
+    `${BASE}/entity-customers/${encodeURIComponent(customerStem)}/affiliates`,
+    { method: 'POST', body: JSON.stringify({ name }) });
 
 export const fetchEntityCustomers = () =>
   apiFetch<{ available: boolean; reason?: string; customers: EntityCustomer[] }>(`${BASE}/entity-customers`);

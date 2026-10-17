@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.4.0] - 2026-10-17
+
+- feat: **groups -- a parent's MACC carved out to affiliates** (operator, 2026-10-17: the parent signs a MACC, say $50M; an affiliate signs its own, say $7M, which deducts from the $50M, with its own allocation). A customer can be an affiliate of another (one level deep). The parent's page rolls up its own and its affiliates' enrollments against the group's MACC and adds a **MACC allocation** card -- each affiliate's signed MACC, consumption, pace and projection; the unallocated rest against the parent's own enrollments; the group total; over-allocation flagged. An affiliate's page is its own, with a banner naming the group. Syncing a parent syncs its affiliates, back to the parent's MACC start. Settings sets the group; the picker and the customer list show affiliates under their parent. The export's Dashboard gains a MACC Allocation section, and a parent's Export sheet covers every enrollment in the group.
+- feat: an affiliate the vault does not know yet can have its **affiliate note created** from the Pipeline tab, by the Entities plugin (needs Entities 1.2's `create_affiliate`; until then the button says so).
+
 ## [0.3.4] - 2026-10-16
 
 - feat: **the export is laid out and styled like the operator's own workbook** (operator, 2026-10-16: "The Formatting of the Exported Excel is not the Same"). Sheets in its order -- Dashboard, Forecast Auto, Forecast Scenarios, Pipeline, Export -- then Services, Subscriptions, GPU & AI, Commitment and Credits. Its look: Aptos Narrow, no gridlines, navy section bars and tab, light-blue KPI tiles across merged column pairs, peach tiles and a side block for the signed value, `#D9E1F2` table headers, thin grey borders, `"$"#,##0` money, real `0.0%` percentages and `yyyy-mm` month dates, charts stacked in column J beside their tables with labels where they fit. The Pipeline is its month grid under a merged year header with banded rows and a navy total, a block per year; the Export is one block per billing profile and year, Total row first, with GPU H100 / H200 / other and PTU split out of Azure so the columns add up to the total.

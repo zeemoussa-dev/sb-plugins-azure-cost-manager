@@ -7,7 +7,7 @@ import {
   type Analysis, type Customer, type Measure, type SignInState,
 } from './client';
 import { ForecastTab } from './ForecastTab';
-import { errorText } from './format';
+import { errorText, grouped } from './format';
 import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
 import { SyncControl } from './SyncControl';
@@ -40,8 +40,9 @@ function CustomerView({ customerId, measure, syncedVersion, tab }: {
   return (
     <div className="azure-cost-account">
       <p className="text-muted azure-cost-note">
-        {analysis.customer.accounts.length} enrollment{analysis.customer.accounts.length === 1 ? '' : 's'}:{' '}
-        {analysis.customer.accounts.map((account) => `${account.display_name} (${account.name})`).join(' · ')}
+        {analysis.group.accounts.length} enrollment{analysis.group.accounts.length === 1 ? '' : 's'}
+        {analysis.group.affiliates.length ? ` across ${analysis.customer.name} and ${analysis.group.affiliates.length} affiliate${analysis.group.affiliates.length === 1 ? '' : 's'}` : ''}:{' '}
+        {analysis.group.accounts.map((account) => `${account.display_name} (${account.name})`).join(' · ')}
         {analysis.stale && analysis.synced_at ? ' — data is over a week old' : ''}
       </p>
       {accountErrors.length ? (
@@ -96,8 +97,10 @@ export function AzureCostPage() {
         {customers && customers.length > 0 ? (
           <select value={selected ?? ''} onChange={(event) => setSelected(event.target.value)}
                   aria-label="Customer" className="azure-cost-picker">
-            {customers.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+            {grouped(customers).map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.parent ? `   ↳ ${candidate.name}` : candidate.affiliates?.length ? `${candidate.name} (group)` : candidate.name}
+              </option>
             ))}
           </select>
         ) : null}
