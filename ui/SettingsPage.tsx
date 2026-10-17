@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import {
   deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, saveCustomer,
   type BillingAccount, type Commitment, type Customer, type EntityCustomer,
 } from './client';
 import { agreementLabel, errorText, formatMoney, grouped } from './format';
-import { safeBack } from './ReportsHome';
+import { usePluginReturn } from '../../pluginHost/breadcrumbs';
+import { PLUGIN_ID } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
 const SHOWN_WHILE_SEARCHING = 60;
@@ -235,11 +236,11 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const back = safeBack(params.get('back'));
+  const back = usePluginReturn(PLUGIN_ID);
   // A customer opened from a report is edited for that report: done, it goes back there.
   const openedFromReport = Boolean(back && params.get('customer'));
   const finish = (saved: boolean) => {
-    if (openedFromReport) { navigate(back!); return; }
+    if (back && openedFromReport) { navigate(back.to); return; }
     setEditing(null);
     if (saved) load();
   };
@@ -273,13 +274,7 @@ export function SettingsPage() {
 
   return (
     <div className="azure-cost-settings">
-      <div className="azure-cost-header">
-        <h2>Azure Cost Manager</h2>
-        <Link to={back ?? '/azure-cost-manager'} className="azure-cost-settings-link">
-          ← {back?.startsWith('/azure-cost-manager/report?') && back.includes('customer=') ? 'Back to the report'
-            : back ? 'Back to Azure Cost' : 'Open Azure Cost'}
-        </Link>
-      </div>
+      <h2>Azure Cost Manager</h2>
       {error ? <div className="azure-cost-error">{error}</div> : null}
 
       {editing ? (

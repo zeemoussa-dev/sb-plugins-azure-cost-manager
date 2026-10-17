@@ -394,15 +394,6 @@
   margin-bottom: var(--space-3);
 }
 
-.azure-cost-breadcrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
 
 .azure-cost-section-title {
   font-size: var(--font-size-sm);

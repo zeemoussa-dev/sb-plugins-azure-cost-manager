@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
+import { pluginSettingsLink } from '../../pluginHost/breadcrumbs';
 import { fetchCustomers, fetchSignIn, type Customer, type SignInState } from './client';
 import { errorText } from './format';
 
 export const REPORT_PATH = '/azure-cost-manager/report';
-export const SETTINGS_PATH = '/settings/plugins/azure-cost-manager';
 
 export const REPORTS = ['Overview', 'Forecast', 'Pipeline', 'Marketplace', 'Breakdown'] as const;
 export type Report = typeof REPORTS[number];
@@ -21,18 +21,17 @@ export function reportTitle(report: Report): string {
   return REPORT_SUMMARIES[report].title;
 }
 
-/** Settings, opened on one customer's editor when `customerId` is given, carrying
- *  where it was opened from so Settings can lead back there. */
-export function settingsLink(back: { pathname: string; search: string }, customerId?: string): string {
-  const search = new URLSearchParams();
-  if (customerId) search.set('customer', customerId);
-  search.set('back', `${back.pathname}${back.search}`);
-  return `${SETTINGS_PATH}?${search}`;
-}
+export const PLUGIN_ID = 'azure-cost-manager';
 
-/** Only ever a page of this plugin, so a crafted link cannot send the operator elsewhere. */
-export function safeBack(back: string | null): string | null {
-  return back && /^\/azure-cost-manager(\/|\?|$)/.test(back) ? back : null;
+/** Settings, opened on one customer's editor when customerId is given. rom
+ *  names the page it was opened from, so the host's trail and Save/Cancel lead
+ *  back there; the landing page passes none, as the trail starts with it anyway. */
+export function settingsLink(from?: { location: { pathname: string; search: string }; label: string },
+                             customerId?: string): string {
+  return pluginSettingsLink(PLUGIN_ID, {
+    params: customerId ? { customer: customerId } : undefined,
+    from: from?.location, fromLabel: from?.label,
+  });
 }
 
 export function reportLink(report: Report, customerId?: string): string {
@@ -65,13 +64,13 @@ export function ReportsHome() {
     <div className="page azure-cost-page">
       <header className="azure-cost-header">
         <h1>Azure Cost</h1>
-        <Link to={settingsLink(location)} className="azure-cost-settings-link">Customers and enrollments</Link>
+        <Link to={settingsLink()} className="azure-cost-settings-link">Customers and enrollments</Link>
       </header>
       {signIn && !signIn.signed_in ? <div className="azure-cost-error">{signIn.message}</div> : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
       {customers && customers.length === 0 ? (
         <p className="empty-state">
-          No customers yet. <Link to={settingsLink(location)}>Add a customer</Link> and pick its enrollments.
+          No customers yet. <Link to={settingsLink()}>Add a customer</Link> and pick its enrollments.
         </p>
       ) : null}
       <h2 className="azure-cost-section-title">Per customer</h2>

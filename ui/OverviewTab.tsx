@@ -78,7 +78,7 @@ function CommitmentCard({ analysis }: { analysis: Analysis }) {
         <h3>Signed value</h3>
         <p className="text-muted">
           No signed value entered for this customer. Azure does not report it for indirect agreements —{' '}
-          <Link to={settingsLink(location, analysis.customer.id)}>enter it in Settings</Link>.
+          <Link to={settingsLink({ location, label: analysis.customer.name }, analysis.customer.id)}>enter it in Settings</Link>.
         </p>
       </section>
     );

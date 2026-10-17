@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
+import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { useRememberedState, useUrlSelection, useUrlState } from '../../pluginHost/state';
 import { BreakdownTab } from './BreakdownTab';
 import { MarketplaceTab } from './MarketplaceTab';
@@ -95,21 +96,22 @@ export function AzureCostPage() {
 
   return (
     <div className="page azure-cost-page">
-      <nav className="azure-cost-breadcrumb" aria-label="Breadcrumb">
-        <Link to="/azure-cost-manager">Reports</Link>
-        <span aria-hidden="true">›</span>
-        {customer ? <Link to={reportLink(report)}>{reportTitle(report)}</Link> : <span>{reportTitle(report)}</span>}
-        {parent ? <><span aria-hidden="true">›</span><Link to={reportLink(report, parent.id)}>{parent.name}</Link></> : null}
-        {customer ? <><span aria-hidden="true">›</span><span>{customer.name}</span></> : null}
-      </nav>
+      <Breadcrumbs items={[
+        { label: 'Azure Cost', to: '/azure-cost-manager' },
+        { label: reportTitle(report), to: reportLink(report) },
+        ...(parent ? [{ label: parent.name, to: reportLink(report, parent.id) }] : []),
+        ...(customer ? [{ label: customer.name }] : []),
+      ]} />
       <header className="azure-cost-header">
         <h1>{customer ? customer.name : reportTitle(report)}</h1>
         {customer ? (
-          <Link to={settingsLink(location, customer.id)} className="btn azure-cost-settings-link">
+          <Link to={settingsLink({ location, label: customer.name }, customer.id)} className="btn azure-cost-settings-link">
             Edit {customer.name}: MACC, enrollments
           </Link>
         ) : (
-          <Link to={settingsLink(location)} className="azure-cost-settings-link">Customers and enrollments</Link>
+          <Link to={settingsLink({ location, label: reportTitle(report) })} className="azure-cost-settings-link">
+            Customers and enrollments
+          </Link>
         )}
       </header>
       {signIn && !signIn.signed_in ? <div className="azure-cost-error">{signIn.message}</div> : null}

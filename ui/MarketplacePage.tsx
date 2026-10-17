@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
+import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { useUrlFilters } from '../../pluginHost/state';
 import { SeriesChart } from './charts';
 import { fetchMarketplaceAcross, marketplaceExportPath, type MarketplaceAcross } from './client';
@@ -38,11 +38,7 @@ export function MarketplacePage() {
 
   return (
     <div className="page azure-cost-page">
-      <nav className="azure-cost-breadcrumb" aria-label="Breadcrumb">
-        <Link to="/azure-cost-manager">Reports</Link>
-        <span aria-hidden="true">›</span>
-        <span>Marketplace, all customers</span>
-      </nav>
+      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Marketplace, all customers' }]} />
       <header className="azure-cost-header">
         <h1>Azure Marketplace</h1>
       </header>
