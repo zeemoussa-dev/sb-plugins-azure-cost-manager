@@ -98,6 +98,21 @@ def test_values_held_here_move_to_their_notes_once_and_a_note_with_one_wins(fake
     assert service.writes == [("ADNOC", SIGNED)]
 
 
+def test_a_move_that_fails_is_tried_again_and_the_value_still_counts(fake_api):
+    # Right after a restart the vault index is empty: every note reads as missing.
+    service = FakeCustomers({})
+    customers, store = book(fake_api, service, [linked(SIGNED)])
+
+    first = customers.list()[0]
+    service.notes["ADNOC"] = None
+    second = customers.list()[0]
+
+    assert (first["commitment"]["amount"], first["commitment_source"]) == (125_000_000, "settings")
+    assert service.notes["ADNOC"] == SIGNED
+    assert (second["commitment"]["amount"], second["commitment_source"]) == (125_000_000, "note")
+    assert store.customers()[0]["commitment"] is None
+
+
 def test_linking_to_a_note_that_has_a_signed_value_keeps_the_notes(fake_api):
     service = FakeCustomers({"ADNOC": dict(SIGNED)})
     customers, store = book(fake_api, service, [{**linked(), "entity_customer": None, "commitment": None}])

@@ -138,6 +138,10 @@ class CustomerBook:
         is its Customer note's, even when the note has none."""
         if not (customer.get("entity_customer") and self._notes_in_use()):
             return customer.get("commitment"), "settings", None
+        if customer.get("commitment"):
+            # Not moved to its note yet (see `_move_commitments_to_notes`): until it
+            # is, the value held here is the one that counts.
+            return customer["commitment"], "settings", None
         try:
             on_note = self._notes.read(customer["entity_customer"])
         except ValueError:
@@ -156,7 +160,7 @@ class CustomerBook:
         if self._moved_to_notes or not self._notes_in_use():
             return
         customers = self._store.customers()
-        changed = False
+        changed = left_behind = False
         for customer in customers:
             if not (customer.get("entity_customer") and customer.get("commitment")):
                 continue
@@ -164,12 +168,16 @@ class CustomerBook:
                 if not self._notes.read(customer["entity_customer"]):
                     self._notes.write(customer["entity_customer"], customer["commitment"])
             except ValueError:
-                continue  # its note is gone or refuses it; the value stays here
+                # Its note is gone, refuses it, or is not indexed yet -- right after
+                # a restart the vault index is empty and every note reads as
+                # missing. The value stays here and the move is tried again.
+                left_behind = True
+                continue
             customer["commitment"] = None
             changed = True
         if changed:
             self._store.save_customers(customers)
-        self._moved_to_notes = True
+        self._moved_to_notes = not left_behind
 
     def records(self) -> list[dict]:
         """The stored customers as they are -- accounts by number -- with each one's

@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.10.1] - 2026-10-17
+
+- fix: **the move of signed values onto Customer notes gave up after one failed try.** Installing Entities 1.3.0 restarts the backend, and right after a restart the vault index is empty, so every Customer note read as missing; the move kept the values here but marked itself done, and every linked customer then read its (empty) note and showed no MACC. The move now counts as done only once every value has moved, and a value not moved yet is the one that counts.
+
 ## [0.10.0] - 2026-10-17
 
 - chore: **framework_api 11, and the framework's breadcrumbs** (operator, 2026-10-17: "Shouldn't it be Breadcrumb and Have a Standard around that" -- chose a framework standard, ADR-042). Every page past the landing page renders the host's `Breadcrumbs` (`Azure Cost › Consumption overview › Mubadala › Masdar`); the plugin's own trail and its `.azure-cost-breadcrumb` styles are gone. Links into Settings are built with the host's `pluginSettingsLink` (the customer's or report's name as the origin), the host renders the Settings trail (`Azure Cost › ADNOC › Azure Cost Manager`), and Save or Cancel returns through `usePluginReturn`, which validates the way back with the same rule that decides which routes the plugin may mount. `settingsLink`'s own `safeBack` and the Settings page's back link are removed.
