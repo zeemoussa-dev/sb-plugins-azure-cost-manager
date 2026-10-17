@@ -168,3 +168,16 @@ def test_across_customers_the_largest_steady_on_demand_comes_first(fake_api):
 
     assert [(row["name"], row["candidates"], row["candidates_monthly"]) for row in rows] == [("Contoso", 1, 5_000)]
     assert rows[0]["budget"]["source"] == "set" and rows[0]["budget"]["status"] == "over"
+
+
+def test_the_digest_names_who_is_over_budget_and_the_largest_savings(fake_api):
+    book, service = service_with_customer(fake_api)
+    book.save("contoso", {"name": "Contoso", "accounts": ["1"], "budget_monthly": 4_000})
+    service.prices.discounts = lambda: {"Esv5 Series": {"product": "Virtual Machines Esv5 Series",
+                                                        "discounts": {"sp_1y": 0.25, "ri_3y": 0.6}}}
+
+    digest = service.finops_digest()
+
+    assert digest["over_budget"] == 1 and digest["with_savings"] == 1
+    assert "Contoso: $3k/mo (1 meters, largest Esv5 Series)" in digest["text"]
+    assert "Contoso: $10k in 2026-09 against $4k" in digest["text"]

@@ -26,7 +26,10 @@ CONSUMPTION_CACHE_FILE = "Azure-Cost-Manager/Consumption-Cache.json"
 MARKETPLACE_SETTINGS_FILE = "Azure-Cost-Manager/Marketplace-Settings.json"
 # 0.1.x tracked single accounts; read once to carry them over as customers.
 LEGACY_TRACKED_ACCOUNTS_FILE = "Azure-Cost-Manager/Tracked-Accounts.json"
-DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE)
+# FinOps: the pricing region and the Retail Prices discounts per meter (`pricing`).
+FINOPS_FILE = "Azure-Cost-Manager/FinOps.json"
+DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
+              FINOPS_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -93,6 +96,14 @@ class ConsumptionStore:
     def save_customers(self, customers: list[dict]) -> None:
         with self._lock:
             _write_json(self._api, CUSTOMERS_FILE, {"customers": customers})
+
+    def finops_state(self) -> dict:
+        with self._lock:
+            return _read_json(self._api, FINOPS_FILE, {})
+
+    def save_finops_state(self, state: dict) -> None:
+        with self._lock:
+            _write_json(self._api, FINOPS_FILE, state)
 
     def customer(self, customer_id: str) -> dict | None:
         return next((customer for customer in self.customers() if customer["id"] == customer_id), None)

@@ -2,10 +2,11 @@
 is the only thing that does (`consumption_sync`)."""
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import consumption_analysis, export_xlsx, finops, marketplace, months
+from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -49,6 +50,7 @@ class ConsumptionService:
                  pipeline: Pipeline | None = None) -> None:
         self._store = store
         self._book = book
+        self.prices = pricing.PriceBook(store.finops_state, store.save_finops_state, now)
         self._pipeline = pipeline
         self._today = today
         self._now = now
@@ -234,11 +236,14 @@ class ConsumptionService:
         outlook = consumption_analysis.forecast(trend, consumption_analysis.merge_forecasts(entries), self._today())
         this_month = next((row["cost"] for row in outlook["months"] if row["month"] == current_month), None)
         return {"customer": {"id": customer["id"], "name": customer["name"], "parent": customer.get("parent"),
-                             "affiliates": [member["id"] for member in members[1:]]},
+                             "affiliates": [member["id"] for member in members[1:]],
+                             # Where "Create opportunity" files a finding: the linked Customer note.
+                             "entity_customer": customer.get("entity_customer")},
                 # The Consumption API pads the currency code ("USD  ").
                 "currency": (currency or "").strip() or None,
                 **finops.analyse(entries, merged, trend, commitment, customer.get("budget_monthly"), this_month,
-                                 self._today())}
+                                 self._today(), self.prices.discounts()),
+                "pricing_region": self.prices.region()}
 
     def finops(self, customer_id: str) -> dict:
         """The FinOps findings for one customer (a group: with its affiliates). The
@@ -262,8 +267,57 @@ class ConsumptionService:
                          "coverage_month": latest["month"] if latest else None,
                          "candidates": len(found["candidates"]), "candidates_monthly": found["candidates_monthly"],
                          "top_candidate": found["candidates"][0]["meter"] if found["candidates"] else None,
+                         "savings_monthly": found["savings_monthly"],
                          "budget": found["budget"]})
         return sorted(rows, key=lambda row: (-row["candidates_monthly"], row["name"].lower()))
+
+    def finops_digest(self, top: int = 5) -> dict:
+        """The week's FinOps in a few lines, for a Hermes job to send: who is over
+        budget, and where the largest savings are. Text, not a page."""
+        rows = self.finops_across()
+        over = [row for row in rows if (row["budget"] or {}).get("status") in ("over", "forecast-over")]
+        priced = sorted((row for row in rows if (row["savings_monthly"] or {}).get("ri_3y")),
+                        key=lambda row: -row["savings_monthly"]["ri_3y"])
+
+        def money(value: float) -> str:
+            return f"${value / 1_000_000:.2f}M" if value >= 1_000_000 else f"${value / 1_000:.0f}k"
+
+        lines = [f"Azure FinOps – week of {self._today().isoformat()}"]
+        if priced:
+            total = sum(row["savings_monthly"]["ri_3y"] for row in priced)
+            lines += ["", f"Estimated savings on steady on-demand spend: {money(total)} a month on 3-year reservations."]
+            lines += [f"• {row['name']}: {money(row['savings_monthly']['ri_3y'])}/mo "
+                      f"({row['candidates']} meters, largest {row['top_candidate']})" for row in priced[:top]]
+        if over:
+            lines += ["", "Over budget:"]
+            lines += [f"• {row['name']}: {money(row['budget']['last_month_actual'] or 0)} in {row['budget']['last_month']} "
+                      f"against {money(row['budget']['amount'])}"
+                      + (" (forecast over this month)" if row['budget']['status'] == "forecast-over" else "")
+                      for row in over[:top]]
+        if len(lines) == 1:
+            lines += ["", "Nothing to flag this week."]
+        return {"text": "\n".join(lines), "customers": len(rows), "over_budget": len(over), "with_savings": len(priced)}
+
+    def meters_to_price(self) -> list[str]:
+        """Every VM and GPU meter that is a steady candidate for some customer."""
+        return sorted({candidate["meter"] for customer in self._book.list() if not customer.get("parent")
+                       for candidate in self._finops_of(customer)["candidates"]
+                       if candidate["family"] in finops.PRICED_FAMILIES})
+
+    def refresh_prices(self, retail: pricing.RetailPrices | None = None) -> dict:
+        """Prices every candidate meter not priced this month (Retail Prices API,
+        no sign-in). Run by the sync after customers, or on demand."""
+        return self.prices.refresh(retail or pricing.RetailPrices(), self.meters_to_price())
+
+    def set_pricing_region(self, region: str) -> dict:
+        """Where steady candidates are priced; existing prices for other regions stay."""
+        region = region.strip().lower()
+        if not re.fullmatch(r"[a-z0-9]{3,30}", region):
+            raise ValueError("a region is an Azure region name, e.g. uaenorth")
+        state = self._store.finops_state()
+        state["pricing_region"] = region
+        self._store.save_finops_state(state)
+        return {"pricing_region": region}
 
     def portfolio(self) -> list[dict]:
         """Every customer at a glance -- burn, last month, recent trend, status -- for

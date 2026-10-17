@@ -211,14 +211,44 @@ def budget_status(budget: dict | None, trend: list[dict], current_month_forecast
             "current_month_forecast": current_month_forecast, "over_in_last_12": over_months, "status": status}
 
 
+PRICED_FAMILIES = (VIRTUAL_MACHINES, GPU)
+
+
+def with_savings(candidates: list[dict], prices: dict[str, dict]) -> list[dict]:
+    """Each candidate's estimated monthly saving per commitment option, from the
+    price book; a candidate the price list cannot price says why."""
+    priced = []
+    for candidate in candidates:
+        entry = prices.get(candidate["meter"]) if candidate["family"] in PRICED_FAMILIES else None
+        discounts = (entry or {}).get("discounts")
+        if discounts:
+            savings = {option: round(candidate["monthly_on_demand"] * share, 2) for option, share in discounts.items()}
+            priced.append({**candidate, "savings": savings, "priced_as": entry["product"], "not_priced": None})
+        else:
+            reason = ("priced from the next phase: databases, storage and capacities price per unit, not per hour"
+                      if candidate["family"] not in PRICED_FAMILIES
+                      else (entry or {}).get("reason") or "not priced yet: the next sync prices it")
+            priced.append({**candidate, "savings": None, "priced_as": None, "not_priced": reason})
+    return priced
+
+
+def _savings_total(candidates: list[dict]) -> dict[str, float]:
+    totals: dict[str, float] = {}
+    for candidate in candidates:
+        for option, saving in (candidate.get("savings") or {}).items():
+            totals[option] = round(totals.get(option, 0.0) + saving, 2)
+    return totals
+
+
 def analyse(entries: dict[str, dict], merged: dict, trend: list[dict], commitment: dict | None,
-            budget_override: float | None, current_month_forecast: float | None, today: date) -> dict:
+            budget_override: float | None, current_month_forecast: float | None, today: date,
+            prices: dict[str, dict] | None = None) -> dict:
     """The FinOps findings for one customer."""
     current = months.month_of(today)
     actual, amortized = _summed(entries, "meters"), _summed(entries, "meters_amortized")
     closed = sorted(month for month in set(actual) | set(amortized) | set(merged) if month < current)
     reservable = _reservable(actual, amortized)
-    candidates = steady_candidates(actual, reservable, closed)
+    candidates = with_savings(steady_candidates(actual, reservable, closed), prices or {})
     covered = coverage(amortized, reservable, closed[-12:])
     return {
         "has_meters": bool(actual),
@@ -226,6 +256,8 @@ def analyse(entries: dict[str, dict], merged: dict, trend: list[dict], commitmen
         "coverage": covered,
         "candidates": candidates,
         "candidates_monthly": round(sum(candidate["monthly_on_demand"] for candidate in candidates), 2),
+        # Monthly, per option, over the candidates the price list could price.
+        "savings_monthly": _savings_total(candidates),
         "purchases": purchases(actual, amortized, closed[-12:]),
         "growth": {"services": growth(merged, closed, "service"), "subscriptions": growth(merged, closed, "subscription")},
         "budget": budget_status(monthly_budget(commitment, budget_override), trend, current_month_forecast),

@@ -159,6 +159,21 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def get_finops(customer_id: str) -> dict:
         return _answered(lambda: service.finops(customer_id))
 
+    @router.get("/finops/digest")
+    def get_finops_digest() -> dict:
+        """The week's FinOps as text, for a Hermes job to send to the operator."""
+        return service.finops_digest()
+
+    @router.post("/finops/prices")
+    def post_finops_prices() -> dict:
+        """Prices the steady candidates now, rather than after the next sync."""
+        return _answered(service.refresh_prices)
+
+    @router.put("/finops/pricing-region")
+    def put_pricing_region(change: dict = Body(...)) -> dict:
+        """The Azure region candidates are priced in (``uaenorth`` unless set)."""
+        return _answered(lambda: service.set_pricing_region(str(change.get("region") or "")))
+
     @router.get("/finops")
     def get_finops_across() -> list[dict]:
         """Every customer's FinOps at a glance -- the operator's view only."""

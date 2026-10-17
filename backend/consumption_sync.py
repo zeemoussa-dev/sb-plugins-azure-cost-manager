@@ -94,8 +94,11 @@ class ConsumptionSync:
     def __init__(self, store: ConsumptionStore, directory: AccountDirectory,
                  client_factory: Callable[[], BillingClient], today: Callable[[], date] = date.today,
                  now: Callable[[], datetime] = _now, sleep: Callable[[float], None] = time.sleep,
-                 customers: Callable[[], list[dict]] | None = None) -> None:
+                 customers: Callable[[], list[dict]] | None = None,
+                 after_customers: Callable[[], dict] | None = None) -> None:
         self._store = store
+        # Run once the customers are synced: FinOps prices their steady candidates.
+        self._after_customers = after_customers
         # The customer book's view: a linked customer's signed value is on its Customer note.
         self._customers = customers or store.customers
         self._directory = directory
@@ -133,6 +136,7 @@ class ConsumptionSync:
         try:
             if profiles != "only":
                 self.run(customer_id)
+                self._price_candidates()
             if profiles != "none":
                 self.run_profiles()
         except Exception as exc:  # the thread must always clear `running`
@@ -140,6 +144,16 @@ class ConsumptionSync:
         finally:
             with self._lock:
                 self._status.update(running=False, current=None, finished_at=self._now().isoformat())
+
+    def _price_candidates(self) -> None:
+        if not self._after_customers:
+            return
+        self._set(current={"account": None, "pricing": True})
+        try:
+            for failure in self._after_customers().get("failed") or []:
+                self._record_error(None, f"pricing {failure}")
+        except Exception as exc:  # pricing is an extra: it never fails the sync
+            self._record_error(None, f"pricing stopped: {exc}")
 
     def _record_error(self, account: str | None, message: str) -> None:
         with self._lock:

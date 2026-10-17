@@ -822,11 +822,22 @@ def _finops(workbook: Workbook, found: dict) -> None:
                      [[f["family"], f["covered"], f["on_demand"], _fraction(f["coverage_pct"])] for f in latest["families"]],
                      {1: MONEY, 2: MONEY, 3: PERCENT}) + 2
 
-    _section(sheet, row, "Steady on-demand candidates – a reservation or savings plan pays here", last_column=6)
-    row = _table(sheet, row + 1, ["Meter", "Family", "On demand / month", "Lowest month", "Variation", "On demand / year"],
-                 [[c["meter"], c["family"], c["monthly_on_demand"], c["lowest_month"], _fraction(c["variation_pct"]),
-                   c["annual_on_demand"]] for c in found["candidates"]],
-                 {2: MONEY, 3: MONEY, 4: PERCENT, 5: MONEY}) + 2
+    _section(sheet, row, "Steady on-demand candidates – a reservation or savings plan pays here", last_column=8)
+    sheet.cell(row + 1, 1, f"Savings are estimates: each VM or GPU series at the average discount across its sizes in "
+                           f"{found.get('pricing_region', 'the pricing region')}, from Azure's public price list. A Windows "
+                           "meter saves on compute only. Databases, storage and capacities are not priced yet.").font = \
+        _font(italic=True, color=GREY_TEXT)
+    savings = [(c.get("savings") or {}) for c in found["candidates"]]
+    row = _table(sheet, row + 2, ["Meter", "Family", "On demand / month", "Variation", "Save / month, 1-yr savings plan",
+                                  "Save / month, 3-yr savings plan", "Save / month, 1-yr reservation",
+                                  "Save / month, 3-yr reservation"],
+                 [[c["meter"], c["family"], c["monthly_on_demand"], _fraction(c["variation_pct"]),
+                   s.get("sp_1y"), s.get("sp_3y"), s.get("ri_1y"), s.get("ri_3y")]
+                  for c, s in zip(found["candidates"], savings)],
+                 {2: MONEY, 3: PERCENT, 4: MONEY, 5: MONEY, 6: MONEY, 7: MONEY},
+                 total_row=["Total", None, found["candidates_monthly"], None]
+                 + [found.get("savings_monthly", {}).get(option) for option in ("sp_1y", "sp_3y", "ri_1y", "ri_3y")]
+                 if found["candidates"] else None) + 2
     if not found["candidates"]:
         sheet.cell(row - 1, 1, "None: nothing ran on demand at a steady level for the last six months.")
         row += 1

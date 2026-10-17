@@ -29,7 +29,8 @@ def register(api) -> None:
     store = ConsumptionStore(api)
     directory = AccountDirectory(lambda: BillingClient(token).list_billing_accounts())
     book = CustomerBook(store, directory, CommitmentNotes(api))
-    sync = ConsumptionSync(store, directory, lambda: BillingClient(token), customers=book.records)
     pipeline = Pipeline(api)
     service = ConsumptionService(store, book, pipeline=pipeline)
+    sync = ConsumptionSync(store, directory, lambda: BillingClient(token), customers=book.records,
+                           after_customers=service.refresh_prices)
     api.register_router(build_router(service, book, directory, sync, token, pipeline))
