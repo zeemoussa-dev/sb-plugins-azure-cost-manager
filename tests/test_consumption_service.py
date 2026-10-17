@@ -186,7 +186,7 @@ def test_a_failed_window_is_reported_and_the_rest_still_saved(fake_api):
 
     entry = store.account("20000001")
     assert "2024-10..2025-09" in entry["errors"]
-    assert "2024-10" not in entry["months"]
+    assert "actual" not in entry["months"].get("2024-10", {})  # no cost for the failed window; its balance may be there
     assert entry["months"]["2026-09"]["actual"]["service"] == {"VM": 900, "Storage": 100}
     assert sync.status()["errors"]
 
@@ -211,14 +211,31 @@ def test_reading_a_customer_never_calls_azure_and_merges_its_enrollments(fake_ap
     assert result["forecast"]["months"][1] == {"month": "2026-11", "cost": 1900, "source": "azure"}
 
 
-def test_removing_a_customer_drops_its_local_data(fake_api):
+def test_removing_a_customer_keeps_its_invoice_totals_and_marketplace(fake_api):
     _, book, sync, *_ = build(fake_api, FakeAzure())
     book.save(None, {"name": "Contoso", "accounts": ["10000002"]})
     sync.run()
 
     book.delete("contoso")
 
-    assert json.loads(fake_api.files[CONSUMPTION_CACHE_FILE])["accounts"] == {}
+    entry = json.loads(fake_api.files[CONSUMPTION_CACHE_FILE])["accounts"]["10000002"]
+    assert entry["light"] is True
+    assert set(entry["months"]["2026-09"]) == {"balance", "marketplace"}
+
+
+def test_profiles_sync_every_other_billing_profile_lightly(fake_api):
+    azure = FakeAzure()
+    store, book, sync, *_ = build(fake_api, azure)
+    book.save(None, {"name": "Fabrikam", "accounts": ["20000001", "20000002"]})
+
+    sync.run_profiles()
+
+    # The two Contoso enrollments are no customer's: invoice totals and Marketplace, no Cost Management.
+    assert {account for account, *_ in azure.queries} == set()
+    assert {account for account, _ in azure.marketplace} == {"10000001", "10000002"}
+    entry = store.account("10000002")
+    assert entry["light"] is True and entry["display_name"] == "Contoso Oil-10000001-PrivateSaaS"
+    assert entry["group_key"] == "contoso oil"
 
 
 def test_windows_split_on_gaps_and_at_twelve_months():

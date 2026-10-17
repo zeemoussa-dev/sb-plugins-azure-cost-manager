@@ -106,21 +106,29 @@ class ConsumptionSync:
         with self._lock:
             return {**self._status, "errors": list(self._status["errors"])}
 
-    def start(self, customer_id: str | None = None) -> dict:
-        """Starts a sync in the background unless one is running already."""
+    def start(self, customer_id: str | None = None, profiles: str = "none") -> dict:
+        """Starts a sync in the background unless one is running already.
+        `profiles`: "none" (customers only), "also" (customers, then every other
+        billing profile, lightly) or "only" (just the other profiles)."""
+        if profiles not in ("none", "also", "only"):
+            raise ValueError("profiles is none, also or only")
+        scope = "profiles" if profiles == "only" else (customer_id or "all") + ("+profiles" if profiles == "also" else "")
         with self._lock:
             if self._status["running"]:
                 return {"started": False, "reason": "a sync is already running", **self._status}
             self._status.update(running=True, started_at=self._now().isoformat(), finished_at=None,
-                                scope=customer_id or "all", current=None, accounts_done=0,
+                                scope=scope, current=None, accounts_done=0,
                                 accounts_total=0, errors=[])
-        threading.Thread(target=self._run_and_finish, args=(customer_id,), daemon=True,
+        threading.Thread(target=self._run_and_finish, args=(customer_id, profiles), daemon=True,
                          name="azure-cost-manager-sync").start()
         return {"started": True, **self.status()}
 
-    def _run_and_finish(self, customer_id: str | None) -> None:
+    def _run_and_finish(self, customer_id: str | None, profiles: str = "none") -> None:
         try:
-            self.run(customer_id)
+            if profiles != "only":
+                self.run(customer_id)
+            if profiles != "none":
+                self.run_profiles()
         except Exception as exc:  # the thread must always clear `running`
             self._record_error(None, f"sync stopped: {exc}")
         finally:
@@ -134,6 +142,12 @@ class ConsumptionSync:
     def _set(self, **fields) -> None:
         with self._lock:
             self._status.update(fields)
+
+    def _named(self, account: str) -> dict:
+        """The account being synced, keeping the name the status already shows for it."""
+        current = self.status()["current"] or {}
+        name = current.get("display_name") if current.get("account") == account else None
+        return {"account": account, **({"display_name": name} if name else {})}
 
     def run(self, customer_id: str | None = None) -> None:
         everyone = self._store.customers()
@@ -158,6 +172,37 @@ class ConsumptionSync:
         for done, (name, first_month) in enumerate(sorted(first_month_by_account.items()), start=1):
             self._sync_account(client, name, first_month, visible.get(name) or {})
             self._set(accounts_done=done)
+
+    def run_profiles(self) -> None:
+        """Every billing profile that is in no customer, lightly: each month's
+        invoice totals and Marketplace charges -- the Consumption API's budget, not
+        Cost Management's, which throttles per sign-in. One profile at a time, from
+        its term start, so the cross-customer Marketplace covers everyone who
+        bought, customer or not (operator, 2026-10-17)."""
+        in_customers = {name for customer in self._store.customers() for name in customer["accounts"]}
+        visible = self._directory.accounts(fresh=True)
+        profiles = [account for account in visible
+                    if account["name"] not in in_customers and account.get("agreement_type") == ENTERPRISE_AGREEMENT]
+        self._set(accounts_done=0, accounts_total=len(profiles))
+        client = self._client_factory()
+        for done, account in enumerate(sorted(profiles, key=lambda a: a["display_name"].lower()), start=1):
+            self._sync_profile(client, account)
+            self._set(accounts_done=done)
+
+    def _sync_profile(self, client: BillingClient, account: dict) -> None:
+        name = account["name"]
+        entry = self._store.account(name)
+        entry.setdefault("months", {})
+        errors: dict[str, str] = {}
+        wanted = months.span(self._first_month(account, None), months.month_of(self._today()))
+        self._set(current={"account": name, "display_name": account["display_name"],
+                           "first_month": wanted[0], "last_month": wanted[0]})
+        self._sync_balances(client, name, entry, wanted, errors)
+        self._sync_marketplace(client, name, entry, wanted, errors)
+        # Kept with the data, so a report can name the profile without asking Azure.
+        entry.update(display_name=account["display_name"], group_key=account.get("group_key"),
+                     light=True, profile_synced_at=self._now().isoformat(), errors=errors)
+        self._store.save_account(name, entry)
 
     def _first_month(self, account: dict, commitment_start: str | None) -> str:
         current = months.month_of(self._today())
@@ -215,6 +260,7 @@ class ConsumptionSync:
 
         entry["forecast"] = self._forecast(client, account, entry, current_month, errors)
         entry["synced_at"] = self._now().isoformat()
+        entry["light"] = False  # a customer's account now: fully synced
         entry["errors"] = errors
         self._store.save_account(account, entry)
 
@@ -226,7 +272,7 @@ class ConsumptionSync:
         one is not asked for again."""
         pending = self._store.balances_to_fetch(entry, wanted)
         for index, month in enumerate(pending, start=1):
-            self._set(current={"account": account, "first_month": month, "last_month": month, "balances": True})
+            self._set(current={**self._named(account), "first_month": month, "last_month": month, "balances": True})
             fetched_at = self._now().isoformat()
             try:
                 balance = self._query(lambda: client.billing_period_balance(account, month), account)
@@ -253,7 +299,7 @@ class ConsumptionSync:
 
         pending = [month for month in self._store.marketplace_to_fetch(entry, wanted) if exists(month)]
         for index, month in enumerate(pending, start=1):
-            self._set(current={"account": account, "first_month": month, "last_month": month, "marketplace": True})
+            self._set(current={**self._named(account), "first_month": month, "last_month": month, "marketplace": True})
             fetched_at = self._now().isoformat()
             try:
                 charges = self._query(lambda: client.marketplace_charges(account, month), account)

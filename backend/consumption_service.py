@@ -83,7 +83,9 @@ class ConsumptionService:
         ordered = sorted(everyone, key=lambda customer: 0 if customer.get("parent") else 1)
         customers = [(customer, {account["name"]: self._store.account(account["name"])
                                  for account in customer["accounts"]}) for customer in ordered]
-        return marketplace.across_customers(customers, self._not_eligible(), first, last)
+        in_customers = {account["name"] for customer in everyone for account in customer["accounts"]}
+        profiles = marketplace.profile_groups(self._store.profile_accounts(in_customers))
+        return marketplace.across_customers(customers + profiles, self._not_eligible(), first, last)
 
     def not_macc_eligible(self) -> list[dict]:
         return self._store.not_macc_eligible()

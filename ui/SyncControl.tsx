@@ -5,8 +5,11 @@ import { errorText, formatMonth } from './format';
 const POLL_MS = 3000;
 
 function scopeLabel(scope: string | null, customerId?: string): string {
-  if (!scope || scope === 'all') return 'all customers';
-  return scope === customerId ? 'this customer' : `customer “${scope}”`;
+  if (scope === 'profiles') return 'every billing profile that is no customer yet (invoice totals and Marketplace)';
+  const profiles = scope?.endsWith('+profiles');
+  const base = profiles ? scope!.slice(0, -'+profiles'.length) : scope;
+  const label = !base || base === 'all' ? 'all customers' : base === customerId ? 'this customer' : `customer “${base}”`;
+  return profiles ? `${label}, then every other billing profile` : label;
 }
 
 /** Starts the background sync -- for one customer, or every one -- and follows
@@ -16,8 +19,9 @@ function scopeLabel(scope: string | null, customerId?: string): string {
  *  call), so it is shown as a banner, and the page is refreshed each time an
  *  enrollment finishes rather than only at the end -- a quiet line of grey text
  *  read as a button that did nothing (operator, 2026-10-16). */
-export function SyncControl({ customerId, syncedAt, onSynced }: {
+export function SyncControl({ customerId, syncedAt, onSynced, profiles = 'none', label }: {
   customerId?: string; syncedAt?: string | null; onSynced: () => void;
+  profiles?: 'none' | 'also' | 'only'; label?: string;
 }) {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +51,7 @@ export function SyncControl({ customerId, syncedAt, onSynced }: {
 
   function start() {
     setError(null);
-    startSync(customerId).then((next) => {
+    startSync(customerId, profiles).then((next) => {
       wasRunning.current = true;
       accountsDone.current = 0;
       setStatus(next);
@@ -64,7 +68,9 @@ export function SyncControl({ customerId, syncedAt, onSynced }: {
   const phase = current
     ? current.balances
       ? `reading the billing balance for ${formatMonth(current.first_month)}`
-      : `fetching ${formatMonth(current.first_month)}${current.last_month !== current.first_month ? ` to ${formatMonth(current.last_month)}` : ''}`
+      : current.marketplace
+        ? `reading Marketplace charges for ${formatMonth(current.first_month)}`
+        : `fetching ${formatMonth(current.first_month)}${current.last_month !== current.first_month ? ` to ${formatMonth(current.last_month)}` : ''}`
     : 'starting';
 
   return (
@@ -73,7 +79,8 @@ export function SyncControl({ customerId, syncedAt, onSynced }: {
         <div className="azure-cost-sync-banner" role="status">
           <strong>Syncing {scopeLabel(status.scope, customerId)}</strong>
           <span>
-            Enrollment {Math.min(done + 1, total || 1)} of {total || '?'}{current ? ` (${current.account})` : ''}: {phase}
+            Enrollment {Math.min(done + 1, total || 1)} of {total || '?'}
+            {current ? ` (${current.display_name ? `${current.display_name}, ` : ''}${current.account})` : ''}: {phase}
             {current?.waiting_seconds ? ` — Azure asked to wait ${current.waiting_seconds}s` : ''}
           </span>
           <div className="azure-cost-sync-progress"><span style={{ width: `${total ? (done / total) * 100 : 5}%` }} /></div>
@@ -93,7 +100,7 @@ export function SyncControl({ customerId, syncedAt, onSynced }: {
         ) : null}
         {error ? <span className="azure-cost-warning">{error}</span> : null}
         <button type="button" className="btn" onClick={start} disabled={running}>
-          {running ? 'Syncing…' : customerId ? 'Sync this customer' : 'Sync all customers'}
+          {running ? 'Syncing…' : label ?? (customerId ? 'Sync this customer' : 'Sync all customers')}
         </button>
       </div>
     </>

@@ -303,9 +303,14 @@ export function SettingsPage() {
           weekly sync only fetches the last few weeks. The first sync of a large customer can take minutes.
         </p>
         <SyncControl onSynced={load} />
+        <SyncControl profiles="only" label="Sync all billing profiles" onSynced={load} />
         <p className="text-muted azure-cost-note">
-          Weekly: create a Hermes cron job that sends <code>POST {syncUrl}</code> (no body). It returns at once;
-          progress shows here and on the Azure Cost page.
+          Billing profiles that are no customer yet are synced lightly — invoice totals and Marketplace charges — so the
+          Marketplace report covers every buyer.
+        </p>
+        <p className="text-muted azure-cost-note">
+          Weekly: create a Hermes cron job that sends <code>POST {syncUrl}?profiles=also</code> (no body) — every customer,
+          then every other billing profile. It returns at once; progress shows here and on the Azure Cost page.
         </p>
       </section>
     </div>

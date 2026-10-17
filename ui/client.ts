@@ -317,8 +317,11 @@ export interface SyncStatus {
   scope: string | null;
   current: {
     account: string; first_month: string; last_month: string; waiting_seconds?: number;
+    display_name?: string;
     /** Reading billing-period balances, one month per call, rather than cost. */
     balances?: boolean;
+    /** Reading a billing period's Marketplace charges. */
+    marketplace?: boolean;
   } | null;
   accounts_done: number;
   accounts_total: number;
@@ -373,7 +376,15 @@ export interface MarketplaceAcross {
     customers: { name: string; total: number }[]; adopted_by: number; by_month: Record<string, number>; kind: string;
   }[];
   publishers: { publisher: string; total: number; macc: number; solutions: number; customers: string[] }[];
-  customers: { id: string; name: string; parent: string | null; total: number; macc: number; solutions: number; top_publisher: string | null }[];
+  customers: {
+    id: string; name: string; parent: string | null; total: number; macc: number; solutions: number;
+    top_publisher: string | null;
+    /** A billing profile that is no customer yet, synced lightly. */
+    profile: boolean;
+    accounts: string[];
+    /** Invoiced consumption in the period: the denominator for the Marketplace share. */
+    consumption: number;
+  }[];
   monthly: { month: string; total: number; macc: number }[];
 }
 
@@ -447,6 +458,9 @@ export const fetchConsumption = (id: string, group: MixGroup) =>
 
 export const fetchSyncStatus = () => apiFetch<SyncStatus>(`${BASE}/sync`);
 
-export const startSync = (customerId?: string) =>
-  apiFetch<SyncStatus>(`${BASE}/sync${customerId ? `?customer=${encodeURIComponent(customerId)}` : ''}`,
-    { method: 'POST' });
+/** `profiles`: also sync every other billing profile lightly ('also'), or only them ('only'). */
+export const startSync = (customerId?: string, profiles: 'none' | 'also' | 'only' = 'none') => {
+  const query = [customerId ? `customer=${encodeURIComponent(customerId)}` : '', profiles !== 'none' ? `profiles=${profiles}` : '']
+    .filter(Boolean).join('&');
+  return apiFetch<SyncStatus>(`${BASE}/sync${query ? `?${query}` : ''}`, { method: 'POST' });
+};

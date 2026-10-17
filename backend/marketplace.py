@@ -120,6 +120,38 @@ def reconcile(entries: dict[str, dict], first: str | None, last: str | None) -> 
     return gaps
 
 
+def _consumption(entries: dict[str, dict], first: str | None, last: str | None) -> float:
+    """Invoiced consumption in the period (usage + Marketplace - credits), or Cost
+    Management's actual where a month has no balance -- the denominator that says
+    how much of a customer's spend is Marketplace."""
+    total = 0.0
+    for entry in entries.values():
+        for month, data in (entry.get("months") or {}).items():
+            if not _in_period(month, first, last):
+                continue
+            balance = data.get("balance") or {}
+            if balance and not balance.get("missing"):
+                total += balance.get("usage", 0.0) + balance.get("marketplace", 0.0) - balance.get("credits", 0.0)
+            else:
+                total += sum(((data.get("actual") or {}).get("service") or {}).values())
+    return total
+
+
+def profile_groups(profiles: dict[str, dict]) -> list[tuple[dict, dict[str, dict]]]:
+    """Billing profiles that belong to no customer, grouped the way Settings
+    suggests (a renewal, or linked under one parent) and named after the group's
+    shortest name -- usually the parent enrollment's."""
+    groups: dict[str, dict[str, dict]] = {}
+    for name, entry in profiles.items():
+        groups.setdefault(entry.get("group_key") or entry.get("display_name") or name, {})[name] = entry
+    listed = []
+    for key, entries in groups.items():
+        names = [entry.get("display_name") or account for account, entry in entries.items()]
+        listed.append(({"id": f"profile:{key}", "name": min(names, key=len), "parent": None, "profile": True},
+                       entries))
+    return sorted(listed, key=lambda item: item[0]["name"].lower())
+
+
 def across_customers(customers: list[tuple[dict, dict[str, dict]]], not_eligible: set[str],
                      first: str | None = None, last: str | None = None) -> dict:
     """Every partner solution across every customer. Each enrollment is counted
@@ -134,8 +166,12 @@ def across_customers(customers: list[tuple[dict, dict[str, dict]]], not_eligible
         own = {account: entry for account, entry in entries.items() if account not in seen_accounts}
         seen_accounts |= set(own)
         record = by_customer.setdefault(customer["id"], {"id": customer["id"], "name": customer["name"],
-                                                         "parent": customer.get("parent"), "total": 0.0,
+                                                         "parent": customer.get("parent"),
+                                                         "profile": bool(customer.get("profile")),
+                                                         "accounts": [], "consumption": 0.0, "total": 0.0,
                                                          "macc": 0.0, "solutions": set(), "publishers": {}})
+        record["accounts"] += sorted(own)
+        record["consumption"] += _consumption(own, first, last)
         for _, month, item in _items(own, first, last):
             seen.add(month)
             counted = offer_key(item["publisher"], item["offer"]) not in not_eligible
@@ -178,6 +214,8 @@ def across_customers(customers: list[tuple[dict, dict[str, dict]]], not_eligible
         publisher["solutions"] += 1
         publisher["customers"] |= {customer["name"] for customer in row["customers"]}
     customer_rows = [{"id": record["id"], "name": record["name"], "parent": record["parent"],
+                      "profile": record["profile"], "accounts": record["accounts"],
+                      "consumption": round(record["consumption"], 2),
                       "total": round(record["total"], 2), "macc": round(record["macc"], 2),
                       "solutions": len(record["solutions"]),
                       "top_publisher": max(record["publishers"].items(), key=lambda item: item[1])[0]

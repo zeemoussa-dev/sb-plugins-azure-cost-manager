@@ -6,6 +6,7 @@ import { SeriesChart } from './charts';
 import { fetchMarketplaceAcross, marketplaceExportPath, type MarketplaceAcross } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 import { MaccSwitch, PERIODS, PeriodPicker, periodRange, periodText, type Period } from './MarketplaceTab';
+import { SyncControl } from './SyncControl';
 
 /** Every partner solution across every customer: who bought what, what it is
  *  worth, and how much of it burns the customers' MACCs. */
@@ -30,6 +31,7 @@ export function MarketplacePage() {
     && (!filters.search || `${solution.publisher} ${solution.offer} ${solution.customers.map((c) => c.name).join(' ')}`
       .toLowerCase().includes(filters.search.toLowerCase()))), [report, filters]);
 
+  const buyers = (report?.customers ?? []).filter((customer) => customer.total);
   const billed = solutions.filter((solution) => Math.round(solution.total * 100) !== 0);
   const adopted = solutions.filter((solution) => Math.round(solution.total * 100) === 0);
   const currency = 'USD';
@@ -40,6 +42,11 @@ export function MarketplacePage() {
         <h1>Azure Marketplace</h1>
         <Link to="/azure-cost-manager" className="azure-cost-settings-link">Back to customers</Link>
       </header>
+      <SyncControl profiles="only" label="Sync all billing profiles" onSynced={reload} />
+      <p className="text-muted azure-cost-note">
+        Customers are synced in full. To see every buyer — customer or not — sync all billing profiles: each one's
+        invoice totals and Marketplace charges from its term start (a few hours the first time; afterwards only new months).
+      </p>
       <div className="azure-cost-toolbar azure-cost-tabs-row">
         <PeriodPicker period={period} onChange={(value) => setFilter('period', value)} />
         <a className="btn" href={apiUrl(marketplaceExportPath(range.first, range.last))}>Export to Excel</a>
@@ -57,9 +64,11 @@ export function MarketplacePage() {
             <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Partner solutions</span>
               <strong>{report.solutions.length}</strong>
               <span className="azure-cost-kpi-detail">{report.publishers.length} publishers</span></div>
-            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Customers buying</span>
+            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Buyers</span>
               <strong>{report.customers.filter((customer) => customer.total).length}</strong>
-              <span className="azure-cost-kpi-detail">of {report.customers.length} synced</span></div>
+              <span className="azure-cost-kpi-detail">
+                {report.customers.filter((c) => c.total && !c.profile).length} customers ·{' '}
+                {report.customers.filter((c) => c.total && c.profile).length} billing profiles</span></div>
           </div>
           <div className="azure-cost-columns">
             <section className="card azure-cost-card">
@@ -70,12 +79,35 @@ export function MarketplacePage() {
                              { name: 'Excluded', data: report.publishers.slice(0, 12).map((p) => p.total - p.macc), stack: 'p', color: 'other' }]} />
             </section>
             <section className="card azure-cost-card">
-              <h3>By customer</h3>
-              <SeriesChart label="Marketplace by customer" currency={currency} height={300}
-                           categories={report.customers.filter((c) => c.total).map((c) => c.name)}
-                           series={[{ name: 'Marketplace', data: report.customers.filter((c) => c.total).map((c) => c.total), color: 1 }]} />
+              <h3>Top buyers</h3>
+              <SeriesChart label="Marketplace by buyer" currency={currency} height={300}
+                           categories={buyers.slice(0, 12).map((c) => c.name)}
+                           series={[{ name: 'Customers', data: buyers.slice(0, 12).map((c) => (c.profile ? null : c.total)), stack: 'b', color: 1 },
+                             { name: 'Billing profiles (no customer yet)', data: buyers.slice(0, 12).map((c) => (c.profile ? c.total : null)), stack: 'b', color: 'other' }]} />
             </section>
           </div>
+          <section className="card azure-cost-card">
+            <h3>Buyers</h3>
+            <table className="azure-cost-table">
+              <thead><tr><th>Customer / billing profile</th><th>Marketplace</th><th>Toward MACC</th><th>Solutions</th>
+                <th>Top publisher</th><th>Consumption</th><th>Marketplace share</th></tr></thead>
+              <tbody>
+                {buyers.map((buyer) => (
+                  <tr key={buyer.id}>
+                    <td>{buyer.name}
+                      {buyer.parent ? <span className="text-muted"> · affiliate</span> : null}
+                      {buyer.profile ? <span className="azure-cost-anomaly new"> not a customer yet</span> : null}</td>
+                    <td>{formatMoney(buyer.total, currency)}</td>
+                    <td>{formatMoney(buyer.macc, currency)}</td>
+                    <td>{buyer.solutions}</td>
+                    <td>{buyer.top_publisher ?? '—'}</td>
+                    <td>{buyer.consumption ? formatMoney(buyer.consumption, currency) : '—'}</td>
+                    <td>{buyer.consumption ? `${Math.round((buyer.total / buyer.consumption) * 1000) / 10}%` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
           <section className="card azure-cost-card">
             <h3>By month</h3>
             <SeriesChart label="Marketplace by month" currency={currency} height={260}

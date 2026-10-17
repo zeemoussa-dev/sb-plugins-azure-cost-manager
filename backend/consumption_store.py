@@ -111,9 +111,17 @@ class ConsumptionStore:
         with self._lock:
             entry = json.loads(json.dumps(self._loaded()["accounts"].get(account_name) or {"months": {}}))
         # 0.1.x cached raw row lists; such a month is dropped, so the sync fetches it again.
+        # A billing profile's months hold only invoice totals and Marketplace, and are kept.
         entry["months"] = {month: data for month, data in (entry.get("months") or {}).items()
-                           if isinstance(data.get("actual"), dict)}
+                           if isinstance(data.get("actual"), dict) or "actual" not in data}
         return entry
+
+    def profile_accounts(self, excluded: set[str]) -> dict[str, dict]:
+        """Every cached account outside `excluded` (the customers' accounts): the
+        billing profiles synced lightly, or left behind by a removed customer."""
+        with self._lock:
+            return {name: json.loads(json.dumps(entry)) for name, entry in self._loaded()["accounts"].items()
+                    if name not in excluded}
 
     def save_account(self, account_name: str, entry: dict) -> None:
         with self._lock:
@@ -121,12 +129,24 @@ class ConsumptionStore:
             _write_json(self._api, CONSUMPTION_CACHE_FILE, self._cache)
 
     def forget_accounts_except(self, kept: set[str]) -> None:
+        """An account no customer holds drops back to a billing profile: its Cost
+        Management breakdowns go, its invoice totals and Marketplace charges stay --
+        the cross-customer Marketplace covers every profile, customer or not."""
+        light_keys = ("balance", "marketplace")
         with self._lock:
             cache = self._loaded()
-            dropped = [name for name in cache["accounts"] if name not in kept]
-            for name in dropped:
-                del cache["accounts"][name]
-            if dropped:
+            changed = False
+            for name, entry in cache["accounts"].items():
+                if name in kept or entry.get("light"):
+                    continue
+                entry["months"] = {month: {key: data[key] for key in light_keys if key in data}
+                                   for month, data in (entry.get("months") or {}).items()
+                                   if any(key in data for key in light_keys)}
+                for key in ("forecast", "synced_at"):
+                    entry.pop(key, None)
+                entry["light"] = True
+                changed = True
+            if changed:
                 _write_json(self._api, CONSUMPTION_CACHE_FILE, cache)
 
     @staticmethod

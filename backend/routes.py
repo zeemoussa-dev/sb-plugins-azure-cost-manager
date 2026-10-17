@@ -153,9 +153,11 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return _answered(lambda: service.consumption(customer_id, first_month, last_month, group, cost))
 
     @router.post("/sync")
-    def post_sync(customer: str | None = None) -> dict:
-        """Starts the sync -- every customer, or one -- and returns at once."""
-        return sync.start(customer)
+    def post_sync(customer: str | None = None, profiles: str = "none") -> dict:
+        """Starts the sync and returns at once: every customer, or one; with
+        `profiles=also` then every other billing profile (invoice totals and
+        Marketplace only), or `profiles=only` just those."""
+        return _answered(lambda: sync.start(customer, profiles))
 
     @router.get("/sync")
     def get_sync() -> dict:

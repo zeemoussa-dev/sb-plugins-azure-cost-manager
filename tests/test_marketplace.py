@@ -108,6 +108,25 @@ def test_across_customers_a_group_is_not_double_counted():
     assert linux["adopted_by"] == 2
 
 
+def test_billing_profiles_appear_grouped_and_marked_beside_customers():
+    profiles = {"7": {"display_name": "Northwind Holding", "group_key": "northwind holding", "light": True,
+                      "months": {"2026-09": month([item("Core42", "Compass", 900)], usage=10_000)}},
+                "8": {"display_name": "Northwind Holding-7-Labs", "group_key": "northwind holding", "light": True,
+                      "months": {"2026-09": month([item("Core42", "Compass", 100)], usage=2_000)}}}
+    customer = ({"id": "contoso", "name": "Contoso", "parent": None},
+                {"1": {"months": {"2026-09": month([item("Core42", "Compass", 50)])}}})
+
+    report = marketplace.across_customers([customer] + marketplace.profile_groups(profiles), set(), "2026-01", "2026-12")
+
+    rows = {row["name"]: row for row in report["customers"]}
+    assert rows["Northwind Holding"]["profile"] is True and rows["Contoso"]["profile"] is False
+    assert rows["Northwind Holding"]["accounts"] == ["7", "8"]
+    assert rows["Northwind Holding"]["total"] == 1_000
+    assert rows["Northwind Holding"]["consumption"] == 13_000   # usage + Marketplace, both enrollments
+    compass = report["solutions"][0]
+    assert (compass["publisher"], compass["adopted_by"], compass["total"]) == ("Core42", 2, 1_050)
+
+
 def test_the_marketplace_reaches_both_exports(fake_api):
     fake_api.get_service = lambda name: None
     store = ConsumptionStore(fake_api)

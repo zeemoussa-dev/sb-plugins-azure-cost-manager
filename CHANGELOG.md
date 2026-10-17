@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.6.0] - 2026-10-17
+
+- feat: **every billing profile, not just customers** (operator, 2026-10-17: the Marketplace report needs every customer that signed with the partner). "Sync all billing profiles" (and `POST /sync?profiles=only|also`) syncs each billing profile that is in no customer, one at a time from its term start, **lightly**: each month's invoice totals and Marketplace charges, through the Consumption API -- not Cost Management, whose per-sign-in throttling would make 135 profiles take days. The cross-customer Marketplace lists them beside customers, grouped the way Settings suggests and marked "not a customer yet", with each buyer's consumption and Marketplace share. The weekly job should call `?profiles=also`.
+- change: removing a customer no longer deletes its synced data. Its accounts drop back to billing profiles: the Cost Management breakdowns go, the invoice totals and Marketplace charges stay.
+
 ## [0.5.1] - 2026-10-17
 
 - fix: **the exported charts now take the operator's workbook colours** (operator, 2026-10-17: "The Report Charts Colors are Not Matching the Template"). Every chart colours its series from the workbook theme, and openpyxl writes the 2007 Office theme (Calibri; #4F81BD, #C0504D …) while the operator's workbook is on the current one (Aptos; #156082, #E97132, #196B24, #0F9ED5 …). Both exports now carry that theme (`backend/office_theme.py`, Excel's stock theme, no content of its own).

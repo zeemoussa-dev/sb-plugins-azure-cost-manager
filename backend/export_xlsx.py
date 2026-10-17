@@ -807,9 +807,14 @@ def build_marketplace(report: dict, today: date) -> bytes:
     row = max(publisher_last, chart_end) + 2
     _section(sheet, row, "By customer", last_column=5)
     customer_header = row + 1
-    customer_last = _table(sheet, customer_header, ["Customer", "Total", "Toward MACC", "Solutions", "Top publisher"],
-                           [[c["name"] + (" (affiliate)" if c["parent"] else ""), c["total"], c["macc"], c["solutions"],
-                             c["top_publisher"]] for c in report["customers"]], {1: MONEY, 2: MONEY})
+    buyers = [c for c in report["customers"] if c["total"]]
+    customer_last = _table(sheet, customer_header, ["Customer / billing profile", "Marketplace", "Toward MACC",
+                                                    "Solutions", "Top publisher", "Consumption", "Marketplace share"],
+                           [[c["name"] + (" (affiliate)" if c["parent"] else "")
+                             + (" (billing profile, not a customer)" if c.get("profile") else ""),
+                             c["total"], c["macc"], c["solutions"], c["top_publisher"], c.get("consumption"),
+                             (c["total"] / c["consumption"]) if c.get("consumption") else None] for c in buyers],
+                           {1: MONEY, 2: MONEY, 5: MONEY, 6: PERCENT})
     chart_end = _place(sheet, [_bar("Marketplace by Customer", sheet, customer_header, customer_header + 1,
                                     customer_last, [2], labelled=customer_last - customer_header < 14)], row)
     row = max(customer_last, chart_end) + 2

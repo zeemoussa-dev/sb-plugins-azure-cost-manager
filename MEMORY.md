@@ -17,6 +17,8 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 
 - **[2026-10-17] An affiliate's MACC is carved out of its parent's.** A group signs one MACC; each affiliate signs its own fixed MACC that counts against the parent's, and every affiliate dollar burns both. Modelled as parent and affiliate customers, one level deep; the parent rolls everything up and shows allocated, unallocated and over-allocated.
 
+- **[2026-10-17] Every billing profile is synced lightly; customers fully.** The Marketplace report has to cover every buyer, so profiles in no customer get each month's invoice totals and Marketplace charges through the Consumption API, never Cost Management (its per-sign-in throttling makes 135 profiles a matter of days). A profile that leaves a customer keeps those, and loses only the breakdowns.
+
 ## Patterns
 
 - **[2026-10-16] The current month is never evidence.** It is partial: no month-over-month change, no run rate, no anomaly is computed from it.
