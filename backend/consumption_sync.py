@@ -90,8 +90,11 @@ def _windows(wanted: list[str]) -> list[list[str]]:
 class ConsumptionSync:
     def __init__(self, store: ConsumptionStore, directory: AccountDirectory,
                  client_factory: Callable[[], BillingClient], today: Callable[[], date] = date.today,
-                 now: Callable[[], datetime] = _now, sleep: Callable[[float], None] = time.sleep) -> None:
+                 now: Callable[[], datetime] = _now, sleep: Callable[[float], None] = time.sleep,
+                 customers: Callable[[], list[dict]] | None = None) -> None:
         self._store = store
+        # The customer book's view: a linked customer's signed value is on its Customer note.
+        self._customers = customers or store.customers
         self._directory = directory
         self._client_factory = client_factory
         self._today = today
@@ -150,7 +153,7 @@ class ConsumptionSync:
         return {"account": account, **({"display_name": name} if name else {})}
 
     def run(self, customer_id: str | None = None) -> None:
-        everyone = self._store.customers()
+        everyone = self._customers()
         starts = {customer["id"]: (customer.get("commitment") or {}).get("start") for customer in everyone}
         customers = everyone
         if customer_id:

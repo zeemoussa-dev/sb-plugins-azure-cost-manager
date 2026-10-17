@@ -84,9 +84,10 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def get_entity_customers() -> dict:
         """The Customer notes a customer can be linked to, or why there are none."""
         try:
-            return {"available": True, "customers": pipeline.entity_customers()}
+            return {"available": True, "customers": pipeline.entity_customers(),
+                    "commitments_on_notes": book.commitments_on_notes()}
         except PipelineUnavailable as exc:
-            return {"available": False, "reason": str(exc), "customers": []}
+            return {"available": False, "reason": str(exc), "customers": [], "commitments_on_notes": False}
 
     @router.get("/customers/{customer_id}/pipeline")
     def get_pipeline(customer_id: str) -> dict:

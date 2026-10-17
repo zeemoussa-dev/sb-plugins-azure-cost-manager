@@ -12,6 +12,7 @@ import threading
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
+from .commitment_notes import CommitmentNotes
 from .consumption_store import ConsumptionStore, slug
 from .forecasting import DEFAULT_SCENARIO
 
@@ -118,11 +119,66 @@ def _valid_scenario(settings: dict) -> dict:
 
 
 class CustomerBook:
-    def __init__(self, store: ConsumptionStore, directory: AccountDirectory) -> None:
+    def __init__(self, store: ConsumptionStore, directory: AccountDirectory,
+                 notes: CommitmentNotes | None = None) -> None:
         self._store = store
         self._directory = directory
+        self._notes = notes
+        self._moved_to_notes = False
+
+    def _notes_in_use(self) -> bool:
+        return self._notes is not None and self._notes.available()
+
+    def commitments_on_notes(self) -> bool:
+        """Whether a linked customer's signed value is kept on its Customer note (Entities 1.3+)."""
+        return self._notes_in_use()
+
+    def _commitment_of(self, customer: dict) -> tuple[dict | None, str, str | None]:
+        """`(commitment, where it lives, why it cannot be used)`. A linked customer's
+        is its Customer note's, even when the note has none."""
+        if not (customer.get("entity_customer") and self._notes_in_use()):
+            return customer.get("commitment"), "settings", None
+        try:
+            on_note = self._notes.read(customer["entity_customer"])
+        except ValueError:
+            return None, "note", f"The Customer note {customer['entity_customer']!r} was not found in the vault."
+        if not on_note or not any(on_note.get(field) not in (None, "") for field in ("amount", "start", "end")):
+            return None, "note", None
+        try:
+            return _valid_commitment(on_note), "note", None
+        except CustomerError as exc:
+            # Edited by hand in Obsidian and left incomplete: say so, count nothing.
+            return None, "note", f"The signed value on the Customer note is incomplete: {exc}."
+
+    def _move_commitments_to_notes(self) -> None:
+        """Once per run: a linked customer's signed value still held here moves to
+        its Customer note -- unless the note already has one, which wins."""
+        if self._moved_to_notes or not self._notes_in_use():
+            return
+        customers = self._store.customers()
+        changed = False
+        for customer in customers:
+            if not (customer.get("entity_customer") and customer.get("commitment")):
+                continue
+            try:
+                if not self._notes.read(customer["entity_customer"]):
+                    self._notes.write(customer["entity_customer"], customer["commitment"])
+            except ValueError:
+                continue  # its note is gone or refuses it; the value stays here
+            customer["commitment"] = None
+            changed = True
+        if changed:
+            self._store.save_customers(customers)
+        self._moved_to_notes = True
+
+    def records(self) -> list[dict]:
+        """The stored customers as they are -- accounts by number -- with each one's
+        signed value from wherever it lives."""
+        self._move_commitments_to_notes()
+        return [{**customer, "commitment": self._commitment_of(customer)[0]} for customer in self._store.customers()]
 
     def list(self) -> list[dict]:
+        self._move_commitments_to_notes()
         # Customers and their local data are readable without Azure; names and
         # terms simply go missing while the sign-in is.
         try:
@@ -131,6 +187,9 @@ class CustomerBook:
             visible = {}
         listed = []
         for customer in self._store.customers():
+            commitment, source, problem = self._commitment_of(customer)
+            customer = {**customer, "commitment": commitment, "commitment_source": source,
+                        "commitment_problem": problem}
             accounts = []
             for name in customer["accounts"]:
                 cached = self._store.account(name)
@@ -170,11 +229,24 @@ class CustomerBook:
         existing = next((customer for customer in customers if customer["id"] == customer_id), {})
         parent = (submitted.get("parent") or None) if "parent" in submitted else existing.get("parent")
         self._check_parent(customer_id, parent, customers)
+        commitment = _valid_commitment(submitted.get("commitment"))
+        # The Entities Customer hub this customer's Opportunity notes sit under.
+        entity_customer = (submitted["entity_customer"] or None) if "entity_customer" in submitted \
+            else existing.get("entity_customer")
+        on_note = bool(entity_customer and self._notes_in_use())
+        newly_linked = on_note and entity_customer != existing.get("entity_customer")
+        try:
+            if newly_linked and self._notes.read(entity_customer):
+                # Linking to a note that already says what was signed: the note wins.
+                commitment = self._commitment_of({"entity_customer": entity_customer})[0]
+            elif on_note:
+                # Written first: if the note refuses it, nothing is saved here either.
+                self._notes.write(entity_customer, commitment)
+        except ValueError as exc:
+            raise CustomerError(f"the Customer note did not take the signed value: {exc}") from exc
         saved = {"id": customer_id, "name": name, "accounts": account_names,
-                 "commitment": _valid_commitment(submitted.get("commitment")),
-                 # The Entities Customer hub this customer's Opportunity notes sit under.
-                 "entity_customer": (submitted["entity_customer"] or None) if "entity_customer" in submitted
-                 else existing.get("entity_customer"),
+                 "commitment": None if on_note else commitment,
+                 "entity_customer": entity_customer,
                  # The group this customer is an affiliate of: its MACC is carved out of the parent's.
                  "parent": parent,
                  "scenario": existing.get("scenario")}
@@ -183,7 +255,7 @@ class CustomerBook:
             replaced.append(saved)
         self._store.save_customers(replaced)
         self._forget_unused_accounts(replaced)
-        return saved
+        return {**saved, "commitment": commitment, "commitment_source": "note" if on_note else "settings"}
 
     def set_scenario(self, customer_id: str, settings: dict) -> dict:
         customers = self._store.customers()

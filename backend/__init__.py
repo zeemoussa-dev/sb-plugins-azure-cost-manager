@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from .azure_token import AzureCliToken
 from .billing_client import BillingClient
+from .commitment_notes import CommitmentNotes
 from .consumption_service import ConsumptionService
 from .consumption_store import DATA_FILES, ConsumptionStore
 from .consumption_sync import ConsumptionSync
@@ -27,8 +28,8 @@ def register(api) -> None:
     token = AzureCliToken()
     store = ConsumptionStore(api)
     directory = AccountDirectory(lambda: BillingClient(token).list_billing_accounts())
-    book = CustomerBook(store, directory)
-    sync = ConsumptionSync(store, directory, lambda: BillingClient(token))
+    book = CustomerBook(store, directory, CommitmentNotes(api))
+    sync = ConsumptionSync(store, directory, lambda: BillingClient(token), customers=book.records)
     pipeline = Pipeline(api)
     service = ConsumptionService(store, book, pipeline=pipeline)
     api.register_router(build_router(service, book, directory, sync, token, pipeline))
