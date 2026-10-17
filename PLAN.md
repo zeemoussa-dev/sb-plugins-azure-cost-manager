@@ -269,6 +269,37 @@ cannot leak it.
 - Not reachable: Azure Advisor's cost recommendations need access inside the
   customer's tenant.
 
+### Reports by tag (operator, 2026-10-17: "find Tags and Build some Reports Against the Tags")
+
+Probed on this install, 2026-10-17:
+
+- The Consumption API lists an enrollment's tag keys (`.../billingAccounts/{id}/providers/
+  Microsoft.Consumption/tags`, 2023-05-01) to a partner sign-in, on the Consumption budget.
+  ADNOC's main enrollment has 480 keys; the others 17 and 189.
+- Cost Management groups an enrollment's cost by one tag key (`{"type": "TagKey", "name":
+  "environment"}`): ADNOC September by `environment` added up to the month's $4,223,151 --
+  prd $1.25M, untagged $748k, dev $460k, dr $451k, "non production" $381k, uat $380k, prod $208k.
+- Tags are inconsistent: one idea under many keys (`projectname`, `project name`, `project_name`,
+  `pojectname`, `x_projectname`; `environment`, `environemnt`, `envirornment`, `env`) and many
+  values (`prd`, `prod`, `production`).
+
+Design:
+
+- **Dimensions**: Environment, Project, Application, Business unit, Owner, Cost centre. Each is
+  found in an enrollment's tag keys by spelling -- case, spaces, `_`, an `x_` prefix and small
+  typos ignored -- so `environemnt` counts as Environment.
+- **One query per spelling** (Cost Management allows grouping by one tag key), only for spellings
+  an enrollment actually has, at most four per dimension, for the last six closed months and the
+  current one; a settled month is never fetched again. It runs as its own sync stage after
+  customers and pricing, on the same throttling budget.
+- **Untagged** is the month's total less what any spelling tagged. Exact for one spelling; for
+  several it assumes a resource does not carry two spellings of the same dimension.
+- **Values** are folded: case and spaces, and for Environment the usual synonyms (prd/prod/
+  production → Production, dev → Development, uat/test/qa → Test, dr → DR).
+- Reports: a **Tags** report per customer (a dimension's values by month, tag coverage, and the
+  spellings found -- tag hygiene), **Tag coverage** across customers, and a **Tags** sheet in the
+  workbooks. Nothing about tags is internal, so the Customer view shows it all.
+
 ### Decided (operator, 2026-10-17)
 
 - The Customer view leaves out **only the forecast scenarios** (and, always, other

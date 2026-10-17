@@ -4,6 +4,7 @@ import { FinOpsPage } from './FinOpsPage';
 import { MarketplacePage } from './MarketplacePage';
 import { ReportsHome } from './ReportsHome';
 import { SettingsPage } from './SettingsPage';
+import { TagCoveragePage } from './TagCoveragePage';
 import './azure-cost.css';
 
 const ui: PluginUi = {
@@ -12,6 +13,7 @@ const ui: PluginUi = {
     { path: '/azure-cost-manager/report', component: AzureCostPage },
     { path: '/azure-cost-manager/marketplace', component: MarketplacePage },
     { path: '/azure-cost-manager/finops', component: FinOpsPage },
+    { path: '/azure-cost-manager/tags', component: TagCoveragePage },
   ],
   nav: [{ to: '/azure-cost-manager', label: 'Azure Cost', icon: '☁' }],
   settingsPages: [{ path: '', label: 'Azure Cost Manager', component: SettingsPage }],

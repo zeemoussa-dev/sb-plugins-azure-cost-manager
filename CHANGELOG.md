@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.14.0] - 2026-10-17
+
+- feat: **reports by tag** (operator, 2026-10-17: "find Tags and Build some Reports Against the Tags"). Six business dimensions -- Environment, Project, Application, Business unit, Owner, Cost centre -- found among each enrollment's tag keys by spelling (case, spaces, `_`, an `x_` prefix and small typos ignored: `environemnt`, `pojectname`, `buisnessunit`), values folded (prd/prod/production → Production). A new sync stage lists each enrollment's tag keys (Consumption API, weekly) and queries Cost Management once per spelling it uses -- at most four per dimension, the last six closed months and the current one, settled months never again; **Sync tags** runs it alone. A **Tags** report per customer (values by month, coverage, untagged spend, and the spellings found -- tag hygiene), **Tag coverage** across customers, and a **Tags** sheet in both workbooks. Untagged is the month's total less what any spelling tagged.
+- fix: a burst of price queries met the price list's rate limit (429); it now waits and tries again.
+
 ## [0.13.0] - 2026-10-17
 
 - feat: **FinOps phase F2 -- savings in dollars.** Each steady VM or GPU candidate is priced from Azure's public **Retail Prices API** (no sign-in, not Cost Management): a 1- and 3-year savings plan and reservation, as the average discount across the series' sizes in the pricing region (`uaenorth` unless set through `PUT /finops/pricing-region`). A reservation's term price is spread over its hours; a Windows meter saves on compute only. The meter subcategory is found in the price list by its series ("Dlsv5 Series Linux" is "Dlsv5 Series", "Dv3/DSv3" either half, "NVadsA10_v5" is "NVadsA10v5 Series"). Prices are cached in `FinOps.json` and refreshed monthly by the sync after customers, or at once from **Price candidates now**. Databases, storage and capacities are listed but not priced yet.

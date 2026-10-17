@@ -541,6 +541,43 @@ export interface FinOpsAcrossRow {
 
 export const fetchFinOps = (id: string) => apiFetch<FinOps>(`${customer(id)}/finops`);
 export const fetchFinOpsAcross = () => apiFetch<FinOpsAcrossRow[]>(`${BASE}/finops`);
+export interface TagDimension {
+  dimension: string;
+  /** The tag keys queried for it, at most four, exact spellings first. */
+  spellings: string[];
+  /** Every key on the enrollments that spells it -- the hygiene view. */
+  all_spellings: string[];
+  /** Per month, cost by folded value; "(untagged)" is what no spelling tagged. */
+  months: Record<string, Record<string, number>>;
+  last_month: string | null;
+  coverage_pct: number | null;
+  values: number;
+}
+
+export interface TagsReport {
+  customer: { id: string; name: string };
+  currency: string | null;
+  synced: boolean;
+  tag_keys: number;
+  dimensions: TagDimension[];
+}
+
+export interface TagsAcrossRow {
+  id: string;
+  name: string;
+  synced: boolean;
+  tag_keys: number;
+  coverage: Record<string, number | null>;
+  spellings: Record<string, number>;
+}
+
+export const UNTAGGED = '(untagged)';
+export const fetchTags = (id: string) => apiFetch<TagsReport>(`${customer(id)}/tags`);
+export const fetchTagsAcross = () => apiFetch<TagsAcrossRow[]>(`${BASE}/tags`);
+export const startTagSync = (customerId?: string) =>
+  apiFetch<SyncStatus & { started: boolean }>(`${BASE}/sync/tags${customerId ? `?customer=${encodeURIComponent(customerId)}` : ''}`,
+    { method: 'POST' });
+
 export const refreshPrices = () =>
   apiFetch<{ priced: number; failed: string[] }>(`${BASE}/finops/prices`, { method: 'POST' });
 

@@ -6,7 +6,7 @@ import { errorText } from './format';
 
 export const REPORT_PATH = '/azure-cost-manager/report';
 
-export const REPORTS = ['Overview', 'Forecast', 'Pipeline', 'Marketplace', 'FinOps', 'Breakdown'] as const;
+export const REPORTS = ['Overview', 'Forecast', 'Pipeline', 'Marketplace', 'FinOps', 'Tags', 'Breakdown'] as const;
 export type Report = typeof REPORTS[number];
 
 const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
@@ -15,6 +15,7 @@ const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
   Pipeline: { title: 'Pipeline', summary: 'The customer\'s Opportunities and their effect on consumption.' },
   Marketplace: { title: 'Marketplace', summary: 'The partner solutions one customer bought, and what they burn of its MACC.' },
   FinOps: { title: 'FinOps', summary: 'Commitment coverage, steady on-demand spend to commit, purchases, growth and the budget.' },
+  Tags: { title: 'Tags', summary: 'Cost by environment, project, application, business unit, owner and cost centre tags.' },
   Breakdown: { title: 'Breakdown', summary: 'Consumption by service, subscription and resource group.' },
 };
 
@@ -92,6 +93,10 @@ export function ReportsHome() {
         <Link to="/azure-cost-manager/finops" className="card azure-cost-report-card">
           <strong>Optimization opportunities</strong>
           <span className="text-muted">Every customer ranked by steady on-demand spend and commitment coverage: where to start the savings conversation.</span>
+        </Link>
+        <Link to="/azure-cost-manager/tags" className="card azure-cost-report-card">
+          <strong>Tag coverage</strong>
+          <span className="text-muted">How much of each customer's spend carries environment, project and the other business tags.</span>
         </Link>
       </div>
     </div>
