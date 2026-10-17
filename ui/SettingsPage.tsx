@@ -18,6 +18,7 @@ interface Draft {
   accounts: string[];
   entity_customer: string;
   parent: string;
+  budget_monthly: string;
   commitment: {
     type: string; amount: string; currency: string; start: string; end: string; note: string;
     include_marketplace: boolean; subtract_credits: boolean;
@@ -32,6 +33,7 @@ function draftOf(customer: Customer | null): Draft {
     accounts: customer?.accounts.map((account) => account.name) ?? [],
     entity_customer: customer?.entity_customer ?? '',
     parent: customer?.parent ?? '',
+    budget_monthly: customer?.budget_monthly != null ? String(customer.budget_monthly) : '',
     commitment: {
       type: commitment.type ?? 'MACC', amount: commitment.amount != null ? String(commitment.amount) : '',
       currency: commitment.currency ?? 'USD', start: commitment.start ?? '', end: commitment.end ?? '',
@@ -94,7 +96,8 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
     const commitment = value.commitment.amount.trim()
       ? { ...value.commitment, amount: Number(value.commitment.amount) } : null;
     saveCustomer(value.id, { name: value.name, accounts: value.accounts, commitment,
-      entity_customer: value.entity_customer || null, parent: value.parent || null }).then(() => {
+      entity_customer: value.entity_customer || null, parent: value.parent || null,
+      budget_monthly: value.budget_monthly ? Number(value.budget_monthly) : null }).then(() => {
       setSaving(false);
       onSaved();
     }, (failure) => {
@@ -199,6 +202,15 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
         <input type="checkbox" checked={value.commitment.subtract_credits}
                onChange={(event) => setCommitment('subtract_credits', event.target.checked)} />
         Credits reduce what counts against it
+      </label>
+
+      <h4>Monthly budget (FinOps)</h4>
+      <p className="text-muted azure-cost-note">
+        Leave empty to use the signed value spread evenly over its term; enter an amount to override it.
+      </p>
+      <label className="field-labeled">Monthly budget
+        <input type="number" min="0" step="1000" value={value.budget_monthly} placeholder="From the MACC"
+               onChange={(event) => setValue({ ...value, budget_monthly: event.target.value })} />
       </label>
 
       <h4>Customer note</h4>

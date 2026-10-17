@@ -1,5 +1,6 @@
 import type { PluginUi } from '../../pluginHost/types';
 import { AzureCostPage } from './AzureCostPage';
+import { FinOpsPage } from './FinOpsPage';
 import { MarketplacePage } from './MarketplacePage';
 import { ReportsHome } from './ReportsHome';
 import { SettingsPage } from './SettingsPage';
@@ -10,6 +11,7 @@ const ui: PluginUi = {
     { path: '/azure-cost-manager', component: ReportsHome },
     { path: '/azure-cost-manager/report', component: AzureCostPage },
     { path: '/azure-cost-manager/marketplace', component: MarketplacePage },
+    { path: '/azure-cost-manager/finops', component: FinOpsPage },
   ],
   nav: [{ to: '/azure-cost-manager', label: 'Azure Cost', icon: '☁' }],
   settingsPages: [{ path: '', label: 'Azure Cost Manager', component: SettingsPage }],

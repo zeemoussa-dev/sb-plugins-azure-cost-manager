@@ -113,6 +113,8 @@ export interface Customer {
   commitment_source?: 'note' | 'settings';
   /** Why the note's signed value cannot be used -- e.g. left incomplete in Obsidian. */
   commitment_problem?: string | null;
+  /** Overrides the FinOps budget, which is otherwise the MACC spread over its term. */
+  budget_monthly?: number | null;
 }
 
 export interface CustomerDraft {
@@ -121,6 +123,7 @@ export interface CustomerDraft {
   commitment: Partial<Commitment> | null;
   entity_customer?: string | null;
   parent?: string | null;
+  budget_monthly?: number | null;
 }
 
 export interface GroupInfo {
@@ -457,11 +460,74 @@ export const deleteCustomer = (id: string) => apiFetch<{ deleted: string }>(cust
 
 const measureQuery = (measure: Measure) => `marketplace=${measure.marketplace}&credits=${measure.credits}`;
 
-export const fetchAnalysis = (id: string, measure: Measure) =>
-  apiFetch<Analysis>(`${customer(id)}/analysis?${measureQuery(measure)}`);
+/** Who a page or workbook is for: the operator, or the customer it is about. The
+ *  Customer view leaves out the forecast scenarios, on the server. */
+export type View = 'account' | 'customer';
+
+export const fetchAnalysis = (id: string, measure: Measure, view: View = 'account') =>
+  apiFetch<Analysis>(`${customer(id)}/analysis?${measureQuery(measure)}&view=${view}`);
 
 /** A path for an `<a href>`: the browser downloads the workbook itself. */
-export const exportPath = (id: string, measure: Measure) => `${customer(id)}/export.xlsx?${measureQuery(measure)}`;
+export const exportPath = (id: string, measure: Measure, view: View = 'account') =>
+  `${customer(id)}/export.xlsx?${measureQuery(measure)}&view=${view}`;
+
+export interface CoverageFamily { family: string; covered: number; on_demand: number; coverage_pct: number | null }
+export interface CoverageMonth extends CoverageFamily { month: string; families: CoverageFamily[] }
+
+export interface SteadyCandidate {
+  meter: string;
+  family: string;
+  monthly_on_demand: number;
+  lowest_month: number;
+  variation_pct: number;
+  annual_on_demand: number;
+  months: Record<string, number>;
+}
+
+export interface Growth { name: string; monthly_now: number; monthly_before: number; change: number; change_pct: number | null }
+
+export interface Budget {
+  amount: number;
+  /** "set" in Settings, or "macc": the MACC spread over its term. */
+  source: 'set' | 'macc';
+  term_months?: number;
+  last_month: string | null;
+  last_month_actual: number | null;
+  current_month_forecast: number | null;
+  over_in_last_12: string[];
+  status: 'over' | 'forecast-over' | 'within';
+}
+
+export interface FinOps {
+  customer: { id: string; name: string; parent: string | null; affiliates: string[] };
+  currency: string | null;
+  has_meters: boolean;
+  has_amortized_meters: boolean;
+  coverage: { months: CoverageMonth[]; latest: CoverageMonth | null };
+  candidates: SteadyCandidate[];
+  candidates_monthly: number;
+  purchases: { month: string; charged: number; amortized: number; bought_up_front: number }[];
+  growth: { services: Growth[]; subscriptions: Growth[] };
+  budget: Budget | null;
+}
+
+export interface FinOpsAcrossRow {
+  id: string;
+  name: string;
+  affiliates: string[];
+  currency: string | null;
+  has_meters: boolean;
+  coverage_pct: number | null;
+  on_demand: number | null;
+  coverage_month: string | null;
+  candidates: number;
+  candidates_monthly: number;
+  top_candidate: string | null;
+  budget: Budget | null;
+}
+
+export const fetchFinOps = (id: string) => apiFetch<FinOps>(`${customer(id)}/finops`);
+export const fetchFinOpsAcross = () => apiFetch<FinOpsAcrossRow[]>(`${BASE}/finops`);
 
 export const saveScenario = (id: string, settings: ScenarioSettings) =>
   apiFetch<ScenarioSettings>(`${customer(id)}/scenario`, { method: 'PUT', body: JSON.stringify(settings) });

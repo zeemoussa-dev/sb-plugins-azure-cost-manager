@@ -7,27 +7,30 @@ import { BreakdownTab } from './BreakdownTab';
 import { MarketplaceTab } from './MarketplaceTab';
 import {
   exportPath, fetchAnalysis, fetchCustomers, fetchSignIn,
-  type Analysis, type Customer, type Measure, type SignInState,
+  type Analysis, type Customer, type Measure, type SignInState, type View,
 } from './client';
 import { ForecastTab } from './ForecastTab';
 import { CustomerPortfolio } from './CustomerPortfolio';
+import { FinOpsTab } from './FinOpsTab';
 import { errorText } from './format';
 import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
 import { REPORTS, reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
-function CustomerView({ customerId, measure, syncedVersion, report }: {
-  customerId: string; measure: Measure; syncedVersion: number; report: Report;
+const VIEWS = ['account', 'customer'] as const;
+
+function CustomerView({ customerId, measure, syncedVersion, report, view }: {
+  customerId: string; measure: Measure; syncedVersion: number; report: Report; view: View;
 }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [reloads, setReloads] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAnalysis(customerId, measure).then((result) => { setAnalysis(result); setError(null); },
+    fetchAnalysis(customerId, measure, view).then((result) => { setAnalysis(result); setError(null); },
       (failure) => setError(errorText(failure)));
-  }, [customerId, measure, syncedVersion, reloads]);
+  }, [customerId, measure, syncedVersion, reloads, view]);
 
   const reload = useCallback(() => setReloads((count) => count + 1), []);
 
@@ -55,6 +58,7 @@ function CustomerView({ customerId, measure, syncedVersion, report }: {
       {report === 'Pipeline' ? <PipelineTab analysis={analysis} onChanged={reload} />
         : nothingSynced ? <p className="empty-state">Nothing synced for this customer yet. Sync it to load its consumption.</p>
           : report === 'Marketplace' ? <MarketplaceTab customerId={customerId} currency={analysis.currency} syncedVersion={syncedVersion} />
+          : report === 'FinOps' ? <FinOpsTab customerId={customerId} syncedVersion={syncedVersion} />
           : nothingBilled ? <p className="empty-state">Nothing was billed on these enrollments in the synced period.</p>
             : report === 'Overview' ? <OverviewTab analysis={analysis} />
               : report === 'Forecast' ? <ForecastTab analysis={analysis} onChanged={reload} />
@@ -72,6 +76,9 @@ export function AzureCostPage() {
   // how it is measured is a preference, remembered per browser (framework API 10).
   const [selected] = useUrlSelection('customer');
   const [report, setReport] = useUrlState<Report>('report', 'Overview', { valid: REPORTS });
+  // Who the page is for: the Customer view leaves out the forecast scenarios, on the
+  // server, so it can be shown on a shared screen and exported for the customer.
+  const [view, setView] = useUrlState<View>('view', 'account', { valid: VIEWS });
   const [syncedVersion, setSyncedVersion] = useState(0);
   const [measure, setMeasure] = useRememberedState<Measure>('azure-cost-manager.measure',
     { marketplace: true, credits: true });
@@ -104,7 +111,7 @@ export function AzureCostPage() {
       ]} />
       <header className="azure-cost-header">
         <h1>{customer ? customer.name : reportTitle(report)}</h1>
-        {customer ? (
+        {customer && view === 'customer' ? null : customer ? (
           <Link to={settingsLink({ location, label: customer.name }, customer.id)} className="btn azure-cost-settings-link">
             Edit {customer.name}: MACC, enrollments
           </Link>
@@ -122,7 +129,18 @@ export function AzureCostPage() {
         ) : !customer ? <CustomerPortfolio report={report} />
           : (
             <>
-              <SyncControl customerId={customer.id} syncedAt={customer.synced_at} onSynced={onSynced} />
+              <div className="azure-cost-toolbar">
+                <div className="azure-cost-segmented" role="group" aria-label="View">
+                  <button type="button" aria-pressed={view === 'account'} className={view === 'account' ? 'active' : undefined}
+                          onClick={() => setView('account')}>My view</button>
+                  <button type="button" aria-pressed={view === 'customer'} className={view === 'customer' ? 'active' : undefined}
+                          onClick={() => setView('customer')}>Customer view</button>
+                </div>
+                {view === 'customer' ? (
+                  <span className="text-muted azure-cost-note">What {customer.name} sees: everything but the forecast scenarios.</span>
+                ) : null}
+              </div>
+              {view === 'account' ? <SyncControl customerId={customer.id} syncedAt={customer.synced_at} onSynced={onSynced} /> : null}
               <div className="azure-cost-toolbar azure-cost-tabs-row">
                 <div className="azure-cost-segmented" role="tablist">
                   {REPORTS.map((name) => (
@@ -140,9 +158,12 @@ export function AzureCostPage() {
                          onChange={(event) => setMeasure({ ...measure, credits: event.target.checked })} />
                   Subtract credits
                 </label>
-                <a className="btn" href={apiUrl(exportPath(customer.id, measure))}>Export to Excel</a>
+                <a className="btn" href={apiUrl(exportPath(customer.id, measure, view))}>
+                  {view === 'customer' ? 'Export for the customer' : 'Export to Excel'}
+                </a>
               </div>
-              <CustomerView key={customer.id} customerId={customer.id} measure={measure} syncedVersion={syncedVersion} report={report} />
+              <CustomerView key={customer.id} customerId={customer.id} measure={measure} syncedVersion={syncedVersion}
+                            report={report} view={view} />
             </>
           )}
     </div>

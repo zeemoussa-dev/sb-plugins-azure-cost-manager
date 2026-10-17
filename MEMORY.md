@@ -23,6 +23,8 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 
 - **[2026-10-17] A linked customer's signed value lives on its Customer note** (`macc_*` properties, through `entities.customers` `commitment`/`set_commitment`, Entities 1.3+). The operator chose the vault as its single source of truth, so it is editable in Obsidian and visible to the vault. This plugin's data keeps it only for unlinked customers or an older Entities; a note that has one always wins over a value held here. *Supersedes, for linked customers, "the signed value is entered by the operator" being stored here.*
 
+- **[2026-10-17] FinOps findings are one engine with two views.** The Customer view filters the same analysis on the server (today: no forecast scenarios), never a second analysis and never a browser-side hide, so the two cannot disagree and an export cannot leak what the view leaves out.
+
 ## Patterns
 
 - **[2026-10-16] The current month is never evidence.** It is partial: no month-over-month change, no run rate, no anomaly is computed from it.
@@ -47,3 +49,4 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 - **[2026-10-17] Installing a backend change interrupts a running sync.** The plugin's backend loads only when the framework's backend reloads, and the reload stops the sync thread. Settled months survive, so start the sync again afterwards; a UI-only change needs just the frontend dev server restarted.
 - **[2026-10-17] Right after a backend restart the vault index is empty.** Every Customer note reads as missing for a few seconds. Anything done once per run against notes must retry until it succeeds, never mark itself done on a failure.
 - **[2026-10-17] Excel compares PivotTable items ignoring case.** A pivot cache holding "CommVault" and "Commvault" makes the whole workbook fail to open (`Workbooks.Open` fails, no repair offered). Fold every text field with `xlsx_pivot.fold_case` before writing a pivot's data. Check a generated pivot by opening it in Excel through COM; openpyxl will write a broken one without complaint.
+- **[2026-10-17] Coverage is read from amortized meters; candidates from actual.** Under actual cost a reservation's usage costs nothing and its purchase lands in one month, so coverage needs `AmortizedCost`. On-demand costs the same either way, so steady candidates read the full actual history. Azure's `Unassigned` meter subcategory is a catch-all, never a candidate.

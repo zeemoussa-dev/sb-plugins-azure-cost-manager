@@ -2,6 +2,13 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.12.0] - 2026-10-17
+
+- feat: **FinOps, phase F1** (operator, 2026-10-17; plan in `PLAN.md`). A **FinOps** report per customer: commitment coverage by month and by family (virtual machines, GPUs, Azure OpenAI, and anything the customer has reserved), steady on-demand candidates (on demand in each of the last six closed months, at least $1,000 a month, varying no more than 25%), commitments bought up front, the fastest-growing services and subscriptions, and the monthly budget -- the MACC spread over its term unless overridden in Settings. **Optimization opportunities** across customers ranks every customer by steady on-demand spend, with coverage and budget status. Both workbooks gain a **FinOps** sheet.
+- feat: **My view / Customer view** on every customer report (operator: "Different Views One for me one for the Customer"). The Customer view leaves out only the forecast scenarios (operator's choice), on the server; its export, "Export for the customer", has no scenarios sheet. Sync and Edit are hidden while it is on, for screen-sharing.
+- feat: the sync fetches the meter detail once more, amortized, for the last 13 months: under actual cost a reservation's usage costs nothing, so coverage needs it. One or two queries per enrollment, once; settled months are not fetched again.
+- Azure's catch-all meter subcategory "Unassigned" is never a candidate, and database compute that names a VM series is not counted as a VM.
+
 ## [0.11.0] - 2026-10-17
 
 - feat: **a PivotTable in the Marketplace export** (operator, 2026-10-17: "a Pivot Table with Each Publisher, What Solution Who Purchased and When with the Amount"; chose a real Excel PivotTable). The cross-customer workbook's second sheet, **Pivot**, is an Excel PivotTable -- Publisher › Solution › Buyer down the side, months across, Sum of Amount, filters for Group, Buyer type and Toward MACC -- over a new **Marketplace data** sheet, one row per solution, plan, buyer and month. Excel builds it when the file opens (`refreshOnLoad`); a previewer shows it empty. Spellings that differ only in case are made one (Azure bills "CommVault" and "Commvault", "Pay-As-You-Go" and "Pay-as-you-go"): Excel compares pivot items ignoring case, and a cache holding both does not open at all. Checked in Excel against this install's data: 5,724 lines, grand total equal to the report's to the cent. `backend/xlsx_pivot.py` builds the pivot from openpyxl's pivot parts; the page's `/marketplace` response leaves the lines out.
