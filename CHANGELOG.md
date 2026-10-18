@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.19.0] - 2026-10-18
+
+- feat: `azure-cost-manager.consumption` gains `customers()` -- every customer here, linked to a note or not (id, name, parent_id, customer_stem or None, currency, route) -- and `monthly_of(customer_id, ...)`, `monthly()`'s exact shape by Cost Manager id. For Core42 Insight, where a parent's terms cover affiliates that have no note of their own (operator, 2026-10-18). `linked()` and `monthly()` are unchanged.
+
 ## [0.18.0] - 2026-10-18
 
 - feat: **a customer can be linked to a Partner note** (operator, 2026-10-18: "Link Partner notes"; Entities 1.5). The link pickers in Settings and the Pipeline tab list Customers and Partners, each with its affiliates at any depth, from Entities' `hubs()` (`customers()` before 1.5); the signed value, the pipeline and the Entities cost panel work for a Partner note the same way. The G42 family can now be linked when it is set up.

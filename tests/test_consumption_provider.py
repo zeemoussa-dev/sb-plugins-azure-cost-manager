@@ -80,6 +80,21 @@ def test_linked_names_each_note_with_its_parents_note(fake_api):
     assert consumption.monthly("Nobody") is None
 
 
+def test_every_customer_is_listed_note_or_not_and_read_by_id(fake_api):
+    consumption = provider(fake_api)
+    consumption._book.save(None, {"name": "Litware", "accounts": ["2"], "parent": "holding"})
+
+    rows = {row["id"]: row for row in consumption.customers()}
+
+    assert rows["litware"] == {"id": "litware", "name": "Litware", "parent_id": "holding", "customer_stem": None,
+                               "currency": "USD", "route": "/azure-cost-manager/report?report=Overview&customer=litware"}
+    assert rows["holding"]["customer_stem"] == "Holding Note" and rows["holding"]["parent_id"] is None
+    by_id = consumption.monthly_of("holding")
+    assert by_id == consumption.monthly("Holding Note")
+    assert consumption.monthly_of("litware")["months"][0]["total"] == 9999   # its own enrollment, no note needed
+    assert consumption.monthly_of("nobody") is None
+
+
 def test_register_provides_the_service(fake_api):
     register(fake_api)
 
