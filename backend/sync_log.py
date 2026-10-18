@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 SYNC_LOG_FILE = "Azure-Cost-Manager/Sync-Log.json"
@@ -24,6 +24,9 @@ EVENTS_PER_RUN = 1500
 # Writing the whole log on every request would cost more than the request; a
 # step change, wait, error or the run's end is written at once.
 WRITE_EVERY_SECONDS = 5.0
+# A run cut off longer ago than this is not started again on load: by then the
+# operator has moved on, and the next Sync or weekly job brings the delta.
+RESUME_WITHIN = timedelta(hours=12)
 
 
 def _now() -> datetime:
@@ -44,8 +47,6 @@ class SyncLog:
         except Exception:  # a missing or unreadable log starts empty
             self._runs = []
         interrupted = False
-        # The newest run this load found cut off, for the sync to start again.
-        self.interrupted_scope: str | None = None
         for run in self._runs:
             if run.get("outcome") == "running":
                 last = run["events"][-1]["at"] if run.get("events") else run["started_at"]
@@ -53,7 +54,6 @@ class SyncLog:
                 run["events"].append({"at": last, "kind": "interrupted",
                                       "text": "The backend restarted or stopped; the run ended here."})
                 interrupted = True
-                self.interrupted_scope = run.get("scope")
         if interrupted:
             self._save()
 
@@ -116,6 +116,19 @@ class SyncLog:
                   urgent=bool(failure) or (status or 0) >= 400, seconds=round(seconds, 2), status=status)
 
     # -- read by the page ----------------------------------------------------
+
+    def interrupted_scope(self, within: timedelta = RESUME_WITHIN) -> str | None:
+        """The scope of the newest run, when a restart cut it off within `within`.
+        Not only a run this load closed: a load can close it and be reloaded itself
+        before the resume fires (a refused plugin, an install), and the next load
+        must still see it."""
+        with self._lock:
+            run = self._runs[-1] if self._runs else None
+            if not run or run.get("outcome") != "interrupted" or not run.get("finished_at"):
+                return None
+            if self._now() - datetime.fromisoformat(run["finished_at"]) > within:
+                return None
+            return run.get("scope")
 
     def fruitless_in_a_row(self, scope: str) -> int:
         """How many of the newest runs are `scope`, cut off by a restart before they

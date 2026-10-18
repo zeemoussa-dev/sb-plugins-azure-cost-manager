@@ -199,7 +199,7 @@ class ConsumptionSync:
         the plugin loads and the last sync was interrupted by a restart, start it again
         automatically"). It resumes rather than restarts: settled months, recently
         synced enrollments and stored days are never fetched again."""
-        scope = self._log.interrupted_scope if self._log else None
+        scope = self._log.interrupted_scope() if self._log else None
         if not scope or self._log.fruitless_in_a_row(scope) > RESUMES_IN_A_ROW:
             return None
         started = self._start_scope(scope)

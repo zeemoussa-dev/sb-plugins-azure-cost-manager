@@ -230,3 +230,28 @@ def test_scopes_map_back_to_their_start_calls(fake_api, monkeypatch):
 
     assert calls == [("start", None, "none"), ("start", "adnoc", "none"), ("start", None, "also"),
                      ("start", None, "only"), ("tags", None), ("month", "adnoc")]
+
+
+def test_a_run_closed_by_an_earlier_load_still_starts_again(fake_api, monkeypatch):
+    disk = Disk()
+    log = SyncLog(disk.read, disk.write, now=ticking())
+    log.begin("all:this-month")
+    log.request_finished("POST query", 200, 1.0, page=False)
+    SyncLog(disk.read, disk.write, now=ticking())          # a load closes it, then is reloaded itself
+    sync = _sync_with_log(fake_api, disk)                   # the next load
+    started: list[str | None] = []
+    monkeypatch.setattr(sync, "start_this_month", lambda customer=None: started.append(customer) or {"started": True})
+
+    sync.resume_interrupted()
+
+    assert started == [None]
+
+
+def test_a_run_cut_off_long_ago_is_left_alone(fake_api):
+    disk = Disk()
+    log = SyncLog(disk.read, disk.write, now=ticking())
+    log.begin("all")
+    log.request_finished("POST query", 200, 1.0, page=False)
+    later = SyncLog(disk.read, disk.write, now=lambda: START + timedelta(days=2))
+
+    assert later.interrupted_scope() is None

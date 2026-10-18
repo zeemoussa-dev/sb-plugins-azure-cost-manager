@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.29.2] - 2026-10-18
+
+- fix: **a cut-off sync was sometimes not started again.** The resume looked only for a run that the current load had just closed as interrupted. When one load closed it and was itself reloaded before the resume fired (here: the plugin refused at load during the Plugin API 12 move, then installed again), the next load saw the run already closed and did nothing. It now starts again whenever the newest run was cut off by a restart within the last 12 hours, whichever load closed it.
+
 ## [0.29.1] - 2026-10-18
 
 - chore: declares **Plugin API 12** (the framework moved 11 → 12 for `register_action` and `register_tag_namespace`, both additive). The host loads a plugin only on an exact match, so 0.29.0 was refused at load. This plugin uses neither new capability; nothing else changed.
