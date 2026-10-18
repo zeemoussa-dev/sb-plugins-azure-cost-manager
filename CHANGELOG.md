@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.29.1] - 2026-10-18
+
+- chore: declares **Plugin API 12** (the framework moved 11 → 12 for `register_action` and `register_tag_namespace`, both additive). The host loads a plugin only on an exact match, so 0.29.0 was refused at load. This plugin uses neither new capability; nothing else changed.
+
 ## [0.29.0] - 2026-10-18
 
 - feat: **affiliates either roll up into a parent's MACC or sign their own** (operator, 2026-10-18: "In Mubadala every affiliate signed their own MACC ... for DGE the affiliates don't sign a MACC on their own, so all data rolls up to DGE"). A parent's commitment has an **Affiliates** setting (Settings, a parent's signed value), stored on its Customer note as `macc_affiliates` (Entities 1.8):
