@@ -49,6 +49,29 @@ def test_a_workload_is_new_only_if_it_was_not_there_before():
     assert [row["name"] for row in found["dimensions"]["service"]["new"]] == ["Azure OpenAI"]
 
 
+def test_tag_values_are_folded_untagged_left_out_and_new_values_flagged():
+    days = {"2026-09-05": {"VM": 100.0}, "2026-10-02": {"VM": 300.0}}
+    data = daily(days)
+    data["tag:Project"] = {"2026-09-05": {"Atlas": 100.0, "Unassigned": 5.0},
+                           "2026-10-02": {"atlas": 100.0, "Orion": 200.0, "Unassigned": 9.0}}
+    data["tag:Environment"] = {"2026-09-05": {"prod": 100.0}, "2026-10-02": {"PRD": 300.0}}
+
+    found = this_month.analyse({"1": {"daily": data}}, {}, TODAY)
+
+    project = {row["name"]: row for row in found["dimensions"]["tag:Project"]["rows"]}
+    assert set(project) == {"Atlas", "Orion"} and project["Orion"]["new"] and not project["Atlas"]["new"]
+    assert found["dimensions"]["tag:Environment"]["rows"][0]["name"] == "Production"
+    assert ("tag:Project", "Orion") in {(w["kind"], w["name"]) for w in found["new_workloads"]}
+    assert "tag:Owner" not in found["dimensions"]   # no Owner tag fetched: no Owner grouping
+
+
+def test_enrollments_the_refresh_never_reached_are_named():
+    days = {"2026-10-02": {"VM": 100.0}}
+    found = this_month.analyse({"1": {"daily": daily(days)}, "2": {"months": {}}}, {}, TODAY)
+
+    assert found["missing_enrollments"] == ["2"] and found["month_to_date"] == 100
+
+
 def test_without_a_refresh_it_says_so():
     assert this_month.analyse({"1": {"months": {}}}, {}, TODAY) == {"has_data": False}
 

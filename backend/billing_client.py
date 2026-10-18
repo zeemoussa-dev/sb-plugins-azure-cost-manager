@@ -198,6 +198,22 @@ class BillingClient:
                         "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}},
                         "grouping": [{"type": "Dimension", "name": name} for name in dimensions.values()]},
         }
+        return self._daily_rows(account_name, body, dimensions)
+
+    def query_daily_by_tag(self, account_name: str, first_day: str, last_day: str, tag_key: str) -> list[dict]:
+        """`[{day, cost, value}]`: actual cost per day by one tag key's values; `value`
+        is "Unassigned" for what does not carry the key."""
+        body = {
+            "type": "ActualCost",
+            "timeframe": "Custom",
+            "timePeriod": {"from": f"{first_day}T00:00:00Z", "to": f"{last_day}T23:59:59Z"},
+            "dataset": {"granularity": "Daily",
+                        "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}},
+                        "grouping": [{"type": "TagKey", "name": tag_key}]},
+        }
+        return self._daily_rows(account_name, body, {"value": "TagValue"})
+
+    def _daily_rows(self, account_name: str, body: dict, dimensions: dict[str, str]) -> list[dict]:
         url = f"{billing_account_scope(account_name)}/providers/Microsoft.CostManagement/query"
         page = self._request("POST", url, params={"api-version": COST_MANAGEMENT_API}, body=body)
         rows: list[dict] = []

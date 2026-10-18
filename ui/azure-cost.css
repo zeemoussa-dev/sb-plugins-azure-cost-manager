@@ -603,3 +603,24 @@
   border-color: var(--color-accent);
   color: var(--color-text);
 }
+
+.azure-cost-fold > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.azure-cost-fold > summary::before {
+  content: "▸";
+  color: var(--color-text-muted);
+}
+
+.azure-cost-fold[open] > summary::before {
+  content: "▾";
+}
+
+.azure-cost-fold > summary h3 {
+  margin: 0;
+}

@@ -17,23 +17,47 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import date
 
-from . import months
+from . import months, tags
 
-DIMENSIONS = ("service", "subscription", "resource_group")
-LABELS = {"service": "Service", "subscription": "Subscription", "resource_group": "Resource group"}
+DIMENSIONS = ("service", "subscription", "resource_group", "tag:Project", "tag:Owner", "tag:Environment")
+LABELS = {"service": "Service", "subscription": "Subscription", "resource_group": "Resource group",
+          "tag:Project": "Project", "tag:Owner": "Owner", "tag:Environment": "Environment"}
 LOOKBACK_MONTHS = 3
 TOP_MOVERS = 8
+UNTAGGED_VALUES = {"", "Unassigned"}
 
 
 def _summed(entries: dict[str, dict], key: str) -> dict[str, dict[str, float]]:
-    """day -> name -> cost across the enrollments."""
+    """day -> name -> cost across the enrollments. A tag's values are folded as the
+    Tags report folds them (prd/prod/production → Production); untagged is left out."""
+    dimension = key[4:] if key.startswith("tag:") else None
     days: dict[str, dict[str, float]] = {}
+    spelled: dict[str, dict[str, float]] = {}
     for entry in entries.values():
         for day, names in ((entry.get("daily") or {}).get(key) or {}).items():
             target = days.setdefault(day, {})
             for name, cost in names.items():
+                if dimension:
+                    if name.strip() in UNTAGGED_VALUES:
+                        continue
+                    name = tags.folded_value(dimension, name)
+                    # "Atlas" and "atlas " are one project: the most-billed spelling names it.
+                    variants = spelled.setdefault(" ".join(name.lower().split()), {})
+                    variants[name] = variants.get(name, 0.0) + cost
                 target[name] = target.get(name, 0.0) + cost
-    return days
+    if not dimension:
+        return days
+    canonical = {variant: max(variants, key=variants.get) for variants in spelled.values() for variant in variants}
+    merged: dict[str, dict[str, float]] = {}
+    for day, names in days.items():
+        target = merged.setdefault(day, {})
+        for name, cost in names.items():
+            target[canonical[name]] = target.get(canonical[name], 0.0) + cost
+    return merged
+
+
+def _present(entries: dict[str, dict], key: str) -> bool:
+    return any(key in (entry.get("daily") or {}) for entry in entries.values())
 
 
 def _total(days: dict[str, dict[str, float]], first: str, last: str) -> dict[str, float]:
@@ -60,6 +84,9 @@ def analyse(entries: dict[str, dict], merged: dict, today: date) -> dict:
     fetched = [stamp for stamp in fetched if stamp]
     if not fetched:
         return {"has_data": False}
+    # A refresh cut off part-way leaves some enrollments unfetched; their spend is
+    # absent from every figure, so the page must say so rather than look complete.
+    missing = sorted(name for name, entry in entries.items() if not (entry.get("daily") or {}).get("fetched_at"))
     current = months.month_of(today)
     previous = months.shift(current, -1)
     service_days = _summed(entries, "service")
@@ -93,12 +120,15 @@ def analyse(entries: dict[str, dict], merged: dict, today: date) -> dict:
 
     dimensions, new_workloads = {}, []
     for key in DIMENSIONS:
+        if key.startswith("tag:") and not _present(entries, key):
+            continue  # the refresh found no such tag on these enrollments, or tags never synced
         days = _summed(entries, key)
         now = _total(days, f"{current}-01", through)
         then = _total(days, f"{previous}-01", same_last)
         last_month_any = {name for name, cost in _total(days, f"{previous}-01", f"{previous}-{previous_days:02d}").items()
                           if cost > 0}
-        seen = last_month_any | (_seen_before(merged, key, current) if key != "resource_group" else set())
+        monthly_known = key in ("service", "subscription")
+        seen = last_month_any | (_seen_before(merged, key, current) if monthly_known else set())
         rows = []
         for name in set(now) | set(then):
             cost_now, cost_then = now.get(name, 0.0), then.get(name, 0.0)
@@ -112,11 +142,13 @@ def analyse(entries: dict[str, dict], merged: dict, today: date) -> dict:
         movers = sorted((row for row in rows if not row["new"] and row["change"] > 0), key=lambda row: -row["change"])
         dimensions[key] = {"label": LABELS[key], "movers": movers[:TOP_MOVERS],
                            "new": sorted((row for row in rows if row["new"]), key=lambda row: -row["this_month"]),
-                           "top": sorted(rows, key=lambda row: -row["this_month"])[:TOP_MOVERS * 2]}
+                           # Every row: the page shows the first few and "Show all" the rest.
+                           "rows": sorted(rows, key=lambda row: -row["this_month"])}
 
     return {
         "has_data": True,
         "fetched_at": min(fetched),
+        "missing_enrollments": missing,
         "month": current,
         "through": through if elapsed else None,
         "days_elapsed": elapsed,

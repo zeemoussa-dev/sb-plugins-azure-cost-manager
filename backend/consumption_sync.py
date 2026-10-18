@@ -33,6 +33,7 @@ FINOPS_MONTHS = 13
 # a query on the throttling budget, so it reaches no further back than its reports read.
 TAG_MONTHS = 6
 TAG_KEYS_FRESH_FOR = timedelta(days=7)
+THIS_MONTH_TAG_DIMENSIONS = ("Project", "Owner", "Environment")
 # A sync of everyone skips an enrollment synced this recently: a restart resumes,
 # and the weekly job and the Sync button still bring every enrollment's delta.
 RESYNC_AFTER = timedelta(hours=20)
@@ -197,10 +198,26 @@ class ConsumptionSync:
                 self._set(accounts_done=done)
                 continue
             entry = self._store.account(account)
+            # By tag too: a new Project or Owner value is often the clearest sign of a
+            # new initiative (operator, 2026-10-18). One query per dimension, on the
+            # spelling this enrollment uses most plainly -- known once tags have synced.
+            by_tag: dict[str, dict] = {}
+            found = tags.spellings((entry.get("tags") or {}).get("keys") or [])
+            for dimension in THIS_MONTH_TAG_DIMENSIONS:
+                if not found.get(dimension):
+                    continue
+                key = found[dimension][0]
+                try:
+                    rows = self._query(lambda key=key: client.query_daily_by_tag(account, first_day, today.isoformat(), key),
+                                       account)
+                except AzureApiError as exc:
+                    self._record_error(account, f"this month, tag {key}: {exc}")
+                    continue
+                by_tag[f"tag:{dimension}"] = _aggregate_daily(rows, ("value",))["value"]
             entry["daily"] = {"first_day": first_day, "last_day": today.isoformat(),
                               "fetched_at": self._now().isoformat(),
                               **_aggregate_daily(by_service, ("service", "subscription")),
-                              **_aggregate_daily(by_group, ("resource_group",))}
+                              **_aggregate_daily(by_group, ("resource_group",)), **by_tag}
             self._store.save_account(account, entry)
             self._set(accounts_done=done)
 

@@ -591,6 +591,8 @@ export interface ThisMonth {
   currency: string | null;
   has_data: boolean;
   fetched_at?: string;
+  /** Enrollments the last refresh never reached: their spend is absent from every figure. */
+  missing_enrollments?: string[];
   month?: string;
   /** The last day Azure has data for -- it lags a day or two. */
   through?: string | null;
@@ -603,8 +605,9 @@ export interface ThisMonth {
   last_month_total?: number;
   daily?: { day: number; this_month: number | null; last_month: number | null;
     this_month_to_date: number | null; last_month_to_date: number | null }[];
-  dimensions?: Record<'service' | 'subscription' | 'resource_group',
-    { label: string; movers: MonthRow[]; new: MonthRow[]; top: MonthRow[] }>;
+  /** service, subscription, resource_group, and tag:Project / tag:Owner / tag:Environment
+   *  where the refresh found those tags. `rows` is every name, largest first. */
+  dimensions?: Record<string, { label: string; movers: MonthRow[]; new: MonthRow[]; rows: MonthRow[] }>;
   new_workloads?: { kind: string; kind_label: string; name: string; this_month: number }[];
 }
 
