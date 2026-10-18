@@ -341,10 +341,11 @@ class ConsumptionService:
                            "accounts": sorted(group["accounts"], key=lambda account: account["display_name"].lower())})
         return sorted(listed, key=lambda group: (-group["last_twelve_months"], group["name"].lower()))
 
-    def own_monthly(self, customer_id: str, measure: dict) -> tuple[list[dict], str | None, dict | None]:
+    def own_monthly(self, customer: str | dict, measure: dict) -> tuple[list[dict], str | None, dict | None]:
         """`(monthly totals, currency, commitment)` of a customer's OWN enrollments --
-        a parent without its affiliates' -- measured with `measure`."""
-        customer = self._customer(customer_id)
+        a parent without its affiliates' -- measured with `measure`. `customer` is an
+        id, or the customer record already in hand (which saves listing customers)."""
+        customer = self._customer(customer) if isinstance(customer, str) else customer
         merged, currency, _ = self._merged(customer, rolled_up=False)
         trend = consumption_analysis.monthly_totals(merged, months.month_of(self._today()), measure)
         return trend, (currency or "").strip() or None, customer.get("commitment")
