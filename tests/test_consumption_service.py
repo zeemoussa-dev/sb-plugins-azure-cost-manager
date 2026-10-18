@@ -275,3 +275,20 @@ def test_windows_split_on_gaps_and_at_twelve_months():
 
     assert [(w[0], w[-1]) for w in _windows(wanted)] == [("2025-01", "2025-12"), ("2026-01", "2026-01"),
                                                          ("2026-03", "2026-03")]
+
+
+def test_one_enrollment_failing_unexpectedly_does_not_stop_the_others(fake_api):
+    class Broken(FakeAzure):
+        def query_monthly_cost(self, account_name, cost_type, first_month, last_month):
+            if account_name == "10000002":
+                raise ConnectionResetError("[WinError 10054] An existing connection was forcibly closed")
+            return super().query_monthly_cost(account_name, cost_type, first_month, last_month)
+
+    azure = Broken()
+    store, book, sync, *_ = build(fake_api, azure)
+    book.save(None, {"name": "Contoso", "accounts": ["10000002", "20000001"]})
+
+    sync.run()
+
+    assert store.account("20000001").get("synced_at")
+    assert [error["account"] for error in sync.status()["errors"]] == ["10000002"]

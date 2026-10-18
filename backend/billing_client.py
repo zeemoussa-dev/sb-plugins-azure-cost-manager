@@ -29,6 +29,11 @@ TAGS_API = CONSUMPTION_API
 # here; a longer one raises `AzureThrottled`, which the sync waits out itself.
 _LONGEST_INLINE_WAIT_SECONDS = 60
 _ATTEMPTS = 4
+# A dropped connection or a timeout is tried again after each of these pauses; then
+# the request fails as an `AzureApiError`, which the sync records for its window and
+# moves past. A connection reset right after a throttle wait (WinError 10054) once
+# stopped a whole Sync all at enrollment 26 of 38 (2026-10-18).
+_NETWORK_RETRY_SECONDS = (2, 10, 30)
 
 COST_TYPES = ("ActualCost", "AmortizedCost")
 
@@ -123,10 +128,24 @@ class BillingClient:
         self._observe.request_finished(what, response.status_code, time.monotonic() - started, page)
         return response
 
+    def _send_retrying(self, method: str, url: str, params: dict | None, body: dict | None) -> httpx.Response:
+        for pause in (*_NETWORK_RETRY_SECONDS, None):
+            try:
+                return self._send(method, url, params, body)
+            except httpx.TransportError as exc:
+                failure = f"{type(exc).__name__} {exc}".strip()
+                if pause is None:
+                    raise AzureApiError(0, f"The network failed {len(_NETWORK_RETRY_SECONDS) + 1} times "
+                                           f"in a row: {failure}") from exc
+                if self._observe is not None:
+                    self._observe.note(f"network: {failure}; trying again in {pause} s")
+                self._sleep(pause)
+        raise AssertionError("unreachable")
+
     def _request(self, method: str, url: str, *, params: dict | None = None,
                  body: dict | None = None) -> dict:
         for attempt in range(_ATTEMPTS):
-            response = self._send(method, url, params, body)
+            response = self._send_retrying(method, url, params, body)
             if response.status_code == 401 and attempt == 0:
                 self._token.forget()
                 continue

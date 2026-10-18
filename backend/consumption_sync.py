@@ -16,6 +16,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
 from . import months, tags
+from .azure_token import AzureSignInError
 from .billing_client import COST_TYPES, AzureApiError, AzureThrottled, BillingClient
 from .consumption_store import SETTLING_DAYS, ConsumptionStore, is_settled
 from .customers import AccountDirectory
@@ -305,7 +306,7 @@ class ConsumptionSync:
         self._note_skipped(len(accounts) - len(due), "tags")
         self._set(accounts_done=0, accounts_total=len(due))
         for done, account in enumerate(due, start=1):
-            self._sync_account_tags(client, account, wanted)
+            self._one_enrollment(account, lambda: self._sync_account_tags(client, account, wanted))
             self._store.flush()
             self._set(accounts_done=done)
 
@@ -348,6 +349,17 @@ class ConsumptionSync:
                     self._store.save_account(account, entry)
         state["synced_at"] = self._now().isoformat()
         self._store.save_account(account, entry)
+
+    def _one_enrollment(self, account: str, sync_it: Callable[[], None]) -> None:
+        """One enrollment's unexpected failure is recorded and the sync goes on to the
+        next; it used to end the whole run. A lost sign-in still ends it, since every
+        enrollment after would fail the same way."""
+        try:
+            sync_it()
+        except AzureSignInError:
+            raise
+        except Exception as exc:
+            self._record_error(account, f"stopped on this enrollment: {exc}")
 
     def _note_skipped(self, skipped: int, what: str) -> None:
         if skipped and self._log:
@@ -416,7 +428,8 @@ class ConsumptionSync:
         self._set(accounts_done=0, accounts_total=len(due))
         client = self._client_factory()
         for done, name in enumerate(due, start=1):
-            self._sync_account(client, name, first_month_by_account[name], visible.get(name) or {})
+            self._one_enrollment(name, lambda: self._sync_account(client, name, first_month_by_account[name],
+                                                                  visible.get(name) or {}))
             self._store.flush()
             self._set(accounts_done=done)
 
@@ -436,7 +449,7 @@ class ConsumptionSync:
         self._set(accounts_done=0, accounts_total=len(profiles))
         client = self._client_factory()
         for done, account in enumerate(sorted(profiles, key=lambda a: a["display_name"].lower()), start=1):
-            self._sync_profile(client, account)
+            self._one_enrollment(account["name"], lambda: self._sync_profile(client, account))
             self._store.flush()
             self._set(accounts_done=done)
 

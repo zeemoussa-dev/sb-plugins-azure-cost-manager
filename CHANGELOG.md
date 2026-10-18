@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.27.0] - 2026-10-18
+
+- fix: **a dropped connection stopped the whole sync** (operator, 2026-10-18: "sync stopped: [WinError 10054] An existing connection was forcibly closed by the remote host"). A reset right after a throttle wait ended a Sync all at enrollment 26 of 38. A dropped connection or a timeout is now tried again after 2, 10 and 30 seconds; the sync log notes each retry. If the network stays down, that request fails like any Azure error, so the window is recorded as a problem and the sync moves on. Any other unexpected failure on one enrollment is also recorded and the sync goes on to the next. Only a lost `az login` still ends the run, since every enrollment after it would fail the same way.
+
 ## [0.26.0] - 2026-10-18
 
 - perf: **Sync daily data fetches from a marker** (operator, 2026-10-18: "why no marker, and fetch only after that?"). Each enrollment remembers the last day it was fetched to. A refresh asks again only from 5 days before that day, because Azure keeps revising the latest days for that long, and keeps every earlier day as stored. Fetched through 18 October, the next refresh asks for 13 October onward instead of the whole month. Into a new month the window moves with it, and the last days of the month before are still asked again. Because a refresh is now this small, the 6-hour skip is gone and Sync daily data always brings the latest days.

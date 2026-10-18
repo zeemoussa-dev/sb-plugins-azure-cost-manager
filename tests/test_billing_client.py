@@ -127,3 +127,24 @@ def test_the_cli_token_is_reused_until_close_to_expiry():
 
     assert token.get() == token.get() == "abc"
     assert len(calls) == 1
+
+
+def test_a_dropped_connection_is_tried_again():
+    drops = [httpx.ConnectError("[WinError 10054] An existing connection was forcibly closed")] * 2
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if drops:
+            raise drops.pop()
+        return httpx.Response(200, json=query_page([], ["Cost", "UsageDate", "ServiceName", "SubscriptionName"]))
+
+    assert client_answering(handler).query_monthly_cost("acct", "ActualCost", "2026-09", "2026-09") == []
+
+
+def test_a_network_that_stays_down_fails_the_request_not_the_sync():
+    from backend.billing_client import AzureApiError
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("timed out")
+
+    with pytest.raises(AzureApiError, match="network failed 4 times"):
+        client_answering(handler).query_monthly_cost("acct", "ActualCost", "2026-09", "2026-09")
