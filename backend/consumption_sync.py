@@ -192,6 +192,10 @@ class ConsumptionSync:
         accounts = sorted({name for customer in customers for name in customer["accounts"]})
         today = self._today()
         first_day = months.first_day(months.shift(months.month_of(today), -1)).isoformat()
+        if not accounts:
+            # A refresh once ended "0 of 0" with nothing to say why (2026-10-18).
+            self._record_error(None, f"this month: no enrollments found for {customer_id or 'any customer'} "
+                                     f"among {len(everyone)} customers")
         self._set(accounts_done=0, accounts_total=len(accounts))
         client = self._client_factory()
         for done, account in enumerate(accounts, start=1):

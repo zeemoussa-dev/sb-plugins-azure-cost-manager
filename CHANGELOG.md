@@ -5,6 +5,7 @@ All notable changes to the Azure Cost Manager plugin.
 ## [0.22.0] - 2026-10-18
 
 - feat: **Sync activity log and Sync details** (operator, 2026-10-18: "I need to know why it gets stuck sometimes"). Every sync run is now logged to `Azure-Cost-Manager/Sync-Log.json`: each step, every Azure request and page with its status and duration, each throttle wait, each error. The last 12 runs are kept, with up to 1,500 events each. A run the backend stopped by restarting is closed as *interrupted* at the last thing it did. A folding **Sync details** panel under every Sync button shows how long the current step and the Azure request in flight have taken. It also lists the last runs (scope, duration, outcome, requests, pages, throttle waits, errors); open one to read its events. `GET /sync` gains `step_started_at` and `in_flight`; new routes are `GET /sync/log` and `GET /sync/log/{run_id|latest}`.
+- fix: a Refresh this month that finds no enrollments for the customer now says so as a sync problem, instead of ending "0 of 0" without a word.
 - fix: a throttle wait's `waiting_seconds` stayed on the status after the wait ended, so the banner kept saying Azure asked to wait.
 
 ## [0.21.0] - 2026-10-18

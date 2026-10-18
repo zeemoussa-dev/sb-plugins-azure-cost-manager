@@ -162,3 +162,15 @@ def test_the_sync_logs_its_run_steps_and_throttle_waits(fake_api):
     assert (run["scope"], run["outcome"], run["throttle_waits"]) == ("all:this-month", "finished", 1)
     assert [event["kind"] for event in log.events()["events"]] == ["step", "wait"]
     assert sync.status()["step_started_at"] is None and "waiting_seconds" not in (sync.status()["current"] or {})
+
+
+def test_a_refresh_that_finds_no_enrollments_says_so(fake_api):
+    fake_api.get_service = lambda name: None
+    store = ConsumptionStore(fake_api)
+    directory = AccountDirectory(lambda: [])
+    sync = ConsumptionSync(store, directory, lambda: None, today=lambda: date(2026, 10, 18), now=ticking(),
+                           sleep=lambda _: None)
+
+    sync.run_this_month("adnoc")
+
+    assert "no enrollments found for adnoc" in sync.status()["errors"][0]["message"]
