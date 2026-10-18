@@ -166,6 +166,24 @@ def test_an_unlinked_customer_keeps_its_value_here(fake_api):
     assert service.writes == []
 
 
+def test_note_reads_are_cached_for_a_minute_and_a_save_updates_the_cache(fake_api):
+    service = FakeCustomers({"ADNOC": dict(SIGNED)})
+    asked: list[str] = []
+    original = service.commitment
+    service.commitment = lambda stem: (asked.append(stem), original(stem))[1]
+    fake_api.get_service = lambda name: service if name == "entities.customers" else None
+    clock = {"now": 0.0}
+    notes = CommitmentNotes(fake_api, clock=lambda: clock["now"])
+
+    notes.read("ADNOC"); notes.read("ADNOC")
+    assert asked == ["ADNOC"]                       # the second read came from the cache
+    notes.write("ADNOC", {**SIGNED, "amount": 1})
+    assert notes.read("ADNOC")["amount"] == 1 and asked == ["ADNOC"]   # a save is seen at once
+    service.notes["ADNOC"] = {**SIGNED, "amount": 2}                   # an edit in Obsidian ...
+    clock["now"] = 61.0
+    assert notes.read("ADNOC")["amount"] == 2                          # ... shows within the minute
+
+
 def test_the_sync_reads_the_term_start_from_the_note(fake_api):
     customers, _ = book(fake_api, FakeCustomers({"ADNOC": dict(SIGNED)}), [linked()])
 

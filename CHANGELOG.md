@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.19.1] - 2026-10-18
+
+- perf: **the customer list took 9-15 s once every customer had a note.** Each listing read all 99 MACCs from their notes through Entities, and each read scans the vault index; Core42 Insight, which lists customers many times, took 38 s (operator: the Insight report "takes forever to load"). Note reads are now cached for a minute; a save here updates the cache at once, and an edit in Obsidian shows within the minute.
+
 ## [0.19.0] - 2026-10-18
 
 - feat: `azure-cost-manager.consumption` gains `customers()` -- every customer here, linked to a note or not (id, name, parent_id, customer_stem or None, currency, route) -- and `monthly_of(customer_id, ...)`, `monthly()`'s exact shape by Cost Manager id. For Core42 Insight, where a parent's terms cover affiliates that have no note of their own (operator, 2026-10-18). `linked()` and `monthly()` are unchanged.
