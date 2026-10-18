@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.23.0] - 2026-10-18
+
+- feat: **Core42 revenue** (operator, 2026-10-18: "Core42 sees revenue from the MACC in total except Marketplace transactions that Core42 didn't create"). It is the MACC burn less Marketplace bought from any publisher other than Core42 or G42. The dashboard's Marketplace filter is now a choice of *All (MACC burn)*, *Core42's only (Core42 revenue)* or *None*, and the credits filter still applies to each. A customer's Overview gains a **Core42 revenue** KPI (all time and this year). The Excel workbook adds Core42 revenue to its summary and follows the filter. The `azure-cost-manager.consumption` service gives every month `core42_marketplace` and `core42_revenue`, and accepts `include_marketplace="core42"`. Core42's Marketplace is read from each month's Marketplace charges, so a month whose charges have not been fetched counts none.
+- change: **Marketplace and credits always count against the signed value.** The per-commitment switches (*Marketplace counts against it*, *Credits reduce what counts against it*) are gone, and the burn-down always counts usage plus all Marketplace, less credits. An offer marked as not eligible on the Marketplace report is still left out.
+
 ## [0.22.0] - 2026-10-18
 
 - feat: **Sync activity log and Sync details** (operator, 2026-10-18: "I need to know why it gets stuck sometimes"). Every sync run is now logged to `Azure-Cost-Manager/Sync-Log.json`: each step, every Azure request and page with its status and duration, each throttle wait, each error. The last 12 runs are kept, with up to 1,500 events each. A run the backend stopped by restarting is closed as *interrupted* at the last thing it did. A folding **Sync details** panel under every Sync button shows how long the current step and the Azure request in flight have taken. It also lists the last runs (scope, duration, outcome, requests, pages, throttle waits, errors); open one to read its events. `GET /sync` gains `step_started_at` and `in_flight`; new routes are `GET /sync/log` and `GET /sync/log/{run_id|latest}`.

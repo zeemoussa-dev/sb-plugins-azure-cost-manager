@@ -43,11 +43,15 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                  log: SyncLog | None = None) -> APIRouter:
     router = APIRouter()
 
-    def measure(marketplace: bool, credits: bool) -> dict:
-        return {"marketplace": marketplace, "credits": credits}
+    def measure(marketplace: str, credits: bool) -> dict:
+        """`marketplace`: true, false, or core42 (only Core42's own offers: Core42 revenue)."""
+        chosen = marketplace.strip().lower()
+        if chosen not in ("true", "false", "core42"):
+            raise HTTPException(status_code=400, detail="marketplace is true, false or core42")
+        return {"marketplace": "core42" if chosen == "core42" else chosen == "true", "credits": credits}
 
     @router.get("/customers/{customer_id}/export.xlsx")
-    def get_export(customer_id: str, marketplace: bool = True, credits: bool = True, view: str = "account") -> Response:
+    def get_export(customer_id: str, marketplace: str = "true", credits: bool = True, view: str = "account") -> Response:
         name, workbook = _answered(lambda: service.export(customer_id, measure(marketplace, credits), view))
         return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
@@ -159,7 +163,7 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return service.portfolio()
 
     @router.get("/customers/{customer_id}/analysis")
-    def get_analysis(customer_id: str, marketplace: bool = True, credits: bool = True, view: str = "account") -> dict:
+    def get_analysis(customer_id: str, marketplace: str = "true", credits: bool = True, view: str = "account") -> dict:
         return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits), view))
 
     @router.get("/customers/{customer_id}/finops")

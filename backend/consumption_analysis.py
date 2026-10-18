@@ -28,7 +28,17 @@ BREAKDOWNS = ("service", "subscription")
 # seller's quota, and a credit (e.g. a Contract Price Match Credit) lowers what
 # was billed -- so both are switches (operator, 2026-10-16). Including Marketplace
 # and subtracting credits is the partner export's "Total Consumption".
+# `marketplace` may also be "core42": Core42's revenue is the whole MACC burn except
+# Marketplace bought from other publishers (operator, 2026-10-18).
 DEFAULT_MEASURE = {"marketplace": True, "credits": True}
+MARKETPLACE_MEASURES = (True, False, "core42")
+# Publisher names that are Core42's own Marketplace offers (operator: Core42 and G42).
+CORE42_PUBLISHER_MARKS = ("core42", "g42")
+
+
+def is_core42_publisher(publisher: str) -> bool:
+    lowered = (publisher or "").lower().replace(" ", "")
+    return any(mark in lowered for mark in CORE42_PUBLISHER_MARKS)
 
 
 def _pct(new: float, old: float) -> float | None:
@@ -44,14 +54,22 @@ def _add(into: dict[str, float], name: str, cost: float) -> None:
 def _empty_month() -> dict:
     return {**{kind: {"service": {}, "subscription": {}, "account": {}} for kind in COST_KINDS},
             "meters": {},
-            "measured": {"usage": 0.0, "marketplace": 0.0, "marketplace_macc": 0.0, "credits": 0.0,
-                         "credit_details": {}, "by_account": {}, "from_balance": 0}}
+            "measured": {"usage": 0.0, "marketplace": 0.0, "marketplace_macc": 0.0, "marketplace_core42": 0.0,
+                         "credits": 0.0, "credit_details": {}, "by_account": {}, "from_balance": 0}}
 
 
 def _not_eligible_marketplace(data: dict, not_eligible: set[str]) -> float:
     """The month's Marketplace spend on offers marked as not counting toward a MACC."""
     return sum(item["cost"] for item in (data.get("marketplace") or {}).get("items") or []
                if f"{item['publisher']}|{item['offer']}" in not_eligible)
+
+
+def core42_marketplace(data: dict) -> float:
+    """The month's Marketplace spend on Core42's own offers -- the only Marketplace
+    that is Core42 revenue. Read from the month's charges, so a month whose
+    Marketplace has not been fetched counts none."""
+    return sum(item["cost"] for item in (data.get("marketplace") or {}).get("items") or []
+               if is_core42_publisher(item.get("publisher", "")))
 
 
 def merge(entries: dict[str, dict], labels: dict[str, str] | None = None,
@@ -87,13 +105,14 @@ def merge(entries: dict[str, dict], labels: dict[str, str] | None = None,
                 marketplace = balance.get("marketplace", 0.0)
                 parts = {"usage": balance.get("usage", 0.0), "marketplace": marketplace,
                          "marketplace_macc": marketplace - _not_eligible_marketplace(data, not_eligible or set()),
+                         "marketplace_core42": core42_marketplace(data),
                          "credits": balance.get("credits", 0.0)}
                 target["measured"]["from_balance"] += 1
                 for detail in balance.get("credit_details") or []:
                     _add(target["measured"]["credit_details"], detail.get("name") or "Credit", detail["value"])
             else:
                 parts = {"usage": sum(((data.get("actual") or {}).get("service") or {}).values()),
-                         "marketplace": 0.0, "marketplace_macc": 0.0, "credits": 0.0}
+                         "marketplace": 0.0, "marketplace_macc": 0.0, "marketplace_core42": 0.0, "credits": 0.0}
             for key, value in parts.items():
                 target["measured"][key] += value
             if any(parts.values()):
@@ -102,11 +121,14 @@ def merge(entries: dict[str, dict], labels: dict[str, str] | None = None,
 
 
 def measured_total(parts: dict, measure: dict | None = None) -> float:
-    """`measure["marketplace"]` is True (all of it), False (none), or "macc" (only
-    offers not marked as ineligible -- what burns a MACC)."""
+    """`measure["marketplace"]` is True (all of it), False (none), "macc" (only
+    offers not marked as ineligible -- what burns a MACC) or "core42" (only Core42's
+    own offers -- what makes the total Core42's revenue)."""
     measure = {**DEFAULT_MEASURE, **(measure or {})}
     if measure["marketplace"] == "macc":
         marketplace = parts.get("marketplace_macc", parts.get("marketplace", 0.0))
+    elif measure["marketplace"] == "core42":
+        marketplace = parts.get("marketplace_core42", 0.0)
     else:
         marketplace = parts.get("marketplace", 0.0) if measure["marketplace"] else 0.0
     return parts.get("usage", 0.0) + marketplace - (parts.get("credits", 0.0) if measure["credits"] else 0.0)
@@ -131,13 +153,16 @@ def monthly_totals(merged: dict, current_month: str, measure: dict | None = None
     for month in sorted(merged):
         measured = merged[month].get("measured") or {"usage": _total(merged, month)}
         actual = measured_total(measured, measure)
+        core42_revenue = measured_total(measured, {**DEFAULT_MEASURE, **(measure or {}), "marketplace": "core42"})
         partial = month >= current_month
         trend.append({"month": month, "actual": round(actual, 2),
                       "amortized": round(_total(merged, month, "amortized"), 2),
                       "cost_management": round(_total(merged, month), 2),
                       "usage": round(measured.get("usage", 0.0), 2),
                       "marketplace": round(measured.get("marketplace", 0.0), 2),
+                      "marketplace_core42": round(measured.get("marketplace_core42", 0.0), 2),
                       "credits": round(measured.get("credits", 0.0), 2),
+                      "core42_revenue": round(core42_revenue, 2),
                       "mom_pct": None if partial or previous is None else _pct(actual, previous),
                       "partial": partial})
         if not partial:
@@ -203,10 +228,10 @@ def run_rate(trend: list[dict]) -> float | None:
 
 
 def commitment_measure(commitment: dict) -> dict:
-    """What counts against the signed value: by default Marketplace burns the MACC
-    and a credit lowers what was billed against it."""
-    return {"marketplace": "macc" if commitment.get("include_marketplace", True) else False,
-            "credits": commitment.get("subtract_credits", True)}
+    """What counts against the signed value: Marketplace always burns the MACC --
+    except offers marked as not eligible -- and a credit always lowers what was
+    billed against it (operator, 2026-10-18: no per-commitment switches)."""
+    return {"marketplace": "macc", "credits": True}
 
 
 def burn_down(commitment: dict | None, trend: list[dict], today: date,

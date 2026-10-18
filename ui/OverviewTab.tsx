@@ -63,7 +63,14 @@ function Kpis({ analysis }: { analysis: Analysis }) {
       ) : null}
       {kpis.marketplace_all_time ? (
         <Kpi label="Marketplace" value={money(kpis.marketplace_all_time, currency)}
-             detail={analysis.measure.marketplace ? 'included in totals' : 'excluded from totals'} />
+             detail={analysis.measure.marketplace === 'core42'
+               ? `only Core42's ${money(kpis.core42_marketplace_all_time ?? 0, currency)} in totals`
+               : analysis.measure.marketplace ? 'included in totals' : 'excluded from totals'} />
+      ) : null}
+      {kpis.core42_revenue_all_time != null ? (
+        <Kpi label="Core42 revenue" value={money(kpis.core42_revenue_all_time, currency)}
+             detail={`${money(kpis.core42_revenue_this_year ?? 0, currency)} this year · without other publishers' Marketplace${
+               analysis.measure.credits ? ', less credits' : ''}`} />
       ) : null}
     </div>
   );
@@ -91,8 +98,7 @@ function CommitmentCard({ analysis }: { analysis: Analysis }) {
       <dl className="azure-cost-facts">
         <dt>Signed</dt><dd>{formatMoney(commitment.amount, currency)} ({commitment.type})</dd>
         <dt>Counts</dt>
-        <dd>Marketplace {commitment.include_marketplace === false ? 'not counted' : 'counted'}, credits{' '}
-          {commitment.subtract_credits === false ? 'not subtracted' : 'subtracted'}</dd>
+        <dd>Usage and all Marketplace (except offers marked as not eligible), less credits</dd>
         <dt>Consumed</dt><dd>{formatMoney(commitment.consumed, currency)} ({commitment.consumed_pct}%)</dd>
         <dt>Against an even pace</dt>
         <dd className={commitment.pace_gap < 0 ? 'azure-cost-warning' : undefined}>

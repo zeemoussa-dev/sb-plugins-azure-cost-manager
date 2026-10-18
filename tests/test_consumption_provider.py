@@ -51,10 +51,11 @@ def test_a_parent_counts_only_its_own_enrollments_and_the_switches_change_the_to
 
     september = next(row for row in everything["months"] if row["month"] == "2026-09")
     assert september == {"month": "2026-09", "usage": 1000, "marketplace": 100, "credits": 50, "total": 1050,
-                         "closed": True}
+                         "closed": True, "core42_marketplace": 0, "core42_revenue": 950}
     assert next(row for row in usage_only["months"] if row["month"] == "2026-09")["total"] == 1000
     assert everything["months"][-1] == {"month": "2026-10", "usage": 300, "marketplace": 0, "credits": 0,
-                                        "total": 300, "closed": False}
+                                        "total": 300, "closed": False, "core42_marketplace": 0,
+                                        "core42_revenue": 300}
     assert everything["route"] == "/azure-cost-manager/report?report=Overview&customer=holding"
     assert everything["commitment"] == {"amount": 1_000_000, "start": "2026-01-01", "end": "2027-03-31"}
 

@@ -35,7 +35,8 @@ export interface Commitment {
 }
 
 export interface Measure {
-  marketplace: boolean;
+  /** All Marketplace, none, or only Core42's own offers -- which makes the totals Core42's revenue. */
+  marketplace: boolean | 'core42';
   credits: boolean;
 }
 
@@ -276,6 +277,11 @@ export interface DashboardKpis {
   next_year_forecast: number | null;
   credits_all_time: number;
   marketplace_all_time: number;
+  /** Marketplace bought from Core42 or G42 -- the only Marketplace that is Core42 revenue. */
+  core42_marketplace_all_time?: number;
+  /** The burn less Marketplace from other publishers; credits as the filter says. */
+  core42_revenue_all_time?: number;
+  core42_revenue_this_year?: number;
   commitment_consumed_pct?: number;
   commitment_remaining?: number;
   runway_months?: number | null;

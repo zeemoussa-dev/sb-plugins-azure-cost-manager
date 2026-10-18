@@ -53,7 +53,8 @@ def build(trend: list[dict], merged: dict, today: date, commitment: dict | None,
     mix = []
     for row in trend:
         data = merged.get(row["month"]) or {}
-        marketplace = row["marketplace"] if measure["marketplace"] else 0.0
+        marketplace = (row.get("marketplace_core42", 0.0) if measure["marketplace"] == "core42"
+                       else row["marketplace"] if measure["marketplace"] else 0.0)
         mix.append({"month": row["month"], "lines": categories.mix(row["actual"], data.get("meters") or {}, marketplace)})
 
     accounts = sorted({label for data in merged.values() for label in (data.get("actual") or {}).get("account", {})})
@@ -113,6 +114,10 @@ def build(trend: list[dict], merged: dict, today: date, commitment: dict | None,
         "next_year_forecast": automatic["next_year_total"] if automatic else None,
         "credits_all_time": round(sum(row["credits"] for row in trend), 2),
         "marketplace_all_time": round(sum(row["marketplace"] for row in trend), 2),
+        "core42_marketplace_all_time": round(sum(row.get("marketplace_core42", 0.0) for row in trend), 2),
+        "core42_revenue_all_time": round(sum(row.get("core42_revenue", 0.0) for row in trend), 2),
+        "core42_revenue_this_year": round(sum(row.get("core42_revenue", 0.0) for row in trend
+                                              if row["month"].startswith(f"{this_year:04d}-")), 2),
     }
     if commitment:
         kpis.update({

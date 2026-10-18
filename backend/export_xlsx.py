@@ -21,7 +21,7 @@ from openpyxl.chart.label import DataLabelList
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from . import categories, xlsx_pivot
+from . import categories, consumption_analysis, xlsx_pivot
 from .office_theme import THEME_XML
 
 
@@ -191,19 +191,27 @@ def _components(data: dict, measure: dict) -> dict[str, float]:
     measured = data.get("measured")
     if measured is not None:  # a merged month
         usage, marketplace, credits = measured["usage"], measured["marketplace"], measured["credits"]
+        core42 = measured.get("marketplace_core42", 0.0)
     elif balance and not balance.get("missing"):
         usage, marketplace, credits = balance["usage"], balance["marketplace"], balance["credits"]
+        core42 = consumption_analysis.core42_marketplace(data)
     else:
         usage = sum(((data.get("actual") or {}).get("service") or {}).values())
-        marketplace = credits = 0.0
+        marketplace = credits = core42 = 0.0
     lines = _lines(data.get("meters") or {})
     special = lines["GPU H100"] + lines["GPU H200"] + lines["GPU other"] + lines["PTU"]
-    marketplace_counted = marketplace if measure["marketplace"] else 0.0
+    marketplace_counted = core42 if measure["marketplace"] == "core42" else marketplace if measure["marketplace"] else 0.0
     credits_counted = credits if measure["credits"] else 0.0
     return {"marketplace": marketplace, "credits": credits, "azure": usage - special,
             "gpu_h100": lines["GPU H100"], "gpu_h200": lines["GPU H200"], "gpu_other": lines["GPU other"],
             "ptu": lines["PTU"], "openai_tokens": lines["OpenAI tokens"],
             "total": usage + marketplace_counted - credits_counted}
+
+
+def _marketplace_counted(measure: dict) -> str:
+    if measure["marketplace"] == "core42":
+        return "Core42's own offers only (Core42 revenue)"
+    return "included" if measure["marketplace"] else "excluded"
 
 
 # -- sheets ------------------------------------------------------------------------
@@ -217,7 +225,7 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
     sheet = _new_sheet(
         workbook, "Dashboard", f"Azure Consumption Dashboard – {customer['name']}",
         f"Data through {kpis['latest_month'] or '—'}  ·  {kpis['months_of_history']} months of history  ·  "
-        f"{len(customer['accounts'])} billing profiles  ·  Marketplace {'included' if measure['marketplace'] else 'excluded'}"
+        f"{len(customer['accounts'])} billing profiles  ·  Marketplace {_marketplace_counted(measure)}"
         f", credits {'subtracted' if measure['credits'] else 'not subtracted'}  ·  exported {today.isoformat()}",
         tab=NAVY, sheet=workbook.active)
     sheet.sheet_view.zoomScale = 115
@@ -284,9 +292,7 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
                  ("At term end, at run rate ($)", commitment["projected_at_end"], MONEY),
                  ("At term end, with pipeline ($)", commitment["projected_with_pipeline"], MONEY),
                  ("Projected exhaustion month", commitment["projected_exhaustion"] or "not within term", None),
-                 ("Marketplace counted / credits subtracted",
-                  f"{'yes' if commitment.get('include_marketplace', True) else 'no'} / "
-                  f"{'yes' if commitment.get('subtract_credits', True) else 'no'}", None)]
+                 ("Counted against it", "all Marketplace (except excluded offers), less credits", None)]
     else:
         facts = [("No signed value entered for this customer", "", None)]
     for offset, (label, value, number_format) in enumerate(facts, start=3):
@@ -307,7 +313,10 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
     summary = [["Total consumption – all time", kpis["all_time"], "", "Billing profiles", len(customer["accounts"])],
                ["Months of history", kpis["months_of_history"], "", "First month", kpis["first_month"]],
                ["Marketplace – all time", kpis["marketplace_all_time"], "", "Latest closed month", kpis["latest_month"]],
-               ["Credits applied – all time", kpis["credits_all_time"], "", "Current month so far", kpis["current_so_far"]]]
+               ["Credits applied – all time", kpis["credits_all_time"], "", "Current month so far", kpis["current_so_far"]],
+               # Core42's revenue: the MACC burn less Marketplace from other publishers.
+               ["Core42 revenue – all time", kpis.get("core42_revenue_all_time"), "",
+                f"Core42 revenue – {today.year}", kpis.get("core42_revenue_this_year")]]
     for offset, values in enumerate(summary, start=1):
         for column, value in enumerate(values, start=1):
             if column == 3:

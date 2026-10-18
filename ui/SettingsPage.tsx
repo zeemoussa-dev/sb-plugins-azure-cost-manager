@@ -195,16 +195,10 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
         <input value={value.commitment.note} onChange={(event) => setCommitment('note', event.target.value)}
                placeholder="e.g. MACC signed with the 2024 renewal" />
       </label>
-      <label className="azure-cost-check">
-        <input type="checkbox" checked={value.commitment.include_marketplace}
-               onChange={(event) => setCommitment('include_marketplace', event.target.checked)} />
-        Marketplace counts against it
-      </label>
-      <label className="azure-cost-check">
-        <input type="checkbox" checked={value.commitment.subtract_credits}
-               onChange={(event) => setCommitment('subtract_credits', event.target.checked)} />
-        Credits reduce what counts against it
-      </label>
+      <p className="text-muted azure-cost-note">
+        Usage and all Marketplace count against it, less credits. An offer marked as not eligible on the
+        Marketplace report is left out.
+      </p>
 
       <h4>Monthly budget (FinOps)</h4>
       <p className="text-muted azure-cost-note">

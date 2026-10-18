@@ -82,19 +82,22 @@ class ConsumptionProvider:
                         "route": _route(customer["id"])} for customer in everyone),
                       key=lambda row: row["name"].lower())
 
-    def monthly_of(self, customer_id: str, include_marketplace: bool = True,
+    def monthly_of(self, customer_id: str, include_marketplace: bool | str = True,
                    subtract_credits: bool = True) -> dict | None:
         """`monthly()` for a customer named by its id here; None for an unknown id."""
         customer = next((listed for listed in self._everyone() if listed["id"] == customer_id), None)
         return self._monthly(customer, include_marketplace, subtract_credits) if customer else None
 
-    def monthly(self, customer_stem: str, include_marketplace: bool = True,
+    def monthly(self, customer_stem: str, include_marketplace: bool | str = True,
                 subtract_credits: bool = True) -> dict | None:
         customer = self._speaker(customer_stem)
         return self._monthly(customer, include_marketplace, subtract_credits) if customer else None
 
-    def _monthly(self, customer: dict, include_marketplace: bool, subtract_credits: bool) -> dict:
-        measure = {"marketplace": bool(include_marketplace), "credits": bool(subtract_credits)}
+    def _monthly(self, customer: dict, include_marketplace: bool | str, subtract_credits: bool) -> dict:
+        """`include_marketplace="core42"` counts only Core42's own Marketplace offers, so
+        `total` is Core42's revenue; every month also carries `core42_revenue` beside it."""
+        marketplace = "core42" if include_marketplace == "core42" else bool(include_marketplace)
+        measure = {"marketplace": marketplace, "credits": bool(subtract_credits)}
         trend, currency, commitment = self._service.own_monthly(customer, measure)
         today = self._today()
         current = months.month_of(today)
@@ -104,7 +107,8 @@ class ConsumptionProvider:
         return {
             "currency": currency or "USD",
             "months": [{"month": row["month"], "usage": row["usage"], "marketplace": row["marketplace"],
-                        "credits": row["credits"], "total": row["actual"], "closed": not row["partial"]}
+                        "credits": row["credits"], "total": row["actual"], "closed": not row["partial"],
+                        "core42_marketplace": row["marketplace_core42"], "core42_revenue": row["core42_revenue"]}
                        for row in trend],
             "forecast": forecast,
             "commitment": {key: commitment[key] for key in ("amount", "start", "end")} if commitment else None,
