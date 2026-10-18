@@ -6,11 +6,12 @@ import { errorText } from './format';
 
 export const REPORT_PATH = '/azure-cost-manager/report';
 
-export const REPORTS = ['Overview', 'Forecast', 'Pipeline', 'Marketplace', 'FinOps', 'Tags', 'Breakdown'] as const;
+export const REPORTS = ['Overview', 'This month', 'Forecast', 'Pipeline', 'Marketplace', 'FinOps', 'Tags', 'Breakdown'] as const;
 export type Report = typeof REPORTS[number];
 
 const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
   Overview: { title: 'Consumption overview', summary: 'Signed MACC, burn-down, monthly consumption, top services and anomalies.' },
+  'This month': { title: 'This month', summary: 'This month so far, day by day: pace against last month and every new service, subscription or resource group -- early signs of an opportunity.' },
   Forecast: { title: 'Forecast', summary: 'Run rate and where consumption lands by the end of the term.' },
   Pipeline: { title: 'Pipeline', summary: 'The customer\'s Opportunities and their effect on consumption.' },
   Marketplace: { title: 'Marketplace', summary: 'The partner solutions one customer bought, and what they burn of its MACC.' },

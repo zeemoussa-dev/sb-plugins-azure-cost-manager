@@ -13,6 +13,7 @@ import { ForecastTab } from './ForecastTab';
 import { CustomerPortfolio } from './CustomerPortfolio';
 import { FinOpsTab } from './FinOpsTab';
 import { TagsTab } from './TagsTab';
+import { ThisMonthTab } from './ThisMonthTab';
 import { errorText } from './format';
 import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
@@ -61,6 +62,7 @@ function CustomerView({ customerId, measure, syncedVersion, report, view }: {
           : report === 'Marketplace' ? <MarketplaceTab customerId={customerId} currency={analysis.currency} syncedVersion={syncedVersion} />
           : report === 'FinOps' ? <FinOpsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
           : report === 'Tags' ? <TagsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
+          : report === 'This month' ? <ThisMonthTab customerId={customerId} view={view} />
           : nothingBilled ? <p className="empty-state">Nothing was billed on these enrollments in the synced period.</p>
             : report === 'Overview' ? <OverviewTab analysis={analysis} />
               : report === 'Forecast' ? <ForecastTab analysis={analysis} onChanged={reload} />

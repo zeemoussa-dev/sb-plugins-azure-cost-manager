@@ -569,6 +569,42 @@ export interface FinOpsAcrossRow {
 
 export const fetchFinOps = (id: string) => apiFetch<FinOps>(`${customer(id)}/finops`);
 export const fetchFinOpsAcross = () => apiFetch<FinOpsAcrossRow[]>(`${BASE}/finops`);
+export interface MonthRow {
+  name: string;
+  this_month: number;
+  last_month_same_days: number;
+  change: number;
+  change_pct: number | null;
+  new: boolean;
+}
+
+export interface ThisMonth {
+  customer: { id: string; name: string; entity_customer: string | null };
+  currency: string | null;
+  has_data: boolean;
+  fetched_at?: string;
+  month?: string;
+  /** The last day Azure has data for -- it lags a day or two. */
+  through?: string | null;
+  days_elapsed?: number;
+  days_in_month?: number;
+  month_to_date?: number;
+  last_month_same_days?: number;
+  pace_pct?: number | null;
+  projected_month_end?: number | null;
+  last_month_total?: number;
+  daily?: { day: number; this_month: number | null; last_month: number | null;
+    this_month_to_date: number | null; last_month_to_date: number | null }[];
+  dimensions?: Record<'service' | 'subscription' | 'resource_group',
+    { label: string; movers: MonthRow[]; new: MonthRow[]; top: MonthRow[] }>;
+  new_workloads?: { kind: string; kind_label: string; name: string; this_month: number }[];
+}
+
+export const fetchThisMonth = (id: string) => apiFetch<ThisMonth>(`${customer(id)}/this-month`);
+export const refreshThisMonth = (customerId: string) =>
+  apiFetch<SyncStatus & { started: boolean }>(`${BASE}/sync/this-month?customer=${encodeURIComponent(customerId)}`,
+    { method: 'POST' });
+
 export interface TagDimension {
   dimension: string;
   /** The tag keys queried for it, at most four, exact spellings first. */
