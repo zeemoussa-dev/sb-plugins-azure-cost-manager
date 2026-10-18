@@ -385,7 +385,7 @@ export interface SyncRun {
 
 export interface SyncEvent {
   at: string;
-  kind: 'step' | 'request' | 'wait' | 'error' | 'interrupted';
+  kind: 'step' | 'request' | 'wait' | 'error' | 'interrupted' | 'note';
   text: string;
   account?: string;
   seconds?: number;

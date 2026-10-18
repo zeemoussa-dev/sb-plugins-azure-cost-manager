@@ -107,3 +107,54 @@ def test_daily_rows_are_added_up_per_day_and_name():
     rows = [{"day": "2026-10-01", "cost": 1.005, "service": "VM"}, {"day": "2026-10-01", "cost": 2.0, "service": "VM"}]
 
     assert _aggregate_daily(rows, ("service",)) == {"service": {"2026-10-01": {"VM": 3.0}}}
+
+
+def _refresh_setup(fake_api, kept: dict | None):
+    asked: list[tuple] = []
+
+    class Azure:
+        def query_daily(self, account, first_day, last_day, dimensions):
+            asked.append((first_day, tuple(dimensions)))
+            return [{"day": "2026-10-17", "cost": 4.0, **{k: f"{k}-new" for k in dimensions}}]
+
+    fake_api.get_service = lambda name: None
+    store = ConsumptionStore(fake_api)
+    directory = AccountDirectory(lambda: [{"name": "1", "display_name": "Contoso", "agreement_type": "EnterpriseAgreement",
+                                           "term_start": "2026-01-01", "term_end": "2028-12-31"}])
+    CustomerBook(store, directory).save(None, {"name": "Contoso", "accounts": ["1"]})
+    if kept:
+        store.save_account("1", {"daily": kept})
+    sync = ConsumptionSync(store, directory, lambda: Azure(), today=lambda: TODAY,
+                           now=lambda: datetime(2026, 10, 18, 12, tzinfo=timezone.utc), sleep=lambda _: None)
+    return sync, store, asked
+
+
+def test_an_enrollment_fetched_by_day_in_the_last_hours_is_skipped(fake_api):
+    kept = {**daily({"2026-10-02": {"VM": 1.0}}), "fetched_at": "2026-10-18T09:00:00+00:00"}
+    sync, _, asked = _refresh_setup(fake_api, kept)
+
+    sync.run_this_month()
+
+    assert asked == [] and sync.status()["accounts_done"] == 1
+
+
+def test_once_last_month_settled_only_this_month_is_asked_for_and_last_months_days_kept(fake_api):
+    kept = {**daily({"2026-09-05": {"VM": 100.0}, "2026-10-02": {"VM": 1.0}},
+                    {"2026-09-05": {"rg-core": 100.0}}), "fetched_at": "2026-10-10T08:00:00+00:00"}
+    sync, store, asked = _refresh_setup(fake_api, kept)
+
+    sync.run_this_month()
+
+    assert asked == [("2026-10-01", ("service", "subscription")), ("2026-10-01", ("resource_group",))]
+    saved = store.account("1")["daily"]
+    assert saved["service"] == {"2026-09-05": {"VM": 100.0}, "2026-10-17": {"service-new": 4.0}}
+    assert saved["first_day"] == "2026-09-01"
+
+
+def test_before_last_month_settles_it_is_asked_for_again(fake_api):
+    kept = {**daily({"2026-09-05": {"VM": 100.0}}), "fetched_at": "2026-10-02T08:00:00+00:00"}
+    sync, _, asked = _refresh_setup(fake_api, kept)
+
+    sync.run_this_month()
+
+    assert {first_day for first_day, _ in asked} == {"2026-09-01"}

@@ -90,6 +90,10 @@ class SyncLog:
                 run["waited_seconds"] += round(seconds)
         self._add("wait", f"Azure throttled; waiting {round(seconds)} s ({where})", urgent=True)
 
+    def note(self, text: str, account: str | None = None) -> None:
+        """Something the sync decided, such as skipping an enrollment that is fresh."""
+        self._add("note", text, account=account)
+
     # -- written by the Azure client -----------------------------------------
 
     def request_started(self, what: str) -> None:

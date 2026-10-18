@@ -35,6 +35,8 @@ FINOPS_MONTHS = 13
 TAG_MONTHS = 6
 TAG_KEYS_FRESH_FOR = timedelta(days=7)
 THIS_MONTH_TAG_DIMENSIONS = ("Project", "Owner", "Environment")
+# A Refresh this month skips an enrollment fetched by day this recently.
+DAILY_FRESH_FOR = timedelta(hours=6)
 # A sync of everyone skips an enrollment synced this recently: a restart resumes,
 # and the weekly job and the Sync button still bring every enrollment's delta.
 RESYNC_AFTER = timedelta(hours=20)
@@ -186,51 +188,77 @@ class ConsumptionSync:
         return {"started": True, **self.status()}
 
     def run_this_month(self, customer_id: str | None = None) -> None:
+        """Only what is missing (operator, 2026-10-18: "it gets everything, not only
+        what we are missing; that's why it is very slow"): enrollments never fetched
+        go first, one fetched within `DAILY_FRESH_FOR` is skipped, and once last month
+        has settled its days are kept and only this month is asked for."""
         everyone = self._customers()
         customers = [customer for customer in everyone if not customer_id
                      or customer["id"] == customer_id or customer.get("parent") == customer_id]
         accounts = sorted({name for customer in customers for name in customer["accounts"]})
         today = self._today()
-        first_day = months.first_day(months.shift(months.month_of(today), -1)).isoformat()
+        this_month = months.month_of(today)
+        last_month = months.shift(this_month, -1)
+        first_day = months.first_day(last_month).isoformat()
+        this_month_first_day = months.first_day(this_month).isoformat()
         if not accounts:
             # A refresh once ended "0 of 0" with nothing to say why (2026-10-18).
             self._record_error(None, f"this month: no enrollments found for {customer_id or 'any customer'} "
                                      f"among {len(everyone)} customers")
+        kept_by_account = {account: self._store.account(account).get("daily") or {} for account in accounts}
+        order = sorted(accounts, key=lambda name: (kept_by_account[name].get("fetched_at") or "", name))
         self._set(accounts_done=0, accounts_total=len(accounts))
         client = self._client_factory()
-        for done, account in enumerate(accounts, start=1):
+        for done, account in enumerate(order, start=1):
+            kept = kept_by_account[account]
+            if kept.get("fetched_at") and self._now() - datetime.fromisoformat(kept["fetched_at"]) < DAILY_FRESH_FOR:
+                if self._log:
+                    self._log.note(f"{account}: fetched by day {kept['fetched_at'][:16]}, still fresh -- skipped",
+                                   account)
+                self._set(accounts_done=done)
+                continue
+            # Last month stops changing a few days after it ends; keep its days then.
+            reuse = (kept.get("first_day") == first_day and kept.get("last_day", "") >= this_month_first_day
+                     and is_settled(last_month, kept.get("fetched_at")))
+
+            def since(key: str) -> str:
+                return this_month_first_day if reuse and key in kept else first_day
+
             self._set(current={**self._named(account), "this_month": True})
             try:
                 by_service = self._query(lambda: client.query_daily(
-                    account, first_day, today.isoformat(), {"service": "ServiceName", "subscription": "SubscriptionName"}),
-                    account)
+                    account, since("service"), today.isoformat(),
+                    {"service": "ServiceName", "subscription": "SubscriptionName"}), account)
                 by_group = self._query(lambda: client.query_daily(
-                    account, first_day, today.isoformat(), {"resource_group": "ResourceGroupName"}), account)
+                    account, since("resource_group"), today.isoformat(), {"resource_group": "ResourceGroupName"}),
+                    account)
             except AzureApiError as exc:
                 self._record_error(account, f"this month: {exc}")
                 self._set(accounts_done=done)
                 continue
             entry = self._store.account(account)
+            fresh = {**_aggregate_daily(by_service, ("service", "subscription")),
+                     **_aggregate_daily(by_group, ("resource_group",))}
             # By tag too: a new Project or Owner value is often the clearest sign of a
             # new initiative (operator, 2026-10-18). One query per dimension, on the
             # spelling this enrollment uses most plainly -- known once tags have synced.
-            by_tag: dict[str, dict] = {}
             found = tags.spellings((entry.get("tags") or {}).get("keys") or [])
             for dimension in THIS_MONTH_TAG_DIMENSIONS:
                 if not found.get(dimension):
                     continue
-                key = found[dimension][0]
+                key, name = found[dimension][0], f"tag:{dimension}"
                 try:
-                    rows = self._query(lambda key=key: client.query_daily_by_tag(account, first_day, today.isoformat(), key),
-                                       account)
+                    rows = self._query(lambda key=key, name=name: client.query_daily_by_tag(
+                        account, since(name), today.isoformat(), key), account)
                 except AzureApiError as exc:
                     self._record_error(account, f"this month, tag {key}: {exc}")
                     continue
-                by_tag[f"tag:{dimension}"] = _aggregate_daily(rows, ("value",))["value"]
+                fresh[name] = _aggregate_daily(rows, ("value",))["value"]
+            merged = {name: ({day: values for day, values in (kept.get(name) or {}).items()
+                              if day < this_month_first_day} if since(name) == this_month_first_day else {}) | days
+                      for name, days in fresh.items()}
             entry["daily"] = {"first_day": first_day, "last_day": today.isoformat(),
-                              "fetched_at": self._now().isoformat(),
-                              **_aggregate_daily(by_service, ("service", "subscription")),
-                              **_aggregate_daily(by_group, ("resource_group",)), **by_tag}
+                              "fetched_at": self._now().isoformat(), **merged}
             self._store.save_account(account, entry)
             self._set(accounts_done=done)
 
