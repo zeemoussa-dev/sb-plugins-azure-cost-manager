@@ -174,3 +174,59 @@ def test_a_refresh_that_finds_no_enrollments_says_so(fake_api):
     sync.run_this_month("adnoc")
 
     assert "no enrollments found for adnoc" in sync.status()["errors"][0]["message"]
+
+
+def _sync_with_log(fake_api, disk: Disk):
+    fake_api.get_service = lambda name: None
+    store = ConsumptionStore(fake_api)
+    directory = AccountDirectory(lambda: [])
+    return ConsumptionSync(store, directory, lambda: None, today=lambda: date(2026, 10, 18), now=ticking(),
+                           sleep=lambda _: None, log=SyncLog(disk.read, disk.write, now=ticking()))
+
+
+def test_a_sync_cut_off_by_a_restart_starts_again_with_the_same_scope(fake_api, monkeypatch):
+    disk = Disk()
+    log = SyncLog(disk.read, disk.write, now=ticking())
+    log.begin("adnoc:this-month")
+    log.request_finished("POST query", 200, 1.0, page=False)   # it got somewhere, then the backend restarted
+    sync = _sync_with_log(fake_api, disk)
+    started: list[str | None] = []
+    monkeypatch.setattr(sync, "start_this_month", lambda customer=None: started.append(customer) or {"started": True})
+
+    sync.resume_interrupted()
+
+    assert started == ["adnoc"]
+
+
+def test_nothing_starts_again_after_a_clean_finish_or_a_failure(fake_api):
+    for outcome in ("finished", "stopped"):
+        disk = Disk()
+        log = SyncLog(disk.read, disk.write, now=ticking())
+        log.begin("all")
+        log.end(outcome)
+
+        assert _sync_with_log(fake_api, disk).resume_interrupted() is None
+
+
+def test_a_resume_that_never_gets_anywhere_is_not_retried_forever(fake_api):
+    from backend.consumption_sync import RESUMES_IN_A_ROW
+
+    disk = Disk()
+    for _ in range(RESUMES_IN_A_ROW + 1):
+        SyncLog(disk.read, disk.write, now=ticking()).begin("all")   # each load closes the last as interrupted
+
+    assert _sync_with_log(fake_api, disk).resume_interrupted() is None
+
+
+def test_scopes_map_back_to_their_start_calls(fake_api, monkeypatch):
+    sync = _sync_with_log(fake_api, Disk())
+    calls: list[tuple] = []
+    monkeypatch.setattr(sync, "start", lambda customer=None, profiles="none": calls.append(("start", customer, profiles)))
+    monkeypatch.setattr(sync, "start_tags", lambda customer=None: calls.append(("tags", customer)))
+    monkeypatch.setattr(sync, "start_this_month", lambda customer=None: calls.append(("month", customer)))
+
+    for scope in ("all", "adnoc", "all+profiles", "profiles", "all:tags", "adnoc:this-month"):
+        sync._start_scope(scope)
+
+    assert calls == [("start", None, "none"), ("start", "adnoc", "none"), ("start", None, "also"),
+                     ("start", None, "only"), ("tags", None), ("month", "adnoc")]

@@ -36,6 +36,11 @@ FINOPS_MONTHS = 13
 TAG_MONTHS = 6
 TAG_KEYS_FRESH_FOR = timedelta(days=7)
 THIS_MONTH_TAG_DIMENSIONS = ("Project", "Owner", "Environment")
+# A sync cut off by a backend restart starts again this long after the plugin loads --
+# once the restart has settled -- unless that many runs of it in a row were cut off
+# before they asked Azure anything.
+RESUME_AFTER_SECONDS = 20
+RESUMES_IN_A_ROW = 10
 # A Refresh this month asks again for this many days before the last day it has:
 # Azure lags a day or two and revises recent days for about as long as a month settles.
 DAILY_REFETCH_DAYS = SETTLING_DAYS
@@ -188,6 +193,34 @@ class ConsumptionSync:
         threading.Thread(target=self._run_and_finish, args=(customer_id, "month"), daemon=True,
                          name="azure-cost-manager-this-month").start()
         return {"started": True, **self.status()}
+
+    def resume_interrupted(self) -> dict | None:
+        """Starts again the sync a backend restart cut off (operator, 2026-10-18: "when
+        the plugin loads and the last sync was interrupted by a restart, start it again
+        automatically"). It resumes rather than restarts: settled months, recently
+        synced enrollments and stored days are never fetched again."""
+        scope = self._log.interrupted_scope if self._log else None
+        if not scope or self._log.fruitless_in_a_row(scope) > RESUMES_IN_A_ROW:
+            return None
+        started = self._start_scope(scope)
+        if started.get("started") and self._log:
+            self._log.note("started again automatically: the backend restarted during the last run")
+        return started
+
+    def _start_scope(self, scope: str) -> dict:
+        """The start call a status `scope` came from."""
+        base, _, kind = scope.partition(":")
+        customer_id = None if base in ("all", "profiles") else base
+        if kind == "tags":
+            return self.start_tags(customer_id)
+        if kind == "this-month":
+            return self.start_this_month(customer_id)
+        if scope == "profiles":
+            return self.start(None, "only")
+        if base.endswith("+profiles"):
+            customer = base[:-len("+profiles")]
+            return self.start(None if customer == "all" else customer, "also")
+        return self.start(customer_id)
 
     def run_this_month(self, customer_id: str | None = None) -> None:
         """Only the delta (operator, 2026-10-18: "why no marker, and fetch only after

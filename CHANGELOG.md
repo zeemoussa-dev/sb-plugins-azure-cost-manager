@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.28.0] - 2026-10-18
+
+- feat: **a sync cut off by a backend restart starts again by itself** (operator, 2026-10-18). When the plugin loads and the sync log shows the last run was interrupted, the same sync (Sync all, one customer, tags only or daily data only) starts again 20 seconds later, once the restart has settled. It resumes rather than restarts, since settled months, recently synced enrollments and stored days are never fetched again, and the log notes that it was started automatically. A run that finishes, or stops on an error, is never repeated. Neither is one cut off more than 10 times in a row before it asked Azure anything.
+
 ## [0.27.0] - 2026-10-18
 
 - fix: **a dropped connection stopped the whole sync** (operator, 2026-10-18: "sync stopped: [WinError 10054] An existing connection was forcibly closed by the remote host"). A reset right after a throttle wait ended a Sync all at enrollment 26 of 38. A dropped connection or a timeout is now tried again after 2, 10 and 30 seconds; the sync log notes each retry. If the network stays down, that request fails like any Azure error, so the window is recorded as a problem and the sync moves on. Any other unexpected failure on one enrollment is also recorded and the sync goes on to the next. Only a lost `az login` still ends the run, since every enrollment after it would fail the same way.

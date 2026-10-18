@@ -11,13 +11,15 @@ Everything it needs from the framework arrives through the Plugin API handed to
 """
 from __future__ import annotations
 
+import threading
+
 from .azure_token import AzureCliToken
 from .billing_client import BillingClient
 from .commitment_notes import CommitmentNotes
 from .consumption_provider import SERVICE as CONSUMPTION_SERVICE, ConsumptionProvider
 from .consumption_service import ConsumptionService
 from .consumption_store import DATA_FILES, ConsumptionStore
-from .consumption_sync import ConsumptionSync
+from .consumption_sync import RESUME_AFTER_SECONDS, ConsumptionSync
 from .customers import AccountDirectory, CustomerBook
 from .pipeline import Pipeline
 from .portfolio_service import SERVICE as PORTFOLIO_SERVICE, PortfolioService
@@ -38,5 +40,8 @@ def register(api) -> None:
     sync = ConsumptionSync(store, directory, lambda: BillingClient(token, observe=log), customers=book.records,
                            after_customers=service.refresh_prices, log=log)
     api.register_router(build_router(service, book, directory, sync, token, pipeline, log))
+    resume = threading.Timer(RESUME_AFTER_SECONDS, sync.resume_interrupted)
+    resume.daemon = True
+    resume.start()
     api.provide_service(PORTFOLIO_SERVICE, PortfolioService(service, book))
     api.provide_service(CONSUMPTION_SERVICE, ConsumptionProvider(service, book))

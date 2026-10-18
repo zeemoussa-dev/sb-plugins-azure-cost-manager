@@ -44,6 +44,8 @@ class SyncLog:
         except Exception:  # a missing or unreadable log starts empty
             self._runs = []
         interrupted = False
+        # The newest run this load found cut off, for the sync to start again.
+        self.interrupted_scope: str | None = None
         for run in self._runs:
             if run.get("outcome") == "running":
                 last = run["events"][-1]["at"] if run.get("events") else run["started_at"]
@@ -51,6 +53,7 @@ class SyncLog:
                 run["events"].append({"at": last, "kind": "interrupted",
                                       "text": "The backend restarted or stopped; the run ended here."})
                 interrupted = True
+                self.interrupted_scope = run.get("scope")
         if interrupted:
             self._save()
 
@@ -113,6 +116,18 @@ class SyncLog:
                   urgent=bool(failure) or (status or 0) >= 400, seconds=round(seconds, 2), status=status)
 
     # -- read by the page ----------------------------------------------------
+
+    def fruitless_in_a_row(self, scope: str) -> int:
+        """How many of the newest runs are `scope`, cut off by a restart before they
+        asked Azure anything. A resume that never gets anywhere must not be retried
+        forever; one that makes progress between restarts may go on."""
+        with self._lock:
+            count = 0
+            for run in reversed(self._runs):
+                if run.get("scope") != scope or run.get("outcome") != "interrupted" or run.get("requests"):
+                    break
+                count += 1
+            return count
 
     def in_flight(self) -> dict | None:
         with self._lock:
