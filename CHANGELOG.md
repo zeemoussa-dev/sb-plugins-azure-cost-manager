@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.26.0] - 2026-10-18
+
+- perf: **Sync daily data fetches from a marker** (operator, 2026-10-18: "why no marker, and fetch only after that?"). Each enrollment remembers the last day it was fetched to. A refresh asks again only from 5 days before that day, because Azure keeps revising the latest days for that long, and keeps every earlier day as stored. Fetched through 18 October, the next refresh asks for 13 October onward instead of the whole month. Into a new month the window moves with it, and the last days of the month before are still asked again. Because a refresh is now this small, the 6-hour skip is gone and Sync daily data always brings the latest days.
+
 ## [0.25.0] - 2026-10-18
 
 - perf: **the consumption cache is written less and smaller** (operator, 2026-10-18: "all Azure consumption is cached in one file, 26 MB and still counting -- is that okay?"). While a sync runs, the cache reaches the file at most every 30 seconds and whenever an enrollment finishes, instead of after every window and period; the page reads it in memory, so nothing waits. The file is compact JSON. Every save used to rewrite the whole ~27 MB file, which OneDrive then uploaded each time. A backend restart mid-sync now loses at most 30 seconds of fetched data, which the next sync fetches again. Needs the framework's atomic data writes (Second Brain, same day), so a write cut short can no longer leave a broken cache.

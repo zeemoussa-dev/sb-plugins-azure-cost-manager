@@ -17,7 +17,7 @@ from typing import Callable
 
 from . import months, tags
 from .billing_client import COST_TYPES, AzureApiError, AzureThrottled, BillingClient
-from .consumption_store import ConsumptionStore, is_settled
+from .consumption_store import SETTLING_DAYS, ConsumptionStore, is_settled
 from .customers import AccountDirectory
 from .sync_log import SyncLog
 
@@ -35,8 +35,9 @@ FINOPS_MONTHS = 13
 TAG_MONTHS = 6
 TAG_KEYS_FRESH_FOR = timedelta(days=7)
 THIS_MONTH_TAG_DIMENSIONS = ("Project", "Owner", "Environment")
-# A Refresh this month skips an enrollment fetched by day this recently.
-DAILY_FRESH_FOR = timedelta(hours=6)
+# A Refresh this month asks again for this many days before the last day it has:
+# Azure lags a day or two and revises recent days for about as long as a month settles.
+DAILY_REFETCH_DAYS = SETTLING_DAYS
 # A sync of everyone skips an enrollment synced this recently: a restart resumes,
 # and the weekly job and the Sync button still bring every enrollment's delta.
 RESYNC_AFTER = timedelta(hours=20)
@@ -188,44 +189,36 @@ class ConsumptionSync:
         return {"started": True, **self.status()}
 
     def run_this_month(self, customer_id: str | None = None) -> None:
-        """Only what is missing (operator, 2026-10-18: "it gets everything, not only
-        what we are missing; that's why it is very slow"): enrollments never fetched
-        go first, one fetched within `DAILY_FRESH_FOR` is skipped, and once last month
-        has settled its days are kept and only this month is asked for."""
+        """Only the delta (operator, 2026-10-18: "why no marker, and fetch only after
+        that?"). Each enrollment remembers the last day it was fetched to; a refresh
+        asks again from `DAILY_REFETCH_DAYS` before that marker -- Azure keeps revising
+        the latest days for that long -- and keeps every earlier day as stored. An
+        enrollment never fetched gets last month and this one, and goes first."""
         everyone = self._customers()
         customers = [customer for customer in everyone if not customer_id
                      or customer["id"] == customer_id or customer.get("parent") == customer_id]
         accounts = sorted({name for customer in customers for name in customer["accounts"]})
         today = self._today()
-        this_month = months.month_of(today)
-        last_month = months.shift(this_month, -1)
-        first_day = months.first_day(last_month).isoformat()
-        this_month_first_day = months.first_day(this_month).isoformat()
+        first_day = months.first_day(months.shift(months.month_of(today), -1)).isoformat()
         if not accounts:
             # A refresh once ended "0 of 0" with nothing to say why (2026-10-18).
             self._record_error(None, f"this month: no enrollments found for {customer_id or 'any customer'} "
                                      f"among {len(everyone)} customers")
         kept_by_account = {account: self._store.account(account).get("daily") or {} for account in accounts}
-        def fresh(account: str) -> bool:
-            fetched = kept_by_account[account].get("fetched_at")
-            return bool(fetched) and self._now() - datetime.fromisoformat(fetched) < DAILY_FRESH_FOR
-
         order = sorted(accounts, key=lambda name: (kept_by_account[name].get("fetched_at") or "", name))
-        due = [account for account in order if not fresh(account)]
-        if self._log and len(due) < len(order):
-            self._log.note(f"this month: {len(order) - len(due)} enrollment(s) fetched by day within "
-                           f"{DAILY_FRESH_FOR} skipped")
-        self._set(accounts_done=0, accounts_total=len(due))
+        self._set(accounts_done=0, accounts_total=len(order))
         client = self._client_factory()
-        for done, account in enumerate(due, start=1):
+        for done, account in enumerate(order, start=1):
             kept = kept_by_account[account]
-            # Last month stops changing a few days after it ends; keep its days then.
-            reuse = (kept.get("first_day") == first_day and kept.get("last_day", "") >= this_month_first_day
-                     and is_settled(last_month, kept.get("fetched_at")))
+            marker = kept.get("last_day") if (kept.get("first_day") or "9999") <= first_day else None
+            refetch_from = (max(first_day, (date.fromisoformat(marker) - timedelta(days=DAILY_REFETCH_DAYS)).isoformat())
+                            if marker else first_day)
 
             def since(key: str) -> str:
-                return this_month_first_day if reuse and key in kept else first_day
+                return refetch_from if key in kept else first_day
 
+            if self._log and marker:
+                self._log.note(f"{account}: fetched by day to {marker}; asking again from {refetch_from}", account)
             self._set(current={**self._named(account), "this_month": True})
             try:
                 by_service = self._query(lambda: client.query_daily(
@@ -239,8 +232,8 @@ class ConsumptionSync:
                 self._set(accounts_done=done)
                 continue
             entry = self._store.account(account)
-            fresh = {**_aggregate_daily(by_service, ("service", "subscription")),
-                     **_aggregate_daily(by_group, ("resource_group",))}
+            fetched = {**_aggregate_daily(by_service, ("service", "subscription")),
+                       **_aggregate_daily(by_group, ("resource_group",))}
             # By tag too: a new Project or Owner value is often the clearest sign of a
             # new initiative (operator, 2026-10-18). One query per dimension, on the
             # spelling this enrollment uses most plainly -- known once tags have synced.
@@ -255,10 +248,11 @@ class ConsumptionSync:
                 except AzureApiError as exc:
                     self._record_error(account, f"this month, tag {key}: {exc}")
                     continue
-                fresh[name] = _aggregate_daily(rows, ("value",))["value"]
-            merged = {name: ({day: values for day, values in (kept.get(name) or {}).items()
-                              if day < this_month_first_day} if since(name) == this_month_first_day else {}) | days
-                      for name, days in fresh.items()}
+                fetched[name] = _aggregate_daily(rows, ("value",))["value"]
+            # Stored days before the refetch stay; days before last month drop out.
+            merged = {name: {day: values for day, values in (kept.get(name) or {}).items()
+                             if first_day <= day < since(name)} | days
+                      for name, days in fetched.items()}
             entry["daily"] = {"first_day": first_day, "last_day": today.isoformat(),
                               "fetched_at": self._now().isoformat(), **merged}
             self._store.save_account(account, entry)

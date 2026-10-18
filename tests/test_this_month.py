@@ -109,13 +109,13 @@ def test_daily_rows_are_added_up_per_day_and_name():
     assert _aggregate_daily(rows, ("service",)) == {"service": {"2026-10-01": {"VM": 3.0}}}
 
 
-def _refresh_setup(fake_api, kept: dict | None):
+def _refresh_setup(fake_api, kept: dict | None, today: date = TODAY):
     asked: list[tuple] = []
 
     class Azure:
         def query_daily(self, account, first_day, last_day, dimensions):
             asked.append((first_day, tuple(dimensions)))
-            return [{"day": "2026-10-17", "cost": 4.0, **{k: f"{k}-new" for k in dimensions}}]
+            return [{"day": last_day, "cost": 4.0, **{k: f"{k}-new" for k in dimensions}}]
 
     fake_api.get_service = lambda name: None
     store = ConsumptionStore(fake_api)
@@ -124,38 +124,34 @@ def _refresh_setup(fake_api, kept: dict | None):
     CustomerBook(store, directory).save(None, {"name": "Contoso", "accounts": ["1"]})
     if kept:
         store.save_account("1", {"daily": kept})
-    sync = ConsumptionSync(store, directory, lambda: Azure(), today=lambda: TODAY,
-                           now=lambda: datetime(2026, 10, 18, 12, tzinfo=timezone.utc), sleep=lambda _: None)
+    sync = ConsumptionSync(store, directory, lambda: Azure(), today=lambda: today,
+                           now=lambda: datetime(today.year, today.month, today.day, 12, tzinfo=timezone.utc),
+                           sleep=lambda _: None)
     return sync, store, asked
 
 
-def test_an_enrollment_fetched_by_day_in_the_last_hours_is_skipped(fake_api):
-    kept = {**daily({"2026-10-02": {"VM": 1.0}}), "fetched_at": "2026-10-18T09:00:00+00:00"}
-    sync, _, asked = _refresh_setup(fake_api, kept)
-
-    sync.run_this_month()
-
-    # Counted out of the progress, so the banner says what will really be fetched.
-    assert asked == [] and sync.status()["accounts_total"] == 0
-
-
-def test_once_last_month_settled_only_this_month_is_asked_for_and_last_months_days_kept(fake_api):
-    kept = {**daily({"2026-09-05": {"VM": 100.0}, "2026-10-02": {"VM": 1.0}},
-                    {"2026-09-05": {"rg-core": 100.0}}), "fetched_at": "2026-10-10T08:00:00+00:00"}
+def test_a_refresh_asks_again_only_from_five_days_before_its_marker(fake_api):
+    kept = {**daily({"2026-09-05": {"VM": 100.0}, "2026-10-02": {"VM": 1.0}, "2026-10-09": {"VM": 2.0}},
+                    {"2026-09-05": {"rg-core": 100.0}}), "last_day": "2026-10-10"}
     sync, store, asked = _refresh_setup(fake_api, kept)
 
     sync.run_this_month()
 
-    assert asked == [("2026-10-01", ("service", "subscription")), ("2026-10-01", ("resource_group",))]
+    assert asked == [("2026-10-05", ("service", "subscription")), ("2026-10-05", ("resource_group",))]
     saved = store.account("1")["daily"]
-    assert saved["service"] == {"2026-09-05": {"VM": 100.0}, "2026-10-17": {"service-new": 4.0}}
-    assert saved["first_day"] == "2026-09-01"
+    # Days before the refetch are kept; from it on, Azure's latest answer replaces them.
+    assert saved["service"] == {"2026-09-05": {"VM": 100.0}, "2026-10-02": {"VM": 1.0},
+                                "2026-10-18": {"service-new": 4.0}}
+    assert (saved["first_day"], saved["last_day"]) == ("2026-09-01", "2026-10-18")
 
 
-def test_before_last_month_settles_it_is_asked_for_again(fake_api):
-    kept = {**daily({"2026-09-05": {"VM": 100.0}}), "fetched_at": "2026-10-02T08:00:00+00:00"}
-    sync, _, asked = _refresh_setup(fake_api, kept)
+def test_into_a_new_month_the_window_moves_and_the_end_of_the_last_one_is_asked_again(fake_api):
+    kept = {**daily({"2026-09-05": {"VM": 100.0}, "2026-10-20": {"VM": 7.0}}), "last_day": "2026-10-31"}
+    sync, store, asked = _refresh_setup(fake_api, kept, today=date(2026, 11, 3))
 
     sync.run_this_month()
 
-    assert {first_day for first_day, _ in asked} == {"2026-09-01"}
+    assert {first for first, _ in asked} == {"2026-10-26"}
+    saved = store.account("1")["daily"]
+    assert saved["first_day"] == "2026-10-01" and "2026-09-05" not in saved["service"]
+    assert saved["service"]["2026-10-20"] == {"VM": 7.0}
