@@ -16,7 +16,10 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta
+from typing import Callable
 
 from . import months
 
@@ -49,8 +52,11 @@ def _read_json(api, path: str, empty):
         return empty
 
 
-def _write_json(api, path: str, value) -> None:
-    api.data.write_text(path, json.dumps(value, indent=1, sort_keys=True))
+def _write_json(api, path: str, value, compact: bool = False) -> None:
+    # The cache is compact: indentation added a quarter to a file nobody reads by hand.
+    text = (json.dumps(value, separators=(",", ":"), sort_keys=True) if compact
+            else json.dumps(value, indent=1, sort_keys=True))
+    api.data.write_text(path, text)
 
 
 def is_settled(month: str, fetched_at: str | None) -> bool:
@@ -64,11 +70,22 @@ def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "customer"
 
 
+# Writing the whole cache costs about a second at 27 MB, and OneDrive uploads every
+# write; while a sync holds writes (`holding_writes`), a save reaches the file at most
+# this often -- and at once on `flush()`, which the sync calls as each enrollment
+# finishes. Pages read the cache in memory, so they see a save at once either way.
+CACHE_WRITE_EVERY_SECONDS = 30.0
+
+
 class ConsumptionStore:
-    def __init__(self, api) -> None:
+    def __init__(self, api, clock: Callable[[], float] = time.monotonic) -> None:
         self._api = api
+        self._clock = clock
         self._lock = threading.RLock()
         self._cache: dict | None = None
+        self._unwritten = False
+        self._written_at: float | None = None
+        self._holding = 0
 
     # -- customers --------------------------------------------------------
 
@@ -145,7 +162,35 @@ class ConsumptionStore:
     def save_account(self, account_name: str, entry: dict) -> None:
         with self._lock:
             self._loaded()["accounts"][account_name] = entry
-            _write_json(self._api, CONSUMPTION_CACHE_FILE, self._cache)
+            self._unwritten = True
+            if (not self._holding or self._written_at is None
+                    or self._clock() - self._written_at >= CACHE_WRITE_EVERY_SECONDS):
+                self._write_cache()
+
+    @contextmanager
+    def holding_writes(self):
+        """Saves inside reach the file at most every `CACHE_WRITE_EVERY_SECONDS`;
+        everything held is written on the way out."""
+        with self._lock:
+            self._holding += 1
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._holding -= 1
+            self.flush()
+
+    def flush(self) -> None:
+        """Writes what `save_account` has held back. A restart before it loses at
+        most that much, which the next sync fetches again."""
+        with self._lock:
+            if self._unwritten:
+                self._write_cache()
+
+    def _write_cache(self) -> None:
+        _write_json(self._api, CONSUMPTION_CACHE_FILE, self._cache, compact=True)
+        self._unwritten = False
+        self._written_at = self._clock()
 
     def forget_accounts_except(self, kept: set[str]) -> None:
         """An account no customer holds drops back to a billing profile: its Cost
@@ -166,7 +211,7 @@ class ConsumptionStore:
                 entry["light"] = True
                 changed = True
             if changed:
-                _write_json(self._api, CONSUMPTION_CACHE_FILE, cache)
+                self._write_cache()
 
     @staticmethod
     def months_to_fetch(entry: dict, wanted: list[str]) -> list[str]:

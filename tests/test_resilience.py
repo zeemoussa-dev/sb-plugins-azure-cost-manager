@@ -62,3 +62,33 @@ def test_the_customer_list_reads_sync_status_without_copying_months(fake_api):
     assert status == {"synced_at": "2026-10-17T00:00:00+00:00", "errors": {"x": "boom", "y": "mine"}}
     assert store.account("1")["errors"] == {"x": "boom"}   # the caller's change does not reach the store
     assert store.account_status("missing") == {"synced_at": None, "errors": {}}
+
+
+def test_a_sync_holds_cache_writes_and_writes_them_on_flush(fake_api):
+    from backend.consumption_store import CACHE_WRITE_EVERY_SECONDS, CONSUMPTION_CACHE_FILE, ConsumptionStore
+
+    writes: list[str] = []
+    original = fake_api.data.write_text
+
+    def counted(path, text):
+        if path == CONSUMPTION_CACHE_FILE:
+            writes.append(text)
+        original(path, text)
+
+    fake_api.data.write_text = counted
+    clock = [0.0]
+    store = ConsumptionStore(fake_api, clock=lambda: clock[0])
+    store.save_account("1", {"months": {}})          # outside a sync: written at once
+    assert len(writes) == 1
+
+    with store.holding_writes():
+        store.save_account("1", {"months": {}, "n": 1})
+        store.save_account("1", {"months": {}, "n": 2})
+        assert len(writes) == 1   # held: the last write was less than the interval ago
+        clock[0] += CACHE_WRITE_EVERY_SECONDS
+        store.save_account("1", {"months": {}, "n": 3})
+        assert len(writes) == 2
+        store.save_account("1", {"months": {}, "n": 4})
+        store.flush()
+        assert '"n":4' in writes[-1]   # compact JSON
+    assert ConsumptionStore(fake_api).account("1")["n"] == 4

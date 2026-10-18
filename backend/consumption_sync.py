@@ -262,23 +262,14 @@ class ConsumptionSync:
             entry["daily"] = {"first_day": first_day, "last_day": today.isoformat(),
                               "fetched_at": self._now().isoformat(), **merged}
             self._store.save_account(account, entry)
+            self._store.flush()
             self._set(accounts_done=done)
 
     def _run_and_finish(self, customer_id: str | None, profiles: str = "none") -> None:
         stopped = False
         try:
-            if profiles == "month":
-                self.run_this_month(customer_id)
-                return
-            if profiles == "tags":
-                self.run_tags(customer_id)
-                return
-            if profiles != "only":
-                self.run(customer_id)
-                self._price_candidates()
-                self.run_tags(customer_id)
-            if profiles != "none":
-                self.run_profiles()
+            with self._store.holding_writes():
+                self._run(customer_id, profiles)
         except Exception as exc:  # the thread must always clear `running`
             stopped = True
             self._record_error(None, f"sync stopped: {exc}")
@@ -288,6 +279,20 @@ class ConsumptionSync:
                                     finished_at=self._now().isoformat())
             if self._log:
                 self._log.end("stopped" if stopped else "finished")
+
+    def _run(self, customer_id: str | None, profiles: str) -> None:
+        if profiles == "month":
+            self.run_this_month(customer_id)
+            return
+        if profiles == "tags":
+            self.run_tags(customer_id)
+            return
+        if profiles != "only":
+            self.run(customer_id)
+            self._price_candidates()
+            self.run_tags(customer_id)
+        if profiles != "none":
+            self.run_profiles()
 
     def run_tags(self, customer_id: str | None = None) -> None:
         """Cost by tag for the customers' enrollments: each enrollment's tag keys
@@ -307,6 +312,7 @@ class ConsumptionSync:
         self._set(accounts_done=0, accounts_total=len(due))
         for done, account in enumerate(due, start=1):
             self._sync_account_tags(client, account, wanted)
+            self._store.flush()
             self._set(accounts_done=done)
 
     def _sync_account_tags(self, client: BillingClient, account: str, wanted: list[str]) -> None:
@@ -417,6 +423,7 @@ class ConsumptionSync:
         client = self._client_factory()
         for done, name in enumerate(due, start=1):
             self._sync_account(client, name, first_month_by_account[name], visible.get(name) or {})
+            self._store.flush()
             self._set(accounts_done=done)
 
     def _recent(self, synced_at: str | None) -> bool:
@@ -436,6 +443,7 @@ class ConsumptionSync:
         client = self._client_factory()
         for done, account in enumerate(sorted(profiles, key=lambda a: a["display_name"].lower()), start=1):
             self._sync_profile(client, account)
+            self._store.flush()
             self._set(accounts_done=done)
 
     def _sync_profile(self, client: BillingClient, account: dict) -> None:
