@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.21.0] - 2026-10-18
+
+- feat: **This month by tag, one grouping at a time** (operator, 2026-10-18: "see the tags … per Project, Owner, Environment; massive scrolling because of the number of resource groups"). Refresh this month also fetches the day-by-day cost per Project, Owner and Environment tag (the enrollment's own spelling of each key; values folded as in the Tags report, untagged left out). The page shows one grouping at a time (Service, Subscription, Resource group, Project, Owner, Environment), each with its count of new items, filtered to All, New this month or Growing; it lists the first 15 rows with "Show all" for the rest; and the chart and the table fold away. The New this month figure is split by kind.
+- fix: **Last month looked smaller than it was** (operator: "$4,223,152 last month but it was almost 5.9"). A refresh cut off part-way had fetched only one of a customer's enrollments, and every figure added up only the ones fetched without saying so. The page now names the enrollments not fetched by day yet and warns that their spend is missing.
+
 ## [0.20.1] - 2026-10-18
 
 - fix: **"This page stopped working" while a Refresh this month ran** (operator, 2026-10-18). The sync banner formatted a month range every stage had to report; the this-month, tags and pricing stages report none, so the banner threw and took the whole page down. It now names each stage (this month by day, tags, pricing, amortized meters, balances, Marketplace), shows months only when there are some, and the status type says which fields a stage may leave out, so the compiler checks it.
