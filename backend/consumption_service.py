@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing, tags
+from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing, tags, this_month
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -350,6 +350,16 @@ class ConsumptionService:
         trend = consumption_analysis.monthly_totals(merged, months.month_of(self._today()), measure)
         return trend, (currency or "").strip() or None, customer.get("commitment")
 
+    def this_month(self, customer_id: str) -> dict:
+        """This month so far for a customer (a group: with its affiliates), from the
+        on-demand daily refresh: pace against last month, and what is new or moving."""
+        customer = self._customer(customer_id)
+        merged, currency, entries = self._merged(customer)
+        return {"customer": {"id": customer["id"], "name": customer["name"],
+                             "entity_customer": customer.get("entity_customer")},
+                "currency": (currency or "").strip() or None,
+                **this_month.analyse(entries, merged, self._today())}
+
     def finops_digest(self, top: int = 5) -> dict:
         """The week's FinOps in a few lines, for a Hermes job to send: who is over
         budget, and where the largest savings are. Text, not a page."""
@@ -359,7 +369,9 @@ class ConsumptionService:
                         key=lambda row: -row["savings_monthly"]["ri_3y"])
 
         def money(value: float) -> str:
-            return f"${value / 1_000_000:.2f}M" if value >= 1_000_000 else f"${value / 1_000:.0f}k"
+            if value >= 1_000_000:
+                return f"${value / 1_000_000:.2f}M"
+            return f"${value / 1_000:.0f}k" if value >= 1_000 else f"${value:,.0f}"
 
         lines = [f"Azure FinOps – week of {self._today().isoformat()}"]
         if priced:
@@ -373,6 +385,23 @@ class ConsumptionService:
                       f"against {money(row['budget']['amount'])}"
                       + (" (forecast over this month)" if row['budget']['status'] == "forecast-over" else "")
                       for row in over[:top]]
+        # New this month: only where "Refresh this month" has run -- it is on demand
+        # (operator, 2026-10-18), so the digest says how fresh each customer's view is.
+        news = []
+        for customer in self._book.list():
+            if customer.get("parent"):
+                continue
+            found = self.this_month(customer["id"])
+            if found.get("has_data") and found["new_workloads"]:
+                news.append((customer["name"], found))
+        if news:
+            lines += ["", "New this month (possible opportunities):"]
+            for name, found in sorted(news, key=lambda item: -sum(w["this_month"] for w in item[1]["new_workloads"])):
+                workloads = ", ".join(f"{w['kind_label'].lower()} {w['name']} ({money(w['this_month'])})"
+                                      for w in found["new_workloads"][:top])
+                more = len(found["new_workloads"]) - top
+                lines.append(f"• {name}: {workloads}" + (f" and {more} more" if more > 0 else "")
+                             + f" -- data to {found['through'] or 'n/a'}")
         if len(lines) == 1:
             lines += ["", "Nothing to flag this week."]
         return {"text": "\n".join(lines), "customers": len(rows), "over_budget": len(over), "with_savings": len(priced)}

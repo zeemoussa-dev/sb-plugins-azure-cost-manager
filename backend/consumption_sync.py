@@ -70,6 +70,17 @@ def _aggregate_meters(rows: list[dict]) -> dict[str, dict[str, float]]:
             for month, meters in by_month.items()}
 
 
+def _aggregate_daily(rows: list[dict], keys: tuple[str, ...]) -> dict[str, dict[str, dict[str, float]]]:
+    """Per key (`service`, `subscription`, `resource_group`): day -> name -> cost."""
+    found: dict[str, dict[str, dict[str, float]]] = {key: {} for key in keys}
+    for row in rows:
+        for key in keys:
+            day = found[key].setdefault(row["day"], {})
+            day[row[key]] = day.get(row[key], 0.0) + row["cost"]
+    return {key: {day: {name: round(cost, 2) for name, cost in names.items() if round(cost, 2) != 0}
+                  for day, names in days.items()} for key, days in found.items()}
+
+
 def _aggregate_marketplace(charges: list[dict]) -> list[dict]:
     """One month's charges by publisher, offer, plan, subscription and kind: a
     metered VM image bills a line per hour, which nobody reads one at a time."""
@@ -151,8 +162,53 @@ class ConsumptionSync:
                          name="azure-cost-manager-tags").start()
         return {"started": True, **self.status()}
 
+    def start_this_month(self, customer_id: str | None = None) -> dict:
+        """This month and last, by day, in the background -- only when asked
+        (operator, 2026-10-18: on demand, no scheduled job)."""
+        with self._lock:
+            if self._status["running"]:
+                return {"started": False, "reason": "a sync is already running", **self._status}
+            self._status.update(running=True, started_at=self._now().isoformat(), finished_at=None,
+                                scope=f"{customer_id or 'all'}:this-month", current=None, accounts_done=0,
+                                accounts_total=0, errors=[])
+        threading.Thread(target=self._run_and_finish, args=(customer_id, "month"), daemon=True,
+                         name="azure-cost-manager-this-month").start()
+        return {"started": True, **self.status()}
+
+    def run_this_month(self, customer_id: str | None = None) -> None:
+        everyone = self._customers()
+        customers = [customer for customer in everyone if not customer_id
+                     or customer["id"] == customer_id or customer.get("parent") == customer_id]
+        accounts = sorted({name for customer in customers for name in customer["accounts"]})
+        today = self._today()
+        first_day = months.first_day(months.shift(months.month_of(today), -1)).isoformat()
+        self._set(accounts_done=0, accounts_total=len(accounts))
+        client = self._client_factory()
+        for done, account in enumerate(accounts, start=1):
+            self._set(current={**self._named(account), "this_month": True})
+            try:
+                by_service = self._query(lambda: client.query_daily(
+                    account, first_day, today.isoformat(), {"service": "ServiceName", "subscription": "SubscriptionName"}),
+                    account)
+                by_group = self._query(lambda: client.query_daily(
+                    account, first_day, today.isoformat(), {"resource_group": "ResourceGroupName"}), account)
+            except AzureApiError as exc:
+                self._record_error(account, f"this month: {exc}")
+                self._set(accounts_done=done)
+                continue
+            entry = self._store.account(account)
+            entry["daily"] = {"first_day": first_day, "last_day": today.isoformat(),
+                              "fetched_at": self._now().isoformat(),
+                              **_aggregate_daily(by_service, ("service", "subscription")),
+                              **_aggregate_daily(by_group, ("resource_group",))}
+            self._store.save_account(account, entry)
+            self._set(accounts_done=done)
+
     def _run_and_finish(self, customer_id: str | None, profiles: str = "none") -> None:
         try:
+            if profiles == "month":
+                self.run_this_month(customer_id)
+                return
             if profiles == "tags":
                 self.run_tags(customer_id)
                 return

@@ -186,6 +186,39 @@ class BillingClient:
         return self._grouped_monthly(account_name, cost_type, first_month, last_month,
                                      {"meter_subcategory": "MeterSubCategory", "pricing_model": "PricingModel"})
 
+    def query_daily(self, account_name: str, first_day: str, last_day: str,
+                    dimensions: dict[str, str]) -> list[dict]:
+        """`[{day: "YYYY-MM-DD", cost, <key>: name ...}]`: actual cost per day by up to
+        two `dimensions` (row key -> Azure dimension), for the This month report."""
+        body = {
+            "type": "ActualCost",
+            "timeframe": "Custom",
+            "timePeriod": {"from": f"{first_day}T00:00:00Z", "to": f"{last_day}T23:59:59Z"},
+            "dataset": {"granularity": "Daily",
+                        "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}},
+                        "grouping": [{"type": "Dimension", "name": name} for name in dimensions.values()]},
+        }
+        url = f"{billing_account_scope(account_name)}/providers/Microsoft.CostManagement/query"
+        page = self._request("POST", url, params={"api-version": COST_MANAGEMENT_API}, body=body)
+        rows: list[dict] = []
+        while True:
+            properties = page.get("properties") or {}
+            columns = [column.get("name", "") for column in properties.get("columns") or []]
+            cost_at = _column_index(columns, "totalCost", "Cost", "PreTaxCost")
+            day_at = _column_index(columns, "UsageDate", "BillingMonth")
+            at = {key: _column_index(columns, name) for key, name in dimensions.items()}
+            if cost_at is not None and day_at is not None:
+                for row in properties.get("rows") or []:
+                    text = str(row[day_at])
+                    day = f"{text[:4]}-{text[4:6]}-{text[6:8]}" if text.isdigit() else text[:10]
+                    parsed = {"day": day, "cost": float(row[cost_at] or 0)}
+                    for key, index in at.items():
+                        parsed[key] = (row[index] if index is not None else None) or "Unassigned"
+                    rows.append(parsed)
+            if not properties.get("nextLink"):
+                return rows
+            page = self._request("POST", properties["nextLink"], body=body)
+
     def list_tag_keys(self, account_name: str) -> list[str]:
         """The tag keys used under an enrollment (Consumption API, so not Cost
         Management's throttling budget). 480 on one customer's enrollment."""

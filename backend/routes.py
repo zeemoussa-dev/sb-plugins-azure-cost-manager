@@ -164,6 +164,15 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def get_finops(customer_id: str) -> dict:
         return _answered(lambda: service.finops(customer_id))
 
+    @router.get("/customers/{customer_id}/this-month")
+    def get_this_month(customer_id: str) -> dict:
+        return _answered(lambda: service.this_month(customer_id))
+
+    @router.post("/sync/this-month")
+    def post_sync_this_month(customer: str | None = None) -> dict:
+        """This month and last, by day -- only when asked."""
+        return sync.start_this_month(customer)
+
     @router.get("/customers/{customer_id}/tags")
     def get_tags(customer_id: str) -> dict:
         return _answered(lambda: service.tags(customer_id))
