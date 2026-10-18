@@ -65,13 +65,18 @@ export function SyncControl({ customerId, syncedAt, onSynced, profiles = 'none',
   const current = status?.current;
   const total = status?.accounts_total || 0;
   const done = status?.accounts_done || 0;
-  const phase = current
-    ? current.balances
-      ? `reading the billing balance for ${formatMonth(current.first_month)}`
-      : current.marketplace
-        ? `reading Marketplace charges for ${formatMonth(current.first_month)}`
-        : `fetching ${formatMonth(current.first_month)}${current.last_month !== current.first_month ? ` to ${formatMonth(current.last_month)}` : ''}`
-    : 'starting';
+  // Some stages carry no month range (this month by day, tags, pricing): a phase
+  // without months must not take the page down (operator, 2026-10-18).
+  const months = (from?: string, to?: string) => from
+    ? `${formatMonth(from)}${to && to !== from ? ` to ${formatMonth(to)}` : ''}` : '';
+  const phase = !current ? 'starting'
+    : current.this_month ? 'fetching last month and this one, day by day'
+      : current.pricing ? 'pricing steady on-demand meters'
+        : current.tags ? `reading costs by tag${current.tag ? ` “${current.tag}”` : ''}${current.first_month ? `, ${months(current.first_month, current.last_month)}` : ''}`
+          : current.amortized_meters ? `fetching amortized meters, ${months(current.first_month, current.last_month)}`
+            : current.balances ? `reading the billing balance for ${months(current.first_month)}`
+              : current.marketplace ? `reading Marketplace charges for ${months(current.first_month)}`
+                : current.first_month ? `fetching ${months(current.first_month, current.last_month)}` : 'working';
 
   return (
     <>
@@ -80,7 +85,7 @@ export function SyncControl({ customerId, syncedAt, onSynced, profiles = 'none',
           <strong>Syncing {scopeLabel(status.scope, customerId)}</strong>
           <span>
             Enrollment {Math.min(done + 1, total || 1)} of {total || '?'}
-            {current ? ` (${current.display_name ? `${current.display_name}, ` : ''}${current.account})` : ''}: {phase}
+            {current?.account ? ` (${current.display_name ? `${current.display_name}, ` : ''}${current.account})` : ''}: {phase}
             {current?.waiting_seconds ? ` — Azure asked to wait ${current.waiting_seconds}s` : ''}
           </span>
           <div className="azure-cost-sync-progress"><span style={{ width: `${total ? (done / total) * 100 : 5}%` }} /></div>

@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.20.1] - 2026-10-18
+
+- fix: **"This page stopped working" while a Refresh this month ran** (operator, 2026-10-18). The sync banner formatted a month range every stage had to report; the this-month, tags and pricing stages report none, so the banner threw and took the whole page down. It now names each stage (this month by day, tags, pricing, amortized meters, balances, Marketplace), shows months only when there are some, and the status type says which fields a stage may leave out, so the compiler checks it.
+
 ## [0.20.0] - 2026-10-18
 
 - feat: **This month** (operator, 2026-10-18: "know what is changing in the customer tenant so I can see any missing opp and track it early"). A report per customer from daily figures fetched only on demand (**Refresh this month**: last month and this one, by service and subscription, and by resource group -- two Cost Management queries per enrollment). Month to date against the same days last month, the projected month end, a day-by-day chart, and every workload new this month -- a service, subscription or resource group billed now and not at all last month (nor, for a service or subscription, in the three months before) -- each with **Create opportunity** (no consumption plan). The fastest-growing of each against last month's pace. Azure's daily data lags a day or two; the report says to which day. The FinOps digest gains "New this month" for customers whose month has been refreshed.

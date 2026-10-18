@@ -336,12 +336,20 @@ export interface SyncStatus {
   finished_at: string | null;
   scope: string | null;
   current: {
-    account: string; first_month: string; last_month: string; waiting_seconds?: number;
+    /** Missing or null in stages that are not about one enrollment (pricing). */
+    account?: string | null;
+    /** Missing in stages that are not about a month range (this month, pricing). */
+    first_month?: string; last_month?: string; waiting_seconds?: number;
     display_name?: string;
     /** Reading billing-period balances, one month per call, rather than cost. */
     balances?: boolean;
     /** Reading a billing period's Marketplace charges. */
     marketplace?: boolean;
+    amortized_meters?: boolean;
+    tags?: boolean;
+    tag?: string;
+    this_month?: boolean;
+    pricing?: boolean;
   } | null;
   accounts_done: number;
   accounts_total: number;
