@@ -135,7 +135,8 @@ def test_an_enrollment_fetched_by_day_in_the_last_hours_is_skipped(fake_api):
 
     sync.run_this_month()
 
-    assert asked == [] and sync.status()["accounts_done"] == 1
+    # Counted out of the progress, so the banner says what will really be fetched.
+    assert asked == [] and sync.status()["accounts_total"] == 0
 
 
 def test_once_last_month_settled_only_this_month_is_asked_for_and_last_months_days_kept(fake_api):

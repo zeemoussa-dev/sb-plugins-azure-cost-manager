@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.24.0] - 2026-10-18
+
+- feat: **Sync tags** and **Sync daily data** buttons beside every Sync button (operator, 2026-10-18: "I can't see sync daily data and tags separately"). Each runs only its part, for one customer on its page or for every customer in Settings, without a full sync.
+- fix: **Sync all looked like it fetched everything again** (operator, 2026-10-18). It didn't: of 112 enrollments, 59 synced within 20 hours were skipped, 21 fetched only their delta, and 32 had never been synced for cost (they had been synced only as billing profiles, invoice totals), so they needed their full history. But the progress counted all 112 and the full histories went first. The progress now counts only the enrollments that will be fetched, for consumption, tags and daily data, and the sync log notes how many were skipped.
+
 ## [0.23.0] - 2026-10-18
 
 - feat: **Core42 revenue** (operator, 2026-10-18: "Core42 sees revenue from the MACC in total except Marketplace transactions that Core42 didn't create"). It is the MACC burn less Marketplace bought from any publisher other than Core42 or G42. The dashboard's Marketplace filter is now a choice of *All (MACC burn)*, *Core42's only (Core42 revenue)* or *None*, and the credits filter still applies to each. A customer's Overview gains a **Core42 revenue** KPI (all time and this year). The Excel workbook adds Core42 revenue to its summary and follows the filter. The `azure-cost-manager.consumption` service gives every month `core42_marketplace` and `core42_revenue`, and accepts `include_marketplace="core42"`. Core42's Marketplace is read from each month's Marketplace charges, so a month whose charges have not been fetched counts none.

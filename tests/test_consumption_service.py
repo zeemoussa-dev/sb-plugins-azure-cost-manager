@@ -174,6 +174,8 @@ def test_a_restarted_sync_skips_what_it_synced_today_and_starts_with_the_never_s
     sync.run()
 
     assert {account for account, *_ in azure.queries} == {"20000001"}
+    # The progress counts only the enrollment fetched, not the one skipped.
+    assert (sync.status()["accounts_done"], sync.status()["accounts_total"]) == (1, 1)
     azure.queries.clear()
     sync.run("contoso")   # one customer, asked for by name, is always refreshed
     assert {account for account, *_ in azure.queries} == {"10000002"}

@@ -206,17 +206,19 @@ class ConsumptionSync:
             self._record_error(None, f"this month: no enrollments found for {customer_id or 'any customer'} "
                                      f"among {len(everyone)} customers")
         kept_by_account = {account: self._store.account(account).get("daily") or {} for account in accounts}
+        def fresh(account: str) -> bool:
+            fetched = kept_by_account[account].get("fetched_at")
+            return bool(fetched) and self._now() - datetime.fromisoformat(fetched) < DAILY_FRESH_FOR
+
         order = sorted(accounts, key=lambda name: (kept_by_account[name].get("fetched_at") or "", name))
-        self._set(accounts_done=0, accounts_total=len(accounts))
+        due = [account for account in order if not fresh(account)]
+        if self._log and len(due) < len(order):
+            self._log.note(f"this month: {len(order) - len(due)} enrollment(s) fetched by day within "
+                           f"{DAILY_FRESH_FOR} skipped")
+        self._set(accounts_done=0, accounts_total=len(due))
         client = self._client_factory()
-        for done, account in enumerate(order, start=1):
+        for done, account in enumerate(due, start=1):
             kept = kept_by_account[account]
-            if kept.get("fetched_at") and self._now() - datetime.fromisoformat(kept["fetched_at"]) < DAILY_FRESH_FOR:
-                if self._log:
-                    self._log.note(f"{account}: fetched by day {kept['fetched_at'][:16]}, still fresh -- skipped",
-                                   account)
-                self._set(accounts_done=done)
-                continue
             # Last month stops changing a few days after it ends; keep its days then.
             reuse = (kept.get("first_day") == first_day and kept.get("last_day", "") >= this_month_first_day
                      and is_settled(last_month, kept.get("fetched_at")))
@@ -299,9 +301,12 @@ class ConsumptionSync:
         client = self._client_factory()
         wanted = months.span(months.shift(months.month_of(self._today()), -TAG_MONTHS), months.month_of(self._today()))
         tags_synced = {account: (self._store.account(account).get("tags") or {}).get("synced_at") for account in accounts}
-        for done, account in enumerate(sorted(accounts, key=lambda name: (tags_synced[name] or "", name)), start=1):
-            if customer_id or not self._recent(tags_synced[account]):
-                self._sync_account_tags(client, account, wanted)
+        due = [account for account in sorted(accounts, key=lambda name: (tags_synced[name] or "", name))
+               if customer_id or not self._recent(tags_synced[account])]
+        self._note_skipped(len(accounts) - len(due), "tags")
+        self._set(accounts_done=0, accounts_total=len(due))
+        for done, account in enumerate(due, start=1):
+            self._sync_account_tags(client, account, wanted)
             self._set(accounts_done=done)
 
     def _sync_account_tags(self, client: BillingClient, account: str, wanted: list[str]) -> None:
@@ -343,6 +348,10 @@ class ConsumptionSync:
                     self._store.save_account(account, entry)
         state["synced_at"] = self._now().isoformat()
         self._store.save_account(account, entry)
+
+    def _note_skipped(self, skipped: int, what: str) -> None:
+        if skipped and self._log:
+            self._log.note(f"{what}: {skipped} enrollment(s) synced within {RESYNC_AFTER} skipped")
 
     def _price_candidates(self) -> None:
         if not self._after_customers:
@@ -400,11 +409,14 @@ class ConsumptionSync:
         # skipped. Syncing one customer always refreshes it.
         synced_at = {name: self._store.account(name).get("synced_at") for name in first_month_by_account}
         order = sorted(first_month_by_account, key=lambda name: (synced_at[name] or "", name))
-        self._set(accounts_total=len(order))
+        # The progress counts only what will be fetched: "1 of 112" with 59 to skip read
+        # as a sync that fetches everything again (operator, 2026-10-18).
+        due = [name for name in order if customer_id or not self._recent(synced_at[name])]
+        self._note_skipped(len(order) - len(due), "consumption")
+        self._set(accounts_done=0, accounts_total=len(due))
         client = self._client_factory()
-        for done, name in enumerate(order, start=1):
-            if customer_id or not self._recent(synced_at[name]):
-                self._sync_account(client, name, first_month_by_account[name], visible.get(name) or {})
+        for done, name in enumerate(due, start=1):
+            self._sync_account(client, name, first_month_by_account[name], visible.get(name) or {})
             self._set(accounts_done=done)
 
     def _recent(self, synced_at: str | None) -> bool:

@@ -646,8 +646,9 @@ export interface ThisMonth {
 }
 
 export const fetchThisMonth = (id: string) => apiFetch<ThisMonth>(`${customer(id)}/this-month`);
-export const refreshThisMonth = (customerId: string) =>
-  apiFetch<SyncStatus & { started: boolean }>(`${BASE}/sync/this-month?customer=${encodeURIComponent(customerId)}`,
+/** Last month and this one by day; every customer's enrollments without `customerId`. */
+export const refreshThisMonth = (customerId?: string) =>
+  apiFetch<SyncStatus & { started: boolean }>(`${BASE}/sync/this-month${customerId ? `?customer=${encodeURIComponent(customerId)}` : ''}`,
     { method: 'POST' });
 
 export interface TagDimension {

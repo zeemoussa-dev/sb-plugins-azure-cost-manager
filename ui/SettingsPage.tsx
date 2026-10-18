@@ -425,7 +425,7 @@ export function SettingsPage() {
           weekly sync only fetches the last few weeks. The first sync of a large customer can take minutes.
         </p>
         <SyncControl onSynced={load} />
-        <SyncControl profiles="only" label="Sync all billing profiles" onSynced={load} />
+        <SyncControl profiles="only" label="Sync all billing profiles" onSynced={load} details={false} />
         <p className="text-muted azure-cost-note">
           Billing profiles that are no customer yet are synced lightly — invoice totals and Marketplace charges — so the
           Marketplace report covers every buyer.
