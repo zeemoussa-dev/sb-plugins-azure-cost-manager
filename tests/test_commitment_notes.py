@@ -192,3 +192,17 @@ def test_the_sync_reads_the_term_start_from_the_note(fake_api):
     assert record["accounts"] == ["1"]
     assert record["commitment"]["start"] == "2024-01-01"
     assert date.fromisoformat(record["commitment"]["start"]).year == 2024
+
+
+def test_the_affiliates_rule_reaches_a_note_only_if_entities_knows_it(fake_api):
+    older = FakeCustomers({"ADNOC": None})   # Entities before 1.8: no COMMITMENT_FIELDS
+    customers, _ = book(fake_api, older, [linked()])
+    customers.save("adnoc", {"name": "ADNOC", "accounts": ["1"], "commitment": {**SIGNED, "affiliates": "own"}})
+    assert "affiliates" not in older.writes[-1][1]
+
+    newer = FakeCustomers({"ADNOC": None})
+    newer.COMMITMENT_FIELDS = ("type", "amount", "currency", "start", "end", "note", "include_marketplace",
+                               "subtract_credits", "affiliates")
+    customers, _ = book(type(fake_api)(), newer, [linked()])
+    customers.save("adnoc", {"name": "ADNOC", "accounts": ["1"], "commitment": {**SIGNED, "affiliates": "own"}})
+    assert newer.writes[-1][1]["affiliates"] == "own"

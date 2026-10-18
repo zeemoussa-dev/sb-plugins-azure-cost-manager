@@ -209,13 +209,16 @@ class ConsumptionService:
         customer = self._customer(customer_id)
         members = self._group(customer)
         merged, currency, entries = self._merged(customer)
+        # Affiliates that signed their own: the group is shown, the parent's own burns its MACC.
+        own_burn = len(members) > 1 and not consumption_analysis.affiliates_roll_up(customer.get("commitment"))
         synced = [account["synced_at"] for member in members for account in member["accounts"]]
         synced_at = min(synced) if synced and all(synced) else None
         pipeline = self.pipeline(customer_id)
         return {
             "customer": customer,
             "group": self._group_info(customer, members),
-            "allocations": self._allocations(customer, members[1:]),
+            # Carving affiliates out of the parent's MACC applies only when they roll up into it.
+            "allocations": None if own_burn else self._allocations(customer, members[1:]),
             "synced_at": synced_at,
             "stale": not synced_at or self._now() - datetime.fromisoformat(synced_at) > STALE_AFTER,
             "errors": {account: entry.get("errors") for account, entry in entries.items() if entry.get("errors")},
@@ -223,7 +226,8 @@ class ConsumptionService:
             **consumption_analysis.analyse(merged, currency, customer.get("commitment"),
                                            consumption_analysis.merge_forecasts(entries), self._today(),
                                            measure=measure, scenario=customer.get("scenario"),
-                                           pipeline=pipeline["by_month"]),
+                                           pipeline=pipeline["by_month"],
+                                           burn_merged=self._merged(customer, rolled_up=False)[0] if own_burn else None),
         }
 
     def _finops_of(self, customer: dict) -> dict:
@@ -454,7 +458,12 @@ class ConsumptionService:
             measure = consumption_analysis.commitment_measure(commitment or {})
             trend = consumption_analysis.monthly_totals(merged, current_month, measure)
             closed = [month for month in trend if not month["partial"]]
-            burn = consumption_analysis.burn_down(commitment, trend, today) if commitment else None
+            burning = trend
+            if len(members) > 1 and not consumption_analysis.affiliates_roll_up(commitment):
+                own, _ = consumption_analysis.merge({account["name"]: entry(account["name"])
+                                                     for account in customer["accounts"]}, None, not_eligible)
+                burning = consumption_analysis.monthly_totals(own, current_month, measure)
+            burn = consumption_analysis.burn_down(commitment, burning, today) if commitment else None
             # A group whose affiliates are mid-sync still has something to show: its
             # oldest synced enrollment dates it, and the rest are counted.
             synced = [account["synced_at"] for member in members for account in member["accounts"]

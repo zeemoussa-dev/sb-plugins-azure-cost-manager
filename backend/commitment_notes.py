@@ -56,6 +56,11 @@ class CommitmentNotes:
         service = self._service()
         if service is None:
             raise RuntimeError("the Entities plugin 1.3 or later is needed to keep a signed value on a Customer note")
+        # Entities refuses a field it does not know; before 1.8 it has no `affiliates`.
+        known = (getattr(service, "COMMITMENT_FIELDS", None)
+                 or ("type", "amount", "currency", "start", "end", "note", "include_marketplace", "subtract_credits"))
+        if commitment is not None:
+            commitment = {field: value for field, value in commitment.items() if field in known}
         try:
             written = service.set_commitment(customer_stem, commitment)
         except Exception:

@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.29.0] - 2026-10-18
+
+- feat: **affiliates either roll up into a parent's MACC or sign their own** (operator, 2026-10-18: "In Mubadala every affiliate signed their own MACC ... for DGE the affiliates don't sign a MACC on their own, so all data rolls up to DGE"). A parent's commitment has an **Affiliates** setting (Settings, a parent's signed value), stored on its Customer note as `macc_affiliates` (Entities 1.8):
+  - **Roll up** (the default, as DGE): unchanged. The affiliates' consumption burns the parent's MACC, and an affiliate's own MACC is carved out of it.
+  - **Own** (as Mubadala): only the parent's own enrollments burn its MACC, in the burn-down, the customer list's status and the workbook. Its totals, charts and exports still show the whole group. Each affiliate burns down its own MACC, and the carved-out allocation view does not apply.
+  - The signed-value card says which rule applies. `azure-cost-manager.consumption`'s `customers()` gives each customer's `affiliates` rule, for Core42 Insight.
+  - With Entities older than 1.8 the setting is kept out of the note write, which that version would refuse.
+
 ## [0.28.0] - 2026-10-18
 
 - feat: **a sync cut off by a backend restart starts again by itself** (operator, 2026-10-18). When the plugin loads and the sync log shows the last run was interrupted, the same sync (Sync all, one customer, tags only or daily data only) starts again 20 seconds later, once the restart has settled. It resumes rather than restarts, since settled months, recently synced enrollments and stored days are never fetched again, and the log notes that it was started automatically. A run that finishes, or stops on an error, is never repeated. Neither is one cut off more than 10 times in a row before it asked Azure anything.

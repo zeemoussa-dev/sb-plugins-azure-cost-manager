@@ -79,6 +79,9 @@ class ConsumptionProvider:
         return sorted(({"id": customer["id"], "name": customer["name"], "parent_id": customer.get("parent"),
                         "customer_stem": customer.get("entity_customer") or None,
                         "currency": ((customer.get("commitment") or {}).get("currency") or "USD").strip() or "USD",
+                        # Whether this parent's affiliates roll up into its MACC or signed their own.
+                        "affiliates": "own" if not consumption_analysis.affiliates_roll_up(customer.get("commitment"))
+                        else "roll up",
                         "route": _route(customer["id"])} for customer in everyone),
                       key=lambda row: row["name"].lower())
 

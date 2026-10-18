@@ -98,7 +98,12 @@ function CommitmentCard({ analysis }: { analysis: Analysis }) {
       <dl className="azure-cost-facts">
         <dt>Signed</dt><dd>{formatMoney(commitment.amount, currency)} ({commitment.type})</dd>
         <dt>Counts</dt>
-        <dd>Usage and all Marketplace (except offers marked as not eligible), less credits</dd>
+        <dd>Usage and all Marketplace (except offers marked as not eligible), less credits
+          {analysis.group.affiliates.length
+            ? commitment.affiliates === 'own'
+              ? ` — this customer's own enrollments only: each affiliate signed its own MACC (totals above include them)`
+              : ` — including its ${analysis.group.affiliates.length} affiliate(s)`
+            : ''}</dd>
         <dt>Consumed</dt><dd>{formatMoney(commitment.consumed, currency)} ({commitment.consumed_pct}%)</dd>
         <dt>Against an even pace</dt>
         <dd className={commitment.pace_gap < 0 ? 'azure-cost-warning' : undefined}>

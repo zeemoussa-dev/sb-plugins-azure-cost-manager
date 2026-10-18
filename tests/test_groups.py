@@ -142,3 +142,32 @@ def test_syncing_a_parent_brings_its_affiliates(fake_api):
     sync.run("holding")
 
     assert set(asked) == {"1", "2", "3"}
+
+
+def _own_group(fake_api):
+    book, service = group(fake_api)
+    book.save("holding", {"name": "Holding", "accounts": ["1"],
+                          "commitment": {**macc(50_000_000), "affiliates": "own"}})
+    return book, service
+
+
+def test_a_parent_whose_affiliates_signed_their_own_is_burned_by_its_own_enrollments_only(fake_api):
+    _, service = _own_group(fake_api)
+
+    result = service.analysis("holding")
+
+    # The group is still shown (operator, 2026-10-18: "only the total consumption is affected")...
+    assert result["months"][0]["actual"] == 1_750_000
+    # ...but only the parent's own enrollments burn its MACC, and nothing is carved out of it.
+    assert result["commitment"]["consumed"] == 9 * 1_000_000
+    assert result["commitment"]["affiliates"] == "own"
+    assert result["allocations"] is None
+    assert service.analysis("northwind")["commitment"]["consumed"] == 4_500_000
+
+
+def test_the_portfolio_burns_an_own_parent_by_its_own_enrollments(fake_api):
+    _, service = _own_group(fake_api)
+
+    holding = next(row for row in service.portfolio() if row["id"] == "holding")
+
+    assert holding["burn"]["consumed"] == 9 * 1_000_000

@@ -105,7 +105,9 @@ def _valid_commitment(commitment: dict | None) -> dict | None:
             "start": start, "end": end, "note": (commitment.get("note") or "").strip(),
             # Marketplace burns a MACC; a credit lowers what was billed against it.
             "include_marketplace": bool(commitment.get("include_marketplace", True)),
-            "subtract_credits": bool(commitment.get("subtract_credits", True))}
+            "subtract_credits": bool(commitment.get("subtract_credits", True)),
+            # A parent's affiliates: "roll up" into this commitment, or each signed its "own".
+            "affiliates": "own" if commitment.get("affiliates") == "own" else "roll up"}
 
 
 def _valid_budget(value) -> float | None:

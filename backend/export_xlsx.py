@@ -292,7 +292,9 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
                  ("At term end, at run rate ($)", commitment["projected_at_end"], MONEY),
                  ("At term end, with pipeline ($)", commitment["projected_with_pipeline"], MONEY),
                  ("Projected exhaustion month", commitment["projected_exhaustion"] or "not within term", None),
-                 ("Counted against it", "all Marketplace (except excluded offers), less credits", None)]
+                 ("Counted against it", "all Marketplace (except excluded offers), less credits", None),
+                 ("Affiliates", "each signed its own MACC: only this customer's own enrollments count"
+                  if commitment.get("affiliates") == "own" else "roll up: their consumption counts against it", None)]
     else:
         facts = [("No signed value entered for this customer", "", None)]
     for offset, (label, value, number_format) in enumerate(facts, start=3):

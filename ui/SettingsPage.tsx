@@ -23,7 +23,7 @@ interface Draft {
   budget_monthly: string;
   commitment: {
     type: string; amount: string; currency: string; start: string; end: string; note: string;
-    include_marketplace: boolean; subtract_credits: boolean;
+    include_marketplace: boolean; subtract_credits: boolean; affiliates: 'roll up' | 'own';
   };
 }
 
@@ -41,6 +41,7 @@ function draftOf(customer: Customer | null): Draft {
       currency: commitment.currency ?? 'USD', start: commitment.start ?? '', end: commitment.end ?? '',
       note: commitment.note ?? '', include_marketplace: commitment.include_marketplace ?? true,
       subtract_credits: commitment.subtract_credits ?? true,
+      affiliates: commitment.affiliates === 'own' ? 'own' : 'roll up',
     },
   };
 }
@@ -199,6 +200,15 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
         Usage and all Marketplace count against it, less credits. An offer marked as not eligible on the
         Marketplace report is left out.
       </p>
+      {value.parent ? null : (
+        <label className="field-labeled">Affiliates
+          <select value={value.commitment.affiliates}
+                  onChange={(event) => setCommitment('affiliates', event.target.value)}>
+            <option value="roll up">Roll up — they sign no MACC; their consumption burns this one</option>
+            <option value="own">Own — each signed its own; only this customer's enrollments burn this one</option>
+          </select>
+        </label>
+      )}
 
       <h4>Monthly budget (FinOps)</h4>
       <p className="text-muted azure-cost-note">

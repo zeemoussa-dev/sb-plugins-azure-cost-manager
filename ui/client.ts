@@ -32,6 +32,8 @@ export interface Commitment {
   /** Marketplace burns a MACC; a credit lowers what was billed against it. */
   include_marketplace?: boolean;
   subtract_credits?: boolean;
+  /** A parent's affiliates: "roll up" (their consumption burns this MACC) or "own" (each signed its own). */
+  affiliates?: 'roll up' | 'own';
 }
 
 export interface Measure {

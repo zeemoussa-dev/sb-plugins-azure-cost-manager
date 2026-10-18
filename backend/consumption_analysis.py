@@ -234,6 +234,13 @@ def commitment_measure(commitment: dict) -> dict:
     return {"marketplace": "macc", "credits": True}
 
 
+def affiliates_roll_up(commitment: dict | None) -> bool:
+    """Whether a parent's affiliates burn its commitment: "roll up" (they signed none of
+    their own, as DGE; the default) or "own" (each signed its own, as Mubadala) --
+    `macc_affiliates` on the Customer note (operator, 2026-10-18)."""
+    return (commitment or {}).get("affiliates") != "own"
+
+
 def burn_down(commitment: dict | None, trend: list[dict], today: date,
               pipeline: dict[str, float] | None = None) -> dict | None:
     """Consumption since the term started against what the customer signed for:
@@ -325,12 +332,16 @@ def gpu_and_ai(merged: dict, last: int = 13) -> list[dict]:
 
 def analyse(merged: dict, currency: str | None, commitment: dict | None,
             azure_forecast: list[dict] | None, today: date, measure: dict | None = None,
-            scenario: dict | None = None, pipeline: dict[str, float] | None = None) -> dict:
+            scenario: dict | None = None, pipeline: dict[str, float] | None = None,
+            burn_merged: dict | None = None) -> dict:
+    """`burn_merged`: what burns the commitment when it is not everything shown -- a
+    parent whose affiliates signed their own is burned by its own enrollments only."""
     measure = {**DEFAULT_MEASURE, **(measure or {})}
     current_month = months.month_of(today)
     trend = monthly_totals(merged, current_month, measure)
     last_closed = months.shift(current_month, -1)
-    burn = (burn_down(commitment, monthly_totals(merged, current_month, commitment_measure(commitment)),
+    burning = merged if burn_merged is None else burn_merged
+    burn = (burn_down(commitment, monthly_totals(burning, current_month, commitment_measure(commitment)),
                       today, pipeline) if commitment else None)
     automatic = forecasting.automatic(trend, today, pipeline)
     return {
