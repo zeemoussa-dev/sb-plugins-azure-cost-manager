@@ -63,3 +63,7 @@ def test_the_workbook_totals_follow_the_core42_filter():
 
     assert _components(merged["2026-09"], core42)["total"] == 1250
     assert _components(month(), core42)["total"] == 1250   # one enrollment's month, read from its balance
+
+
+def test_other_g42_group_publishers_are_not_core42_revenue():
+    assert not analysis.is_core42_publisher("Presight AI")
