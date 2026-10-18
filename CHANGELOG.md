@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.22.0] - 2026-10-18
+
+- feat: **Sync activity log and Sync details** (operator, 2026-10-18: "I need to know why it gets stuck sometimes"). Every sync run is now logged to `Azure-Cost-Manager/Sync-Log.json`: each step, every Azure request and page with its status and duration, each throttle wait, each error. The last 12 runs are kept, with up to 1,500 events each. A run the backend stopped by restarting is closed as *interrupted* at the last thing it did. A folding **Sync details** panel under every Sync button shows how long the current step and the Azure request in flight have taken. It also lists the last runs (scope, duration, outcome, requests, pages, throttle waits, errors); open one to read its events. `GET /sync` gains `step_started_at` and `in_flight`; new routes are `GET /sync/log` and `GET /sync/log/{run_id|latest}`.
+- fix: a throttle wait's `waiting_seconds` stayed on the status after the wait ended, so the banner kept saying Azure asked to wait.
+
 ## [0.21.0] - 2026-10-18
 
 - feat: **This month by tag, one grouping at a time** (operator, 2026-10-18: "see the tags … per Project, Owner, Environment; massive scrolling because of the number of resource groups"). Refresh this month also fetches the day-by-day cost per Project, Owner and Environment tag (the enrollment's own spelling of each key; values folded as in the Tags report, untagged left out). The page shows one grouping at a time (Service, Subscription, Resource group, Project, Owner, Environment), each with its count of new items, filtered to All, New this month or Growing; it lists the first 15 rows with "Show all" for the rest; and the chart and the table fold away. The New this month figure is split by kind.

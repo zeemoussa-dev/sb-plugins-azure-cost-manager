@@ -354,8 +354,36 @@ export interface SyncStatus {
   accounts_done: number;
   accounts_total: number;
   errors: { account: string | null; message: string }[];
+  /** When the step in `current` began; a wait inside it does not restart it. */
+  step_started_at?: string | null;
+  /** The Azure request on the wire right now, and since when. */
+  in_flight?: { what: string; since: string } | null;
   started?: boolean;
   reason?: string;
+}
+
+export interface SyncRun {
+  id: string;
+  scope: string;
+  started_at: string;
+  finished_at: string | null;
+  /** running, finished, finished with errors, stopped, or interrupted (the backend restarted). */
+  outcome: string;
+  requests: number;
+  pages: number;
+  throttle_waits: number;
+  waited_seconds: number;
+  errors: number;
+  dropped_events: number;
+}
+
+export interface SyncEvent {
+  at: string;
+  kind: 'step' | 'request' | 'wait' | 'error' | 'interrupted';
+  text: string;
+  account?: string;
+  seconds?: number;
+  status?: number;
 }
 
 export interface MarketplaceSolution {
@@ -683,6 +711,12 @@ export const fetchConsumption = (id: string, group: MixGroup) =>
   apiFetch<{ rows: ConsumptionRow[] }>(`${customer(id)}/consumption?group=${group}&cost=actual`);
 
 export const fetchSyncStatus = () => apiFetch<SyncStatus>(`${BASE}/sync`);
+
+export const fetchSyncLog = () => apiFetch<{ runs: (SyncRun & { events: number })[] }>(`${BASE}/sync/log`);
+
+/** One run and its newest events; `latest` for the newest run. */
+export const fetchSyncRun = (runId: string, last = 200) =>
+  apiFetch<SyncRun & { events: SyncEvent[] }>(`${BASE}/sync/log/${encodeURIComponent(runId)}?last=${last}`);
 
 /** `profiles`: also sync every other billing profile lightly ('also'), or only them ('only'). */
 export const startSync = (customerId?: string, profiles: 'none' | 'also' | 'only' = 'none') => {

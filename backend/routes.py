@@ -15,6 +15,7 @@ from .consumption_service import ConsumptionService, CustomerNotFound
 from .consumption_sync import ConsumptionSync
 from .customers import COMMITMENT_TYPES, AccountDirectory, CustomerBook, CustomerError
 from .pipeline import Pipeline, PipelineUnavailable
+from .sync_log import SyncLog
 
 
 def _answered(call):
@@ -38,7 +39,8 @@ def _answered(call):
 
 
 def build_router(service: ConsumptionService, book: CustomerBook, directory: AccountDirectory,
-                 sync: ConsumptionSync, token: AzureCliToken, pipeline: Pipeline) -> APIRouter:
+                 sync: ConsumptionSync, token: AzureCliToken, pipeline: Pipeline,
+                 log: SyncLog | None = None) -> APIRouter:
     router = APIRouter()
 
     def measure(marketplace: bool, credits: bool) -> dict:
@@ -221,5 +223,18 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     @router.get("/sync")
     def get_sync() -> dict:
         return sync.status()
+
+    @router.get("/sync/log")
+    def get_sync_log() -> dict:
+        """The last runs, newest first: scope, outcome, requests, pages, waits, errors."""
+        return {"runs": log.runs() if log else []}
+
+    @router.get("/sync/log/{run_id}")
+    def get_sync_run(run_id: str, last: int = 200) -> dict:
+        """One run with its newest `last` events; `latest` is the newest run."""
+        found = log.events(None if run_id == "latest" else run_id, max(1, min(last, 1500))) if log else None
+        if found is None:
+            raise HTTPException(status_code=404, detail="No such sync run.")
+        return found
 
     return router

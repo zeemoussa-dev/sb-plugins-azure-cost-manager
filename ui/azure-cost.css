@@ -624,3 +624,62 @@
 .azure-cost-fold > summary h3 {
   margin: 0;
 }
+
+.azure-cost-sync-details {
+  margin-top: var(--space-3);
+}
+
+.azure-cost-sync-now {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-3) 0;
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-sync-now dt {
+  color: var(--color-text-muted);
+}
+
+.azure-cost-sync-now dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.azure-cost-sync-details tr.selected td {
+  background: var(--color-surface-muted, rgba(127, 127, 127, 0.08));
+}
+
+.azure-cost-sync-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-sync-events li {
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.azure-cost-sync-kind {
+  display: inline-block;
+  min-width: 6em;
+  color: var(--color-text-muted);
+}
+
+.azure-cost-sync-events li.kind-error,
+.azure-cost-sync-events li.kind-interrupted {
+  color: var(--color-danger);
+}
+
+.azure-cost-sync-events li.kind-wait {
+  color: var(--color-warning, var(--color-accent));
+}
+
+.azure-cost-sync-events li.kind-step {
+  font-weight: 600;
+}

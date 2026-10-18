@@ -12,6 +12,7 @@ import httpx
 
 from . import months
 from .azure_token import AzureCliToken
+from .sync_log import SyncLog, describe_request
 
 API_ROOT = "https://management.azure.com"
 # Pinned old on purpose: 2021-10-01 and later list no indirect EA enrollments for a
@@ -95,16 +96,37 @@ def _day(value: str | None) -> str | None:
 
 class BillingClient:
     def __init__(self, token: AzureCliToken, transport: httpx.BaseTransport | None = None,
-                 sleep: Callable[[float], None] = time.sleep) -> None:
+                 sleep: Callable[[float], None] = time.sleep, observe: SyncLog | None = None) -> None:
         self._token = token
         self._sleep = sleep
+        self._observe = observe
         self._http = httpx.Client(base_url=API_ROOT, timeout=90, transport=transport)
+
+    def _send(self, method: str, url: str, params: dict | None, body: dict | None) -> httpx.Response:
+        """One HTTP exchange, told to the sync log when there is one -- a request that
+        hangs is what a stuck sync looks like from outside."""
+        if self._observe is None:
+            return self._http.request(method, url, params=params, json=body,
+                                      headers={"Authorization": f"Bearer {self._token.get()}"})
+        what = describe_request(method, url, body)
+        # A nextLink is absolute; a first request is a path under API_ROOT.
+        page = url.startswith("http")
+        self._observe.request_started(what)
+        started = time.monotonic()
+        try:
+            response = self._http.request(method, url, params=params, json=body,
+                                          headers={"Authorization": f"Bearer {self._token.get()}"})
+        except Exception as exc:
+            self._observe.request_finished(what, None, time.monotonic() - started, page,
+                                           failure=f"failed: {type(exc).__name__} {exc}".strip())
+            raise
+        self._observe.request_finished(what, response.status_code, time.monotonic() - started, page)
+        return response
 
     def _request(self, method: str, url: str, *, params: dict | None = None,
                  body: dict | None = None) -> dict:
         for attempt in range(_ATTEMPTS):
-            response = self._http.request(method, url, params=params, json=body,
-                                          headers={"Authorization": f"Bearer {self._token.get()}"})
+            response = self._send(method, url, params, body)
             if response.status_code == 401 and attempt == 0:
                 self._token.forget()
                 continue
@@ -112,6 +134,8 @@ class BillingClient:
                 wait = _retry_after(response)
                 if wait > _LONGEST_INLINE_WAIT_SECONDS or attempt == _ATTEMPTS - 1:
                     raise AzureThrottled(wait)
+                if self._observe is not None:
+                    self._observe.wait(wait, "inline retry")
                 self._sleep(wait)
                 continue
             if response.status_code >= 400:

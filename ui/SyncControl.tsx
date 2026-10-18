@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchSyncStatus, startSync, type SyncStatus } from './client';
 import { errorText, formatMonth } from './format';
+import { SyncDetails } from './SyncDetails';
 
 const POLL_MS = 3000;
 
@@ -108,6 +109,7 @@ export function SyncControl({ customerId, syncedAt, onSynced, profiles = 'none',
           {running ? 'Syncing…' : label ?? (customerId ? 'Sync this customer' : 'Sync all customers')}
         </button>
       </div>
+      <SyncDetails status={status} />
     </>
   );
 }

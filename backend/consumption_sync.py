@@ -19,6 +19,7 @@ from . import months, tags
 from .billing_client import COST_TYPES, AzureApiError, AzureThrottled, BillingClient
 from .consumption_store import ConsumptionStore, is_settled
 from .customers import AccountDirectory
+from .sync_log import SyncLog
 
 WINDOW_MONTHS = 12
 # Without a known term, how far back a first sync reaches.
@@ -114,8 +115,9 @@ class ConsumptionSync:
                  client_factory: Callable[[], BillingClient], today: Callable[[], date] = date.today,
                  now: Callable[[], datetime] = _now, sleep: Callable[[float], None] = time.sleep,
                  customers: Callable[[], list[dict]] | None = None,
-                 after_customers: Callable[[], dict] | None = None) -> None:
+                 after_customers: Callable[[], dict] | None = None, log: SyncLog | None = None) -> None:
         self._store = store
+        self._log = log
         # Run once the customers are synced: FinOps prices their steady candidates.
         self._after_customers = after_customers
         # The customer book's view: a linked customer's signed value is on its Customer note.
@@ -127,12 +129,13 @@ class ConsumptionSync:
         self._sleep = sleep
         self._lock = threading.Lock()
         self._status: dict = {"running": False, "started_at": None, "finished_at": None,
-                              "scope": None, "current": None, "accounts_done": 0, "accounts_total": 0,
-                              "errors": []}
+                              "scope": None, "current": None, "step_started_at": None,
+                              "accounts_done": 0, "accounts_total": 0, "errors": []}
 
     def status(self) -> dict:
         with self._lock:
-            return {**self._status, "errors": list(self._status["errors"])}
+            found = {**self._status, "errors": list(self._status["errors"])}
+        return {**found, "in_flight": self._log.in_flight() if self._log else None}
 
     def start(self, customer_id: str | None = None, profiles: str = "none") -> dict:
         """Starts a sync in the background unless one is running already.
@@ -147,6 +150,8 @@ class ConsumptionSync:
             self._status.update(running=True, started_at=self._now().isoformat(), finished_at=None,
                                 scope=scope, current=None, accounts_done=0,
                                 accounts_total=0, errors=[])
+        if self._log:
+            self._log.begin(self._status["scope"])
         threading.Thread(target=self._run_and_finish, args=(customer_id, profiles), daemon=True,
                          name="azure-cost-manager-sync").start()
         return {"started": True, **self.status()}
@@ -159,6 +164,8 @@ class ConsumptionSync:
             self._status.update(running=True, started_at=self._now().isoformat(), finished_at=None,
                                 scope=f"{customer_id or 'all'}:tags", current=None, accounts_done=0,
                                 accounts_total=0, errors=[])
+        if self._log:
+            self._log.begin(self._status["scope"])
         threading.Thread(target=self._run_and_finish, args=(customer_id, "tags"), daemon=True,
                          name="azure-cost-manager-tags").start()
         return {"started": True, **self.status()}
@@ -172,6 +179,8 @@ class ConsumptionSync:
             self._status.update(running=True, started_at=self._now().isoformat(), finished_at=None,
                                 scope=f"{customer_id or 'all'}:this-month", current=None, accounts_done=0,
                                 accounts_total=0, errors=[])
+        if self._log:
+            self._log.begin(self._status["scope"])
         threading.Thread(target=self._run_and_finish, args=(customer_id, "month"), daemon=True,
                          name="azure-cost-manager-this-month").start()
         return {"started": True, **self.status()}
@@ -222,6 +231,7 @@ class ConsumptionSync:
             self._set(accounts_done=done)
 
     def _run_and_finish(self, customer_id: str | None, profiles: str = "none") -> None:
+        stopped = False
         try:
             if profiles == "month":
                 self.run_this_month(customer_id)
@@ -236,10 +246,14 @@ class ConsumptionSync:
             if profiles != "none":
                 self.run_profiles()
         except Exception as exc:  # the thread must always clear `running`
+            stopped = True
             self._record_error(None, f"sync stopped: {exc}")
         finally:
             with self._lock:
-                self._status.update(running=False, current=None, finished_at=self._now().isoformat())
+                self._status.update(running=False, current=None, step_started_at=None,
+                                    finished_at=self._now().isoformat())
+            if self._log:
+                self._log.end("stopped" if stopped else "finished")
 
     def run_tags(self, customer_id: str | None = None) -> None:
         """Cost by tag for the customers' enrollments: each enrollment's tag keys
@@ -311,10 +325,18 @@ class ConsumptionSync:
     def _record_error(self, account: str | None, message: str) -> None:
         with self._lock:
             self._status["errors"].append({"account": account, "message": message})
+        if self._log:
+            self._log.error(account, message)
 
     def _set(self, **fields) -> None:
         with self._lock:
+            # A wait updates the step it is in; only a different step restarts the clock.
+            stepped = "current" in fields and fields["current"] is not None and                 {key: value for key, value in fields["current"].items() if key != "waiting_seconds"} !=                 {key: value for key, value in (self._status["current"] or {}).items() if key != "waiting_seconds"}
+            if stepped:
+                fields["step_started_at"] = self._now().isoformat()
             self._status.update(fields)
+        if stepped and self._log:
+            self._log.step(fields["current"])
 
     def _named(self, account: str) -> dict:
         """The account being synced, keeping the name the status already shows for it."""
@@ -398,8 +420,13 @@ class ConsumptionSync:
             try:
                 return call()
             except AzureThrottled as exc:
-                self._set(current={**(self.status()["current"] or {}), "waiting_seconds": exc.retry_after_seconds})
+                current = {key: value for key, value in (self.status()["current"] or {}).items()
+                           if key != "waiting_seconds"}
+                self._set(current={**current, "waiting_seconds": exc.retry_after_seconds})
+                if self._log:
+                    self._log.wait(exc.retry_after_seconds + 1, account)
                 self._sleep(exc.retry_after_seconds + 1)
+                self._set(current=current)
         raise AzureApiError(429, f"still throttled after {THROTTLE_WAITS_PER_QUERY} waits")
 
     def _sync_account(self, client: BillingClient, account: str, first_month: str, known: dict) -> None:
