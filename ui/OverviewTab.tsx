@@ -41,7 +41,7 @@ function Kpis({ analysis }: { analysis: Analysis }) {
       <Kpi label={`${analysis.automatic_forecast?.next_year ?? ''} forecast (auto)`} value={money(kpis.next_year_forecast, currency)}
            detail={analysis.automatic_forecast?.next_vs_this_pct != null
              ? `${percent(analysis.automatic_forecast.next_vs_this_pct)} on this year` : null} />
-      <Kpi label="Burn rate, 3-month average" value={money(kpis.burn_rate_3m, currency)} />
+      <Kpi label="Consumption rate, 3-month average" value={money(kpis.burn_rate_3m, currency)} />
       <Kpi label="Active enrollments" value={kpis.active_enrollments}
            detail={kpis.largest_enrollment_share_pct != null ? `largest carries ${kpis.largest_enrollment_share_pct}%` : null} />
       {commitment ? (
@@ -51,7 +51,7 @@ function Kpis({ analysis }: { analysis: Analysis }) {
           <Kpi label="Consumed against it" value={`${commitment.consumed_pct}%`}
                detail={`${commitment.elapsed_pct}% of the term elapsed`} warn={commitment.pace_gap < 0} />
           <Kpi label="Remaining" value={money(commitment.remaining, commitment.currency)}
-               detail={kpis.runway_months != null ? `${kpis.runway_months} months at current burn` : null} />
+               detail={kpis.runway_months != null ? `${kpis.runway_months} months at the current consumption rate` : null} />
           <Kpi label="Projected exhaustion"
                value={commitment.projected_exhaustion ? formatMonth(commitment.projected_exhaustion) : 'not within term'}
                warn={!commitment.projected_exhaustion} />

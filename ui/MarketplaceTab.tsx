@@ -167,7 +167,7 @@ export function MarketplaceTab({ customerId, currency, syncedVersion }: {
         ) : <p className="text-muted">No Marketplace solution billed in this period.</p>}
         <p className="text-muted azure-cost-note">
           Every Marketplace dollar counts toward the MACC unless its offer is excluded here; an exclusion applies to every
-          customer and to the burn-down.
+          customer and to the MACC consumed.
         </p>
       </section>
       {report.adopted.length ? (

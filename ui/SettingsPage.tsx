@@ -204,8 +204,8 @@ function CustomerEditor({ draft, accounts, types, entityCustomers, parents, onSa
         <label className="field-labeled">Affiliates
           <select value={value.commitment.affiliates}
                   onChange={(event) => setCommitment('affiliates', event.target.value)}>
-            <option value="roll up">Roll up — they sign no MACC; their consumption burns this one</option>
-            <option value="own">Own — each signed its own; only this customer's enrollments burn this one</option>
+            <option value="roll up">Roll up — they sign no MACC; their consumption counts toward this one</option>
+            <option value="own">Own — each signed its own; only this customer's enrollments count toward this one</option>
           </select>
         </label>
       )}

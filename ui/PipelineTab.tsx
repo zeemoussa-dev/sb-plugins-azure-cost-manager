@@ -301,7 +301,7 @@ export function PipelineTab({ analysis, onChanged }: { analysis: Analysis; onCha
             </tbody>
           </table>
         )}
-        <p className="text-muted azure-cost-note">Open and Won opportunities count toward the forecast and the burn-down.</p>
+        <p className="text-muted azure-cost-note">Open and Won opportunities count toward the forecast and the projected MACC consumed.</p>
       </section>
       {counted.length && months.length ? (
         <section className="card azure-cost-card">

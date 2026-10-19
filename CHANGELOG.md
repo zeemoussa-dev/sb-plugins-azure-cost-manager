@@ -2,6 +2,17 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.29.3] - 2026-10-19
+
+- change: **customer-friendly wording** (operator, 2026-10-19: "replace MACC burn with MACC consumed"). The screens and the Excel export no longer say "burn":
+  - **Marketplace filter:** *All (MACC consumed)*.
+  - **Customer list:** the column *MACC consumed vs term*.
+  - **Overview:** *Consumption rate, 3-month average*, and runway "at the current consumption rate".
+  - **Workbook:** *Consumption rate – 3-mo avg* and *Runway at current consumption rate*.
+  - **Notes:** the report summaries, the Pipeline and Marketplace notes, and the Affiliates options say what counts toward the MACC consumed.
+
+  Figures are unchanged.
+
 ## [0.29.2] - 2026-10-18
 
 - fix: **a cut-off sync was sometimes not started again.** The resume looked only for a run that the current load had just closed as interrupted. When one load closed it and was itself reloaded before the resume fired (here: the plugin refused at load during the Plugin API 12 move, then installed again), the next load saw the run already closed and did nothing. It now starts again whenever the newest run was cut off by a restart within the last 12 hours, whichever load closed it.

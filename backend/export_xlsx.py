@@ -267,8 +267,8 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
     if commitment:
         tiles(9, [("MACC consumed (% of commitment)", _fraction(commitment["consumed_pct"]), PERCENT),
                   ("MACC remaining ($)", commitment["remaining"], MONEY),
-                  ("Burn rate – 3-mo avg ($/mo)", kpis["burn_rate_3m"], MONEY),
-                  ("Runway at current burn (months)", kpis.get("runway_months"), "0.0"),
+                  ("Consumption rate – 3-mo avg ($/mo)", kpis["burn_rate_3m"], MONEY),
+                  ("Runway at current consumption rate (months)", kpis.get("runway_months"), "0.0"),
                   ("Projected exhaustion", commitment["projected_exhaustion"] or "not within term", None)], peach=True)
 
     # The signed value, as the workbook's MACC block beside the tiles.
@@ -288,7 +288,7 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
                  ("Consumed % of commitment", _fraction(commitment["consumed_pct"]), PERCENT),
                  ("Remaining ($)", commitment["remaining"], MONEY),
                  ("Against an even pace ($)", commitment["pace_gap"], MONEY),
-                 ("Burn rate – 3-mo avg ($/mo)", commitment["run_rate"], MONEY),
+                 ("Consumption rate – 3-mo avg ($/mo)", commitment["run_rate"], MONEY),
                  ("At term end, at run rate ($)", commitment["projected_at_end"], MONEY),
                  ("At term end, with pipeline ($)", commitment["projected_with_pipeline"], MONEY),
                  ("Projected exhaustion month", commitment["projected_exhaustion"] or "not within term", None),

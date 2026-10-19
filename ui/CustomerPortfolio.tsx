@@ -222,7 +222,7 @@ export function CustomerPortfolio({ report }: { report: Report }) {
           <tr>
             {header('name', 'Customer')}
             {header('signed', 'Signed MACC')}
-            {header('burn', 'Burn vs term')}
+            {header('burn', 'MACC consumed vs term')}
             {header('last', 'Last month')}
             {header('trend', 'Trend')}
             <th>Projected</th>

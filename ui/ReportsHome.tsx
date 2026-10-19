@@ -10,11 +10,11 @@ export const REPORTS = ['Overview', 'This month', 'Forecast', 'Pipeline', 'Marke
 export type Report = typeof REPORTS[number];
 
 const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
-  Overview: { title: 'Consumption overview', summary: 'Signed MACC, burn-down, monthly consumption, top services and anomalies.' },
+  Overview: { title: 'Consumption overview', summary: 'Signed MACC, MACC consumed, monthly consumption, top services and anomalies.' },
   'This month': { title: 'This month', summary: 'This month so far, day by day: pace against last month and every new service, subscription or resource group -- early signs of an opportunity.' },
   Forecast: { title: 'Forecast', summary: 'Run rate and where consumption lands by the end of the term.' },
   Pipeline: { title: 'Pipeline', summary: 'The customer\'s Opportunities and their effect on consumption.' },
-  Marketplace: { title: 'Marketplace', summary: 'The partner solutions one customer bought, and what they burn of its MACC.' },
+  Marketplace: { title: 'Marketplace', summary: 'The partner solutions one customer bought, and how much of its MACC they consumed.' },
   FinOps: { title: 'FinOps', summary: 'Commitment coverage, steady on-demand spend to commit, purchases, growth and the budget.' },
   Tags: { title: 'Tags', summary: 'Cost by environment, project, application, business unit, owner and cost centre tags.' },
   Breakdown: { title: 'Breakdown', summary: 'Consumption by service, subscription and resource group.' },

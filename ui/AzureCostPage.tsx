@@ -153,12 +153,12 @@ export function AzureCostPage() {
                   ))}
                 </div>
                 <label className="azure-cost-check"
-                       title="Marketplace always burns the customer's MACC. Core42's revenue is everything except Marketplace bought from other publishers.">
+                       title="Marketplace always counts toward the customer's MACC consumed. Core42's revenue is everything except Marketplace bought from other publishers.">
                   Marketplace{' '}
                   <select value={String(measure.marketplace)}
                           onChange={(event) => setMeasure({ ...measure,
                             marketplace: event.target.value === 'core42' ? 'core42' : event.target.value === 'true' })}>
-                    <option value="true">All (MACC burn)</option>
+                    <option value="true">All (MACC consumed)</option>
                     <option value="core42">Core42's only (Core42 revenue)</option>
                     <option value="false">None</option>
                   </select>
