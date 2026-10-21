@@ -2,6 +2,17 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.33.0] - 2026-10-21
+
+Five reports across all customers (operator, 2026-10-21: "what else can we report on based on the data we have", picking 2, 4, 6, 11 and 12). All are built from data already synced, with no new Azure queries, and open from the landing page's "Across all customers".
+
+- feat: **Growth and churn.** Each customer group's last three closed months against the three before, the last twelve against the twelve before, and last month year on year. Signals: growing or declining (20% either way over three months), a sharp drop (last month under half the three before), services that stopped ($1,000+ a month falling under a tenth) and new services. Each row opens on its solution plays' moves. Filters: All, Growing, Declining, Stopped or dropped.
+- feat: **Service whitespace.** The services at least 30% of customers (and three or more) use at $500+ a month that a customer doesn't, most common first, by solution play, with what a typical user spends. Each gap has **Create opportunity**, with no consumption plan, as in This month. Marketplace and Unassigned spend are never proposed.
+- feat: **Marketplace whitespace.** Marketplace bought from publishers other than Core42 or G42, by category (Security, Backup & DR, AI & ML, Data & Analytics, Networking, DevOps & Apps, OS & images, Other), each with its leading offers. Then by customer and billing profile, with the spend that counts toward the MACC and Core42's share of that customer's Marketplace. The category is read from the publisher's and offer's names.
+- feat: **Subscription and tag hygiene.** Per customer group: subscriptions billed last month (and over 12 months), new ones, dormant ones, tiny ones (under $50), and the largest subscription's share, beside Environment, Project and Owner tag coverage.
+- feat: **Marketplace renewals.** Every recurring Marketplace purchase's next expected charge and amount, with the cadence read from its charges (monthly, yearly or other; a single charge is taken as yearly). It flags renewals that are overdue. Filters: next 3 or 12 months, overdue, and optionally monthly subscriptions.
+- fix: **the Marketplace solution play is the invoiced Marketplace on EA enrollments.** Cost Management leaves EA Marketplace out (ADNOC, September 2026: $28 against $373K invoiced), so a month's invoice figure stands for the play.
+
 ## [0.32.0] - 2026-10-21
 
 - feat: **spend by solution play** (operator, 2026-10-21: "break services into solution plays: GPU is AI & ML, Databricks and Fabric are Data, VNET is Infra").

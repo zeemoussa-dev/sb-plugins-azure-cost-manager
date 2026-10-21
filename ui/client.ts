@@ -739,6 +739,96 @@ export interface SolutionPlaysSettings {
   gpu_rule: string;
 }
 
+export interface GrowthRow {
+  id: string;
+  name: string;
+  parent: string | null;
+  affiliates: number;
+  currency: string | null;
+  status: 'growing' | 'declining' | 'steady' | 'new' | 'no data';
+  last_month: string | null;
+  last_total?: number;
+  recent_monthly?: number;
+  before_monthly?: number | null;
+  change_3m_pct?: number | null;
+  change_12m_pct?: number | null;
+  yoy_pct?: number | null;
+  signals: { kind: 'growing' | 'declining' | 'drop' | 'stopped' | 'new'; text: string }[];
+  stopped?: { service: string; before: number; last: number }[];
+  started?: { service: string; last: number }[];
+  by_play?: { play: string; recent: number; before: number; change: number; change_pct: number | null }[];
+}
+
+export interface WhitespaceRow {
+  id: string;
+  name: string;
+  entity_customer: string | null;
+  currency: string;
+  /** How many services it uses ($500 a month or more). */
+  uses: number;
+  gaps: { service: string; play: string; users: number; adoption_pct: number; typical_monthly: number }[];
+}
+
+export interface MarketplaceWhitespace {
+  period: { first: string | null; last: string; from_start: boolean } | null;
+  third_party: number;
+  core42: number;
+  core42_share_pct: number | null;
+  categories: {
+    category: string; total: number; macc_eligible: number; customers: number;
+    solutions: { publisher: string; offer: string; total: number; customers: number; kind?: string; macc_eligible: boolean }[];
+  }[];
+  customers: {
+    name: string; third_party: number; macc_eligible: number; core42: number; core42_share_pct: number | null;
+    by_category: Record<string, number>;
+  }[];
+}
+
+export const fetchMarketplaceWhitespace = () => apiFetch<MarketplaceWhitespace>(`${BASE}/marketplace/whitespace`);
+
+export interface HygieneRow {
+  id: string;
+  name: string;
+  last_month: string;
+  subscriptions: number;
+  subscriptions_12m: number;
+  tiny: number;
+  top_share_pct: number | null;
+  top3_share_pct: number | null;
+  new: { subscription: string; last: number }[];
+  new_count: number;
+  dormant: { subscription: string; before: number; last: number }[];
+  dormant_count: number;
+  tags_synced: boolean;
+  tag_coverage: Record<string, number | null>;
+}
+
+export const fetchHygiene = () => apiFetch<HygieneRow[]>(`${BASE}/hygiene`);
+
+export interface RenewalRow {
+  customer: string;
+  publisher: string;
+  offer: string;
+  plan: string;
+  subscription: string;
+  core42: boolean;
+  cadence: string;
+  cadence_months: number;
+  /** Charged once: taken as yearly, the common SaaS term. */
+  cadence_assumed: boolean;
+  last_month: string;
+  last_amount: number;
+  charges: number;
+  next_month: string;
+  status: 'overdue' | 'due this month' | 'upcoming';
+}
+
+export const fetchRenewals = () => apiFetch<RenewalRow[]>(`${BASE}/marketplace/renewals`);
+
+export const fetchWhitespace = () => apiFetch<WhitespaceRow[]>(`${BASE}/whitespace`);
+
+export const fetchGrowth = () => apiFetch<GrowthRow[]>(`${BASE}/growth`);
+
 export const fetchSolutionPlays = () => apiFetch<SolutionPlaysSettings>(`${BASE}/solution-plays`);
 
 /** `play` null puts the service back to its default play. */

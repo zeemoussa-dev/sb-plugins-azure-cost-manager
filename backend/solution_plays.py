@@ -76,13 +76,20 @@ def gpu_cost(meters: dict[str, float]) -> float:
     return sum(item["cost"] for item in categories.detail(meters or {}) if item["category"].startswith("GPU"))
 
 
-def split(services: dict[str, float], meters: dict[str, float] | None, plays: dict[str, str]) -> dict[str, float]:
+def split(services: dict[str, float], meters: dict[str, float] | None, plays: dict[str, str],
+          marketplace: float | None = None) -> dict[str, float]:
     """One month's spend by service as spend by play. GPU virtual machines move from
-    the VM service's play to AI & ML -- never more than that service cost."""
+    the VM service's play to AI & ML -- never more than that service cost.
+
+    `marketplace`: the month's invoiced Marketplace, when there is one. On an EA
+    enrollment Cost Management leaves Marketplace out (ADNOC, 2026-10: $28 against
+    $373K invoiced), so the invoice's figure stands for the play instead."""
     by_play: dict[str, float] = {}
     for service, cost in services.items():
         play = play_of(service, plays)
         by_play[play] = by_play.get(play, 0.0) + cost
+    if marketplace and marketplace > by_play.get(MARKETPLACE, 0.0):
+        by_play[MARKETPLACE] = marketplace
     host_play = play_of(GPU_HOST_SERVICE, plays)
     gpu = min(gpu_cost(meters or {}), max(services.get(GPU_HOST_SERVICE, 0.0), 0.0))
     if gpu and host_play != AI:

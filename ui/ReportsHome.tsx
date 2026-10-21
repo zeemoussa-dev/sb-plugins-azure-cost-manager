@@ -87,6 +87,18 @@ export function ReportsHome() {
       </div>
       <h2 className="azure-cost-section-title">Across all customers</h2>
       <div className="azure-cost-report-grid">
+        <Link to="/azure-cost-manager/growth" className="card azure-cost-report-card">
+          <strong>Growth and churn</strong>
+          <span className="text-muted">Who is growing and who is falling away: three and twelve months against the ones before, services that stopped or started, and each solution play's move.</span>
+        </Link>
+        <Link to="/azure-cost-manager/whitespace" className="card azure-cost-report-card">
+          <strong>Service whitespace</strong>
+          <span className="text-muted">The services most other customers use and this one does not, by solution play — each one an opportunity to create.</span>
+        </Link>
+        <Link to="/azure-cost-manager/marketplace-whitespace" className="card azure-cost-report-card">
+          <strong>Marketplace whitespace</strong>
+          <span className="text-muted">What customers buy from publishers other than Core42, by category — MACC spend a Core42 offer could compete for.</span>
+        </Link>
         <Link to="/azure-cost-manager/marketplace" className="card azure-cost-report-card">
           <strong>Marketplace, all customers</strong>
           <span className="text-muted">Every partner solution, who bought it, and how much counts toward the MACCs.</span>
@@ -94,6 +106,14 @@ export function ReportsHome() {
         <Link to="/azure-cost-manager/finops" className="card azure-cost-report-card">
           <strong>Optimization opportunities</strong>
           <span className="text-muted">Every customer ranked by steady on-demand spend and commitment coverage: where to start the savings conversation.</span>
+        </Link>
+        <Link to="/azure-cost-manager/renewals" className="card azure-cost-report-card">
+          <strong>Marketplace renewals</strong>
+          <span className="text-muted">When each recurring Marketplace purchase next charges, and for how much — and the ones that did not renew.</span>
+        </Link>
+        <Link to="/azure-cost-manager/hygiene" className="card azure-cost-report-card">
+          <strong>Subscription and tag hygiene</strong>
+          <span className="text-muted">Each customer's subscriptions — new, dormant, tiny, concentrated — beside how much of its spend is tagged.</span>
         </Link>
         <Link to="/azure-cost-manager/tags" className="card azure-cost-report-card">
           <strong>Tag coverage</strong>

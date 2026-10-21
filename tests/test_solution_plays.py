@@ -68,3 +68,10 @@ def test_the_operators_choice_overrides_and_a_reset_drops_it(fake_api):
     assert next(row for row in reset["services"] if row["service"] == "Redis Cache")["play"] == plays.DATA
     with pytest.raises(ValueError):
         service.set_solution_play("Redis Cache", "Not A Play")
+
+
+def test_an_ea_months_marketplace_comes_from_the_invoice():
+    split = plays.split({"Virtual Machines": 1000.0, "SaaS": 28.0}, {}, plays.mapping(None), marketplace=373_000.0)
+
+    assert split[plays.MARKETPLACE] == 373_000.0 and split[plays.INFRA] == 1000.0
+    assert plays.split({"SaaS": 50.0}, {}, plays.mapping(None), marketplace=0.0)[plays.MARKETPLACE] == 50.0

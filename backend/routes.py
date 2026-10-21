@@ -72,6 +72,16 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def get_customer_marketplace(customer_id: str, first_month: str | None = None, last_month: str | None = None) -> dict:
         return _answered(lambda: service.marketplace(customer_id, first_month, last_month))
 
+    @router.get("/marketplace/renewals")
+    def get_marketplace_renewals() -> list[dict]:
+        """When each recurring Marketplace purchase next charges, and for how much."""
+        return _answered(service.renewals)
+
+    @router.get("/marketplace/whitespace")
+    def get_marketplace_whitespace(first_month: str | None = None, last_month: str | None = None) -> dict:
+        """What customers buy from publishers other than Core42, by category."""
+        return _answered(lambda: service.marketplace_whitespace(first_month, last_month))
+
     @router.get("/marketplace")
     def get_marketplace(first_month: str | None = None, last_month: str | None = None) -> dict:
         """Every partner solution across every customer. The line-level detail is
@@ -232,6 +242,21 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                         group: str = "service", cost: str = "actual", accounts: str | None = None) -> dict:
         return _answered(lambda: service.consumption(customer_id, first_month, last_month, group, cost,
                                                      _account_list(accounts)))
+
+    @router.get("/hygiene")
+    def get_hygiene() -> list[dict]:
+        """Subscriptions and tag coverage for every customer."""
+        return _answered(service.hygiene_across)
+
+    @router.get("/whitespace")
+    def get_whitespace() -> list[dict]:
+        """Common services each customer does not use yet."""
+        return _answered(service.whitespace_across)
+
+    @router.get("/growth")
+    def get_growth() -> list[dict]:
+        """Growth and churn signals for every customer."""
+        return _answered(service.growth_across)
 
     @router.get("/solution-plays")
     def get_solution_plays() -> dict:

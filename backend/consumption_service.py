@@ -6,7 +6,8 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing, solution_plays, tags, this_month
+from . import (consumption_analysis, export_xlsx, finops, growth, hygiene, marketplace, marketplace_whitespace, months,
+               pricing, renewals, solution_plays, tags, this_month, whitespace)
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -112,6 +113,10 @@ class ConsumptionService:
         profiles = marketplace.profile_groups(self._store.profile_accounts(in_customers))
         return marketplace.across_customers(customers + profiles, self._not_eligible(), first, last)
 
+    def marketplace_whitespace(self, first: str | None = None, last: str | None = None) -> dict:
+        """Marketplace bought from publishers other than Core42, by category and customer."""
+        return marketplace_whitespace.analyse(self.marketplace_across(first, last))
+
     def not_macc_eligible(self) -> list[dict]:
         return self._store.not_macc_eligible()
 
@@ -216,8 +221,9 @@ class ConsumptionService:
         """Actual cost by solution play per month (Cost Management's figures, so
         Marketplace in and credits not subtracted, as in Breakdown)."""
         plays = self.solution_play_mapping()
-        return [{"month": month, "by_play": solution_plays.split(merged[month]["actual"]["service"],
-                                                               merged[month].get("meters"), plays)}
+        return [{"month": month, "by_play": solution_plays.split(
+                    merged[month]["actual"]["service"], merged[month].get("meters"), plays,
+                    (merged[month].get("measured") or {}).get("marketplace"))}
                 for month in sorted(merged)]
 
     def _analysis(self, customer_id: str, measure: dict | None = None, accounts: list[str] | None = None) -> dict:
@@ -458,6 +464,82 @@ class ConsumptionService:
         self._store.save_finops_state(state)
         return {"pricing_region": region}
 
+    def growth_across(self) -> list[dict]:
+        """Every customer's growth and churn signals (operator, 2026-10-21), a group
+        with its affiliates as its report shows it, the largest last month first."""
+        everyone = self._book.list()
+        current_month = months.month_of(self._today())
+        cached: dict[str, dict] = {}
+        not_eligible = self._not_eligible()
+        plays = self.solution_play_mapping()
+        rows = []
+        for customer in everyone:
+            members = [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]]
+            names = [account["name"] for member in members for account in member["accounts"]]
+            for name in names:
+                if name not in cached:
+                    cached[name] = self._store.account(name)
+            merged, currency = consumption_analysis.merge({name: cached[name] for name in names}, None, not_eligible)
+            trend = consumption_analysis.monthly_totals(merged, current_month)
+            rows.append({"id": customer["id"], "name": customer["name"], "parent": customer.get("parent"),
+                         "affiliates": len(members) - 1,
+                         "currency": (currency or "").strip() or None,
+                         **growth.analyse(trend, merged, plays)})
+        return sorted(rows, key=lambda row: -(row.get("last_total") or 0))
+
+    def hygiene_across(self) -> list[dict]:
+        """Every top-level customer's subscription estate and tag coverage
+        (operator, 2026-10-21), the most subscriptions first."""
+        everyone = self._book.list()
+        current_month = months.month_of(self._today())
+        coverage = {row["id"]: row for row in self.tags_across()}
+        rows = []
+        for customer in everyone:
+            if customer.get("parent"):
+                continue
+            members = [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]]
+            merged, _ = consumption_analysis.merge(
+                {account["name"]: self._store.account(account["name"]) for member in members
+                 for account in member["accounts"]}, None, set())
+            found = hygiene.analyse(merged, current_month)
+            if not found.get("last_month"):
+                continue
+            tagged = coverage.get(customer["id"]) or {}
+            rows.append({"id": customer["id"], "name": customer["name"], **found,
+                         "tags_synced": bool(tagged.get("synced")), "tag_coverage": tagged.get("coverage") or {}})
+        return sorted(rows, key=lambda row: -row["subscriptions"])
+
+    def renewals(self) -> list[dict]:
+        """Every recurring Marketplace purchase's next expected charge, customers'
+        and other billing profiles' alike (operator, 2026-10-21)."""
+        everyone = self._book.list()
+        buyers = [(customer["name"], {account["name"]: self._store.account(account["name"])
+                                      for account in customer["accounts"]}) for customer in everyone]
+        in_customers = {account["name"] for customer in everyone for account in customer["accounts"]}
+        buyers += [(profile["name"], entries)
+                   for profile, entries in marketplace.profile_groups(self._store.profile_accounts(in_customers))]
+        return renewals.calendar(buyers, months.month_of(self._today()))
+
+    def whitespace_across(self) -> list[dict]:
+        """Every top-level customer's service gaps against its peers (operator,
+        2026-10-21), the customer with the most common services missing first."""
+        everyone = self._book.list()
+        current_month = months.month_of(self._today())
+        tops = [customer for customer in everyone if not customer.get("parent")]
+        usage = {}
+        for customer in tops:
+            members = [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]]
+            merged, _ = consumption_analysis.merge(
+                {account["name"]: self._store.account(account["name"]) for member in members
+                 for account in member["accounts"]}, None, set())
+            usage[customer["id"]] = whitespace.usage(merged, current_month)
+        found = whitespace.analyse(usage, self.solution_play_mapping())
+        rows = [{"id": customer["id"], "name": customer["name"],
+                 "entity_customer": customer.get("entity_customer"),
+                 "currency": ((customer.get("commitment") or {}).get("currency") or "USD").strip() or "USD",
+                 **found[customer["id"]]} for customer in tops if usage[customer["id"]]]
+        return sorted(rows, key=lambda row: (-len(row["gaps"]), row["name"].lower()))
+
     def portfolio(self, only: str | None = None) -> list[dict]:
         """Every customer at a glance -- burn, last month, recent trend, status -- for
         the customer list (`only`: just that customer). A parent rolls up its
@@ -582,7 +664,8 @@ class ConsumptionService:
         for month in sorted(merged):
             if (first_month and month < first_month) or (last_month and month > last_month):
                 continue
-            spend = (solution_plays.split(merged[month][cost_kind]["service"], merged[month].get("meters"), plays)
+            spend = (solution_plays.split(merged[month][cost_kind]["service"], merged[month].get("meters"), plays,
+                                          (merged[month].get("measured") or {}).get("marketplace"))
                      if group_by == "play" else merged[month][cost_kind][group_by])
             rows.extend({"month": month, "name": name, "cost": round(cost, 2)}
                         for name, cost in sorted(spend.items(), key=lambda item: -item[1]))
