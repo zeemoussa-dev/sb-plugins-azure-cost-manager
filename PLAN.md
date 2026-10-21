@@ -312,7 +312,9 @@ Design:
 
 ---
 
-## Billing report — months from a billing date (requested 2026-10-21, not started)
+## Billing report — months from a billing date (requested 2026-10-21, then skipped)
+
+**Skipped by the operator the same day ("skip that option").** Kept here only as a record of what it would take; don't build it unless asked again.
 
 The operator wants a separate **Billing report** whose months run from a billing date, for
 example the 5th to the 4th, across **all data, not only the current month** (operator,
