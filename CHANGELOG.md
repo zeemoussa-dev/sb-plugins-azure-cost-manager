@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.34.1] - 2026-10-21
+
+- fix: Settings' customer list said "· on its Customer note" beside a customer with no signed value (for example "in DGE's MACC · on its Customer note"). It now says it only when there is a value on the note.
+
 ## [0.34.0] - 2026-10-21
 
 - fix: **an affiliate that signs no MACC of its own no longer reads "No MACC set"** (operator, 2026-10-21: DGE's affiliates "written no MACC" while they have none of their own). When its parent's affiliates roll up into the parent's MACC, the customer list says **In DGE's MACC**. Its Overview says its consumption counts toward the parent's MACC, with a link to it, and Settings' customer list says the same. An affiliate of a parent whose affiliates sign their own (Mubadala) still reads No MACC set.

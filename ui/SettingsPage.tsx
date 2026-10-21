@@ -438,7 +438,7 @@ export function SettingsPage() {
                       : parentOf(customer)?.commitment && parentOf(customer)?.commitment?.affiliates !== 'own'
                         ? <span className="text-muted">in {parentOf(customer)!.name}'s MACC</span>
                         : <span className="text-muted">not entered</span>}
-                      {customer.commitment_source === 'note' ? <span className="text-muted"> · on its Customer note</span> : null}
+                      {customer.commitment && customer.commitment_source === 'note' ? <span className="text-muted"> · on its Customer note</span> : null}
                       {customer.commitment_problem ? <div className="azure-cost-anomaly spike">{customer.commitment_problem}</div> : null}</td>
                     <td className="text-muted">{customer.commitment ? `${customer.commitment.start} → ${customer.commitment.end}` : ''}</td>
                     <td className="text-muted">{customer.synced_at ? new Date(customer.synced_at).toLocaleDateString() : 'never'}</td>
