@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.30.0] - 2026-10-21
+
+- feat: **Billing date** in the customer report's toolbar (operator, 2026-10-19/21). From this day of the month, the month before counts as closed. Before it, the report reads as of the day before: on 1–4 October, with the default billing date of the 5th, September is still the open month and August the latest closed one; from the 5th, September is final. Azure keeps adjusting a month's figures for about five days after it ends, so this keeps a not-yet-settled month out of the closed figures (latest month, MoM, YTD, run rate, forecast, MACC consumed).
+  - **Setting:** choose any day from the 1st (calendar months) to the 28th. It's remembered in your browser like the Marketplace and credits filters.
+  - **Export:** the Excel workbook follows it and says "as of … (billing date N)".
+  - **Overview:** the open month's KPI is named, for example "Sep 2026 so far", and says it is still open.
+  - **Not affected:** the daily This month report and the customer list.
+
 ## [0.29.3] - 2026-10-19
 
 - change: **customer-friendly wording** (operator, 2026-10-19: "replace MACC burn with MACC consumed"). The screens and the Excel export no longer say "burn":

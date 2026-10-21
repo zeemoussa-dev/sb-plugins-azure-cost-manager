@@ -130,3 +130,37 @@ def test_forecasts_of_a_customers_enrollments_are_summed():
                "stopped": {"forecast": None}}
 
     assert analysis.merge_forecasts(entries) == [{"month": "2026-11", "cost": 15}, {"month": "2026-12", "cost": 7}]
+
+
+def test_before_the_billing_date_the_month_before_stays_open():
+    from backend.consumption_analysis import report_date
+
+    assert report_date(date(2026, 10, 3), 5) == date(2026, 9, 29)    # September still open
+    assert report_date(date(2026, 10, 5), 5) == date(2026, 10, 1)    # from the 5th, September is closed
+    assert report_date(date(2026, 10, 3), 1) == date(2026, 10, 3)    # billing date 1: calendar months
+    assert report_date(date(2026, 10, 3), None) == date(2026, 9, 29)  # the default is the 5th
+
+
+def test_the_report_reads_as_of_the_billing_date(fake_api):
+    from backend.consumption_service import ConsumptionService
+    from backend.consumption_store import ConsumptionStore
+    from backend.customers import AccountDirectory, CustomerBook
+
+    fake_api.get_service = lambda name: None
+    store = ConsumptionStore(fake_api)
+    book = CustomerBook(store, AccountDirectory(lambda: [{"name": "1", "display_name": "Contoso",
+                                                          "agreement_type": "MicrosoftCustomerAgreement",
+                                                          "term_start": "2026-01-01", "term_end": "2028-12-31"}]))
+    book.save(None, {"name": "Contoso", "accounts": ["1"]})
+    spend = {"service": {"VM": 100.0}, "subscription": {"Prod": 100.0}}
+    store.save_account("1", {"months": {month: {"fetched_at": "2026-10-03T00:00:00+00:00", "currency": "USD",
+                                                "actual": spend, "amortized": spend, "meters": {}}
+                                         for month in ("2026-08", "2026-09", "2026-10")}})
+    service = ConsumptionService(store, book, today=lambda: date(2026, 10, 3))
+
+    early = service.analysis("contoso", {"marketplace": True, "credits": True, "billing_day": 5})
+    calendar = service.analysis("contoso", {"marketplace": True, "credits": True, "billing_day": 1})
+
+    assert early["as_of"] == "2026-09-29" and early["dashboard"]["kpis"]["latest_month"] == "2026-08"
+    assert early["dashboard"]["kpis"]["current_month"] == "2026-09"
+    assert calendar["dashboard"]["kpis"]["latest_month"] == "2026-09"

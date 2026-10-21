@@ -11,6 +11,7 @@ from fastapi import APIRouter, Body, HTTPException, Response
 
 from .azure_token import AzureCliToken, AzureSignInError
 from .billing_client import AzureApiError, AzureThrottled
+from . import consumption_analysis
 from .consumption_service import ConsumptionService, CustomerNotFound
 from .consumption_sync import ConsumptionSync
 from .customers import COMMITMENT_TYPES, AccountDirectory, CustomerBook, CustomerError
@@ -43,16 +44,22 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                  log: SyncLog | None = None) -> APIRouter:
     router = APIRouter()
 
-    def measure(marketplace: str, credits: bool) -> dict:
-        """`marketplace`: true, false, or core42 (only Core42's own offers: Core42 revenue)."""
+    def measure(marketplace: str, credits: bool, billing_day: int | None = None) -> dict:
+        """`marketplace`: true, false, or core42 (only Core42's own offers: Core42 revenue).
+        `billing_day`: from which day of the month the month before counts as closed."""
         chosen = marketplace.strip().lower()
         if chosen not in ("true", "false", "core42"):
             raise HTTPException(status_code=400, detail="marketplace is true, false or core42")
-        return {"marketplace": "core42" if chosen == "core42" else chosen == "true", "credits": credits}
+        if billing_day is not None and not 1 <= billing_day <= consumption_analysis.LATEST_BILLING_DAY:
+            raise HTTPException(status_code=400,
+                                detail=f"billing_day is a day from 1 to {consumption_analysis.LATEST_BILLING_DAY}")
+        return {"marketplace": "core42" if chosen == "core42" else chosen == "true", "credits": credits,
+                "billing_day": consumption_analysis.DEFAULT_BILLING_DAY if billing_day is None else billing_day}
 
     @router.get("/customers/{customer_id}/export.xlsx")
-    def get_export(customer_id: str, marketplace: str = "true", credits: bool = True, view: str = "account") -> Response:
-        name, workbook = _answered(lambda: service.export(customer_id, measure(marketplace, credits), view))
+    def get_export(customer_id: str, marketplace: str = "true", credits: bool = True, view: str = "account",
+                   billing_day: int | None = None) -> Response:
+        name, workbook = _answered(lambda: service.export(customer_id, measure(marketplace, credits, billing_day), view))
         return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
@@ -163,8 +170,9 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return service.portfolio()
 
     @router.get("/customers/{customer_id}/analysis")
-    def get_analysis(customer_id: str, marketplace: str = "true", credits: bool = True, view: str = "account") -> dict:
-        return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits), view))
+    def get_analysis(customer_id: str, marketplace: str = "true", credits: bool = True, view: str = "account",
+                     billing_day: int | None = None) -> dict:
+        return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits, billing_day), view))
 
     @router.get("/customers/{customer_id}/finops")
     def get_finops(customer_id: str) -> dict:

@@ -214,7 +214,9 @@ class ConsumptionService:
         synced = [account["synced_at"] for member in members for account in member["accounts"]]
         synced_at = min(synced) if synced and all(synced) else None
         pipeline = self.pipeline(customer_id)
+        as_of = consumption_analysis.report_date(self._today(), (measure or {}).get("billing_day"))
         return {
+            "as_of": as_of.isoformat(),
             "customer": customer,
             "group": self._group_info(customer, members),
             # Carving affiliates out of the parent's MACC applies only when they roll up into it.
@@ -224,7 +226,7 @@ class ConsumptionService:
             "errors": {account: entry.get("errors") for account, entry in entries.items() if entry.get("errors")},
             "pipeline": pipeline,
             **consumption_analysis.analyse(merged, currency, customer.get("commitment"),
-                                           consumption_analysis.merge_forecasts(entries), self._today(),
+                                           consumption_analysis.merge_forecasts(entries), as_of,
                                            measure=measure, scenario=customer.get("scenario"),
                                            pipeline=pipeline["by_month"],
                                            burn_merged=self._merged(customer, rolled_up=False)[0] if own_burn else None),

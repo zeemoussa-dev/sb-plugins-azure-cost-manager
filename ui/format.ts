@@ -47,3 +47,10 @@ export function agreementLabel(agreementType: string): string {
   if (agreementType === 'MicrosoftPartnerAgreement') return 'MPA';
   return agreementType;
 }
+
+/** 1st, 2nd, 3rd, 4th ... 21st, 22nd. */
+export function ordinal(day: number): string {
+  const tens = day % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[day % 10] ?? 'th';
+  return `${day}${suffix}`;
+}

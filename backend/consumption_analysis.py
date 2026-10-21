@@ -9,7 +9,7 @@ as an anomaly.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from . import categories, dashboard, forecasting, months
 
@@ -31,6 +31,20 @@ BREAKDOWNS = ("service", "subscription")
 # `marketplace` may also be "core42": Core42's revenue is the whole MACC burn except
 # Marketplace bought from other publishers (operator, 2026-10-18).
 DEFAULT_MEASURE = {"marketplace": True, "credits": True}
+# The billing date (operator, 2026-10-21): the day of the month from which the month
+# before counts as closed. Azure settles a month's figures for about five days after
+# it ends, so on the 1st-4th the report still treats that month as open.
+DEFAULT_BILLING_DAY = 5
+LATEST_BILLING_DAY = 28
+
+
+def report_date(today: date, billing_day: int | None) -> date:
+    """The date the report is as of: `billing_day - 1` days back, so before the
+    billing date it falls in the month before, which therefore stays open."""
+    day = DEFAULT_BILLING_DAY if billing_day is None else billing_day
+    if not 1 <= day <= LATEST_BILLING_DAY:
+        raise ValueError(f"the billing date is a day from 1 to {LATEST_BILLING_DAY}")
+    return today - timedelta(days=day - 1)
 MARKETPLACE_MEASURES = (True, False, "core42")
 # Publisher names that are Core42's own Marketplace offers (operator: Core42 and G42).
 CORE42_PUBLISHER_MARKS = ("core42", "g42")

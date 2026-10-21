@@ -226,7 +226,9 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
         workbook, "Dashboard", f"Azure Consumption Dashboard – {customer['name']}",
         f"Data through {kpis['latest_month'] or '—'}  ·  {kpis['months_of_history']} months of history  ·  "
         f"{len(customer['accounts'])} billing profiles  ·  Marketplace {_marketplace_counted(measure)}"
-        f", credits {'subtracted' if measure['credits'] else 'not subtracted'}  ·  exported {today.isoformat()}",
+        f", credits {'subtracted' if measure['credits'] else 'not subtracted'}"
+        f"  ·  as of {analysis.get('as_of') or today.isoformat()} (billing date {measure.get('billing_day', 1)})"
+        f"  ·  exported {today.isoformat()}",
         tab=NAVY, sheet=workbook.active)
     sheet.sheet_view.zoomScale = 115
     _widths(sheet, {"A": 41.8, "B": 21, "C": 12, "D": 22.2, "E": 21, "F": 14, "G": 14, "H": 14, "I": 12.7,
