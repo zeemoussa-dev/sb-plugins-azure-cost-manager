@@ -229,8 +229,19 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
 
     @router.get("/customers/{customer_id}/consumption")
     def get_consumption(customer_id: str, first_month: str | None = None, last_month: str | None = None,
-                        group: str = "service", cost: str = "actual") -> dict:
-        return _answered(lambda: service.consumption(customer_id, first_month, last_month, group, cost))
+                        group: str = "service", cost: str = "actual", accounts: str | None = None) -> dict:
+        return _answered(lambda: service.consumption(customer_id, first_month, last_month, group, cost,
+                                                     _account_list(accounts)))
+
+    @router.get("/solution-plays")
+    def get_solution_plays() -> dict:
+        """Every service seen, its spend and solution play, for Settings."""
+        return _answered(service.solution_plays_settings)
+
+    @router.put("/solution-plays")
+    def put_solution_play(change: dict = Body(...)) -> dict:
+        """`{service, play}`; a null play puts the service back to its default."""
+        return _answered(lambda: service.set_solution_play((change.get("service") or "").strip(), change.get("play")))
 
     @router.post("/sync")
     def post_sync(customer: str | None = None, profiles: str = "none") -> dict:

@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing, tags, this_month
+from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing, solution_plays, tags, this_month
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -212,6 +212,14 @@ class ConsumptionService:
                     "customer_view": True}
         return found
 
+    def _plays_by_month(self, merged: dict) -> list[dict]:
+        """Actual cost by solution play per month (Cost Management's figures, so
+        Marketplace in and credits not subtracted, as in Breakdown)."""
+        plays = self.solution_play_mapping()
+        return [{"month": month, "by_play": solution_plays.split(merged[month]["actual"]["service"],
+                                                               merged[month].get("meters"), plays)}
+                for month in sorted(merged)]
+
     def _analysis(self, customer_id: str, measure: dict | None = None, accounts: list[str] | None = None) -> dict:
         customer = self._customer(customer_id)
         members = self._group(customer)
@@ -233,6 +241,7 @@ class ConsumptionService:
         return {
             "as_of": as_of.isoformat(),
             "shown_accounts": sorted(only) if only else in_group,
+            "solution_plays": self._plays_by_month(merged),
             "customer": customer,
             "group": self._group_info(customer, members),
             # Carving affiliates out of the parent's MACC applies only when they roll up into it.
@@ -510,6 +519,35 @@ class ConsumptionService:
             })
         return rows
 
+    # -- solution plays ----------------------------------------------------------
+
+    def solution_play_mapping(self) -> dict[str, str]:
+        return solution_plays.mapping(self._store.solution_play_overrides())
+
+    def solution_plays_settings(self) -> dict:
+        """Every service any synced customer was billed for, with its spend and play."""
+        seen: dict[str, float] = {}
+        for customer in self._book.list():
+            for account in customer["accounts"]:
+                for data in (self._store.account(account["name"]).get("months") or {}).values():
+                    for service, cost in ((data.get("actual") or {}).get("service") or {}).items():
+                        seen[service] = seen.get(service, 0.0) + cost
+        return solution_plays.settings_view(self._store.solution_play_overrides(), seen)
+
+    def set_solution_play(self, service: str, play: str | None) -> dict:
+        """Maps one service to a play; None puts it back to the default."""
+        if not service:
+            raise ValueError("name the service")
+        if play is not None and play not in solution_plays.PLAYS:
+            raise ValueError(f"play must be one of {', '.join(solution_plays.PLAYS)}")
+        overrides = self._store.solution_play_overrides()
+        if play is None or play == solution_plays.DEFAULT_MAPPING.get(service):
+            overrides.pop(service, None)
+        else:
+            overrides[service] = play
+        self._store.save_solution_play_overrides(overrides)
+        return self.solution_plays_settings()
+
     def export(self, customer_id: str, measure: dict | None = None, view: str = "account",
                accounts: list[str] | None = None) -> tuple[str, bytes]:
         """`(file name, .xlsx bytes)` for one customer. `view="customer"` is the workbook handed
@@ -531,18 +569,21 @@ class ConsumptionService:
         return f"Azure consumption - {analysis['customer']['name']}{audience} - {self._today().isoformat()}.xlsx", workbook
 
     def consumption(self, customer_id: str, first_month: str | None, last_month: str | None,
-                    group_by: str, cost_kind: str) -> dict:
-        """Spend per month per `service`, `subscription` or `account` (enrollment)."""
-        if group_by not in ("service", "subscription", "account"):
-            raise ValueError("group must be 'service', 'subscription' or 'account'")
+                    group_by: str, cost_kind: str, accounts: list[str] | None = None) -> dict:
+        """Spend per month per `service`, `subscription`, `account` (enrollment) or `play`
+        (solution play), for the group's enrollments or just `accounts` of them."""
+        if group_by not in ("service", "subscription", "account", "play"):
+            raise ValueError("group must be 'service', 'subscription', 'account' or 'play'")
         if cost_kind not in consumption_analysis.COST_KINDS:
             raise ValueError("cost must be 'actual' or 'amortized'")
-        merged, _, _ = self._merged(self._customer(customer_id))
+        merged, _, _ = self._merged(self._customer(customer_id), only=set(accounts) if accounts else None)
+        plays = self.solution_play_mapping() if group_by == "play" else {}
         rows = []
         for month in sorted(merged):
             if (first_month and month < first_month) or (last_month and month > last_month):
                 continue
-            spend = merged[month][cost_kind][group_by]
+            spend = (solution_plays.split(merged[month][cost_kind]["service"], merged[month].get("meters"), plays)
+                     if group_by == "play" else merged[month][cost_kind][group_by])
             rows.extend({"month": month, "name": name, "cost": round(cost, 2)}
                         for name, cost in sorted(spend.items(), key=lambda item: -item[1]))
         return {"customer": customer_id, "group": group_by, "cost": cost_kind, "rows": rows}

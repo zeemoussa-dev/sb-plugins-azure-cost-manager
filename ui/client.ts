@@ -312,6 +312,8 @@ export interface Analysis {
   as_of?: string;
   /** The enrollments the figures cover: all of the group's unless some were chosen. */
   shown_accounts?: string[];
+  /** Actual cost by solution play per month. */
+  solution_plays?: { month: string; by_play: Record<string, number> }[];
   customer: Customer;
   group: GroupInfo;
   allocations: Allocations | null;
@@ -341,7 +343,7 @@ export interface ConsumptionRow {
   cost: number;
 }
 
-export type MixGroup = 'service' | 'subscription' | 'account';
+export type MixGroup = 'service' | 'subscription' | 'account' | 'play';
 
 export interface SyncStatus {
   running: boolean;
@@ -725,8 +727,23 @@ export const updateOpportunity = (opportunityId: string, fields: Partial<Opportu
     method: 'PUT', body: JSON.stringify({ fields, plan }),
   });
 
-export const fetchConsumption = (id: string, group: MixGroup) =>
-  apiFetch<{ rows: ConsumptionRow[] }>(`${customer(id)}/consumption?group=${group}&cost=actual`);
+/** `accounts`: only these of the group's enrollments, as the report's Enrollments choice. */
+export const fetchConsumption = (id: string, group: MixGroup, accounts?: string[]) =>
+  apiFetch<{ rows: ConsumptionRow[] }>(`${customer(id)}/consumption?group=${group}&cost=actual${accountsQuery(accounts)}`);
+
+export interface SolutionPlaysSettings {
+  plays: string[];
+  services: { service: string; spend: number; play: string; default: string | null; changed: boolean }[];
+  /** Services no mapping names: they count as Unassigned. */
+  unmapped: string[];
+  gpu_rule: string;
+}
+
+export const fetchSolutionPlays = () => apiFetch<SolutionPlaysSettings>(`${BASE}/solution-plays`);
+
+/** `play` null puts the service back to its default play. */
+export const setSolutionPlay = (service: string, play: string | null) =>
+  apiFetch<SolutionPlaysSettings>(`${BASE}/solution-plays`, { method: 'PUT', body: JSON.stringify({ service, play }) });
 
 export const fetchSyncStatus = () => apiFetch<SyncStatus>(`${BASE}/sync`);
 

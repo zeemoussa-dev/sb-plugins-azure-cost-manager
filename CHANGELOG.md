@@ -2,6 +2,16 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.32.0] - 2026-10-21
+
+- feat: **spend by solution play** (operator, 2026-10-21: "break services into solution plays: GPU is AI & ML, Databricks and Fabric are Data, VNET is Infra").
+  - **The plays:** AI & ML, Data & Analytics, Infra, Security, App Innovation, Marketplace and Unassigned.
+  - **The mapping:** a default covers all 116 services synced so far. GPU virtual machines (H100, A10 and other N-series, read from the meter detail) move from Infra to AI & ML, never more than the month's Virtual Machines cost.
+  - **Where it shows:** a **By solution play** card on the Overview (the last 12 months stacked, and the last closed month by play with share and change), and **Solution plays** in Breakdown's Spend-by-month grouping.
+  - **Settings:** a **Solution plays** section lists every service with its spend and play, to change one at a time or reset to the default, and flags services in no play. Your choices are kept in `Solution-Plays.json`.
+  - **Routes:** `GET/PUT /solution-plays`, and `/consumption?group=play`.
+- fix: Breakdown's Spend by month now follows the report's Enrollments choice, as the rest of the report does.
+
 ## [0.31.1] - 2026-10-21
 
 - change: **the Billing date is out of the report's toolbar** (operator, 2026-10-21: "remove the billing date from the default view for now; it can be a billing report done separately", needing "all data, not only the current month"). It only decided when last month counted as closed, so before the 22nd it seemed to do nothing. The report reads calendar months again, and the workbook no longer mentions a billing date. A separate Billing report whose months run from the billing date across all history is planned in PLAN.md.

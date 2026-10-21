@@ -4,6 +4,7 @@ import { BurnDownChart, Change, CommitmentGauge, SeriesChart, TrendChart } from 
 import type { Analysis } from './client';
 import { formatMoney, formatMonth } from './format';
 import { settingsLink } from './ReportsHome';
+import { SolutionPlaysCard } from './SolutionPlays';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -243,6 +244,7 @@ export function OverviewTab({ analysis }: { analysis: Analysis }) {
                      series={lines.map((line, index) => ({ name: line, stack: 'mix', data: board.mix.map((row) => row.lines[line] ?? 0),
                        color: line === 'Azure (other)' ? 'other' as const : index }))} />
       </Card>
+      <SolutionPlaysCard analysis={analysis} />
       <div className="azure-cost-columns">
         <Card title="By year">
           <SeriesChart label="Consumption by year" currency={currency} categories={board.by_year.map((row) => String(row.year))}

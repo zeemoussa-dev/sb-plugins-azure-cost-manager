@@ -9,6 +9,7 @@ import { agreementLabel, errorText, formatMoney, formatMonth, grouped } from './
 import { usePluginReturn } from '../../pluginHost/breadcrumbs';
 import { PLUGIN_ID } from './ReportsHome';
 import { HubOptions } from './PipelineTab';
+import { SolutionPlaysSettingsCard } from './SolutionPlays';
 import { SyncControl } from './SyncControl';
 
 const SHOWN_WHILE_SEARCHING = 60;
@@ -426,6 +427,8 @@ export function SettingsPage() {
                                onCreate={(group) => setEditing({ ...draftOf(null), name: group.name,
                                                                  accounts: group.accounts.map((account) => account.name) })} />
       ) : null}
+
+      <SolutionPlaysSettingsCard />
 
       <section className="card azure-cost-card">
         <h3>Sync</h3>

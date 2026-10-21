@@ -3,7 +3,9 @@ import { RankedBars, SeriesChart, StackedMonthsChart } from './charts';
 import { fetchConsumption, type Analysis, type ConsumptionRow, type MixGroup } from './client';
 import { formatMoney, formatMonth } from './format';
 
-const MIX_LABELS: Record<MixGroup, string> = { service: 'Services', subscription: 'Subscriptions', account: 'Enrollments' };
+const MIX_LABELS: Record<MixGroup, string> = {
+  service: 'Services', play: 'Solution plays', subscription: 'Subscriptions', account: 'Enrollments',
+};
 
 function AnomalyList({ analysis }: { analysis: Analysis }) {
   const label = { spike: 'Spike', drop: 'Drop', new: 'New' } as const;
@@ -73,10 +75,15 @@ export function BreakdownTab({ analysis, syncedVersion }: { analysis: Analysis; 
   const [mix, setMix] = useState<ConsumptionRow[]>([]);
   const [mixBy, setMixBy] = useState<MixGroup>('service');
   const customerId = analysis.customer.id;
+  // The report's Enrollments choice: some of the group's, or all of them.
+  const shown = analysis.shown_accounts && analysis.shown_accounts.length < analysis.group.accounts.length
+    ? analysis.shown_accounts : undefined;
+  const shownKey = shown?.join(',') ?? '';
 
   useEffect(() => {
-    fetchConsumption(customerId, mixBy).then((result) => setMix(result.rows), () => setMix([]));
-  }, [customerId, mixBy, syncedVersion]);
+    fetchConsumption(customerId, mixBy, shownKey ? shownKey.split(',') : undefined)
+      .then((result) => setMix(result.rows), () => setMix([]));
+  }, [customerId, mixBy, syncedVersion, shownKey]);
 
   return (
     <>

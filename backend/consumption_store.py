@@ -31,8 +31,10 @@ MARKETPLACE_SETTINGS_FILE = "Azure-Cost-Manager/Marketplace-Settings.json"
 LEGACY_TRACKED_ACCOUNTS_FILE = "Azure-Cost-Manager/Tracked-Accounts.json"
 # FinOps: the pricing region and the Retail Prices discounts per meter (`pricing`).
 FINOPS_FILE = "Azure-Cost-Manager/FinOps.json"
+# The operator's own service -> solution play choices, over `solution_plays`' defaults.
+SOLUTION_PLAYS_FILE = "Azure-Cost-Manager/Solution-Plays.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
-              FINOPS_FILE)
+              FINOPS_FILE, SOLUTION_PLAYS_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -121,6 +123,14 @@ class ConsumptionStore:
     def save_finops_state(self, state: dict) -> None:
         with self._lock:
             _write_json(self._api, FINOPS_FILE, state)
+
+    def solution_play_overrides(self) -> dict[str, str]:
+        with self._lock:
+            return dict(_read_json(self._api, SOLUTION_PLAYS_FILE, {}).get("services") or {})
+
+    def save_solution_play_overrides(self, overrides: dict[str, str]) -> None:
+        with self._lock:
+            _write_json(self._api, SOLUTION_PLAYS_FILE, {"services": overrides})
 
     def customer(self, customer_id: str) -> dict | None:
         return next((customer for customer in self.customers() if customer["id"] == customer_id), None)
