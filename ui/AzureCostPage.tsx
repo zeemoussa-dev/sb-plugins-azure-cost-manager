@@ -23,17 +23,73 @@ import { SyncControl } from './SyncControl';
 const VIEWS = ['account', 'customer'] as const;
 const BILLING_DAYS = Array.from({ length: 28 }, (_, index) => index + 1);
 
-function CustomerView({ customerId, measure, syncedVersion, report, view }: {
+// The reports read from the analysis -- the ones the enrollment choice applies to.
+const CHOOSES_ENROLLMENTS: Report[] = ['Overview', 'Forecast', 'Breakdown'];
+
+/** Which of a group's enrollments the report covers (operator, 2026-10-21: the
+ *  list was too long to read, and Mubadala HQ was lost in it). Grouped by whose
+ *  enrollment it is, the customer's own first, each by its own short name. */
+function EnrollmentPicker({ analysis, chosen, onChange }: {
+  analysis: Analysis; chosen: string[]; onChange: (accounts: string[]) => void;
+}) {
+  const accounts = analysis.group.accounts;
+  const all = accounts.map((account) => account.name);
+  const shown = chosen.length ? chosen : all;
+  const members = [...new Set(accounts.map((account) => account.member))];
+  const own = accounts.filter((account) => account.member_id === analysis.customer.id
+    || account.member === analysis.customer.name).map((account) => account.name);
+  const toggle = (name: string) => {
+    const next = shown.includes(name) ? shown.filter((other) => other !== name) : [...shown, name];
+    if (next.length) onChange(next.length === all.length ? [] : next);
+  };
+  return (
+    <details className="azure-cost-picker">
+      <summary>
+        Enrollments: {shown.length === all.length ? `all ${all.length}` : `${shown.length} of ${all.length}`}
+        {members.length > 1 ? ` · ${members.length} customers` : ''}
+      </summary>
+      <div className="azure-cost-picker-panel">
+        <div className="azure-cost-picker-actions">
+          <button type="button" className="btn azure-cost-link-button" onClick={() => onChange([])}>All</button>
+          {members.length > 1 && own.length ? (
+            <button type="button" className="btn azure-cost-link-button" onClick={() => onChange(own)}>
+              Only {analysis.customer.name}&apos;s own
+            </button>
+          ) : null}
+        </div>
+        {members.map((member) => (
+          <fieldset key={member}>
+            <legend>{member}{member === analysis.customer.name && members.length > 1 ? ' (this customer)' : ''}</legend>
+            {accounts.filter((account) => account.member === member).map((account) => (
+              <label key={account.name} className="azure-cost-check">
+                <input type="checkbox" checked={shown.includes(account.name)} onChange={() => toggle(account.name)} />
+                {account.short_name ?? account.display_name} <span className="text-muted">{account.name}</span>
+              </label>
+            ))}
+          </fieldset>
+        ))}
+        <p className="text-muted azure-cost-note">
+          The figures cover the enrollments ticked. The MACC consumed always counts every enrollment that consumes it.
+        </p>
+      </div>
+    </details>
+  );
+}
+
+function CustomerView({ customerId, measure, syncedVersion, report, view, chosen, onChoose }: {
   customerId: string; measure: Measure; syncedVersion: number; report: Report; view: View;
+  chosen: string[]; onChoose: (accounts: string[]) => void;
 }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [reloads, setReloads] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAnalysis(customerId, measure, view).then((result) => { setAnalysis(result); setError(null); },
+    fetchAnalysis(customerId, measure, view, chosen).then((result) => { setAnalysis(result); setError(null); },
       (failure) => setError(errorText(failure)));
-  }, [customerId, measure, syncedVersion, reloads, view]);
+  // `chosen` is a fresh array each render; its contents are what matter.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, measure, syncedVersion, reloads, view, chosen.join(',')]);
 
   const reload = useCallback(() => setReloads((count) => count + 1), []);
 
@@ -46,12 +102,15 @@ function CustomerView({ customerId, measure, syncedVersion, report, view }: {
 
   return (
     <div className="azure-cost-account">
-      <p className="text-muted azure-cost-note">
-        {analysis.group.accounts.length} enrollment{analysis.group.accounts.length === 1 ? '' : 's'}
-        {analysis.group.affiliates.length ? ` across ${analysis.customer.name} and ${analysis.group.affiliates.length} affiliate${analysis.group.affiliates.length === 1 ? '' : 's'}` : ''}:{' '}
-        {analysis.group.accounts.map((account) => `${account.display_name} (${account.name})`).join(' · ')}
-        {analysis.stale && analysis.synced_at ? ' — data is over a week old' : ''}
-      </p>
+      <div className="azure-cost-toolbar">
+        {CHOOSES_ENROLLMENTS.includes(report) && analysis.group.accounts.length > 1
+          ? <EnrollmentPicker analysis={analysis} chosen={chosen} onChange={onChoose} />
+          : <span className="text-muted azure-cost-note">
+              {analysis.group.accounts.length} enrollment{analysis.group.accounts.length === 1 ? '' : 's'}
+              {analysis.group.affiliates.length ? ` across ${analysis.customer.name} and ${analysis.group.affiliates.length} affiliate${analysis.group.affiliates.length === 1 ? '' : 's'}` : ''}
+            </span>}
+        {analysis.stale && analysis.synced_at ? <span className="text-muted azure-cost-note">Data is over a week old</span> : null}
+      </div>
       {accountErrors.length ? (
         <p className="text-muted azure-cost-note">
           Some months could not be fetched and will be retried on the next sync:{' '}
@@ -85,6 +144,9 @@ export function AzureCostPage() {
   // server, so it can be shown on a shared screen and exported for the customer.
   const [view, setView] = useUrlState<View>('view', 'account', { valid: VIEWS });
   const [syncedVersion, setSyncedVersion] = useState(0);
+  // "<customer id>:<enrollment>,<enrollment>": a choice made for one customer
+  // never leaks onto the next one opened.
+  const [enrollments, setEnrollments] = useUrlState<string>('enrollments', '');
   const [measure, setMeasure] = useRememberedState<Measure>('azure-cost-manager.measure',
     { marketplace: true, credits: true, billing_day: DEFAULT_BILLING_DAY });
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +166,10 @@ export function AzureCostPage() {
   }, [loadCustomers]);
 
   const customer = customers?.find((candidate) => candidate.id === selected) ?? null;
+  const [chosenFor, chosenList] = enrollments.split(':');
+  const chosen = customer && chosenFor === customer.id && chosenList ? chosenList.split(',') : [];
+  const choose = (accounts: string[]) =>
+    setEnrollments(customer && accounts.length ? `${customer.id}:${accounts.join(',')}` : '');
   const parent = customer?.parent ? customers?.find((candidate) => candidate.id === customer.parent) ?? null : null;
 
   return (
@@ -177,12 +243,14 @@ export function AzureCostPage() {
                          onChange={(event) => setMeasure({ ...measure, credits: event.target.checked })} />
                   Subtract credits
                 </label>
-                <a className="btn" href={apiUrl(exportPath(customer.id, measure, view))}>
+                <a className="btn" href={apiUrl(exportPath(customer.id, measure, view,
+                  CHOOSES_ENROLLMENTS.includes(report) ? chosen : undefined))}>
                   {view === 'customer' ? 'Export for the customer' : 'Export to Excel'}
                 </a>
               </div>
               <CustomerView key={customer.id} customerId={customer.id} measure={measure} syncedVersion={syncedVersion}
-                            report={report} view={view} />
+                            report={report} view={view} chosen={CHOOSES_ENROLLMENTS.includes(report) ? chosen : []}
+                            onChoose={choose} />
             </>
           )}
     </div>

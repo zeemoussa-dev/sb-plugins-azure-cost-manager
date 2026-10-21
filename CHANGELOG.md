@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.31.0] - 2026-10-21
+
+- feat: **choose which enrollments a report shows** (operator, 2026-10-21: "for Mubadala I can't see Mubadala HQ ... the list of enrollments is too big to appear at the top without wrapping; let's select some of them to display their data").
+  - **Picker:** the long line of enrollment names at the top of a report is now an **Enrollments: all 7 · 6 customers** picker. It's grouped by whose enrollment it is, with the customer's own first, so Mubadala's HQ (8990244) leads. Each enrollment shows its own short name rather than Azure's repeated "<parent>-<number>-" prefix. Quick choices are **All** and **Only <customer>'s own**.
+  - **What follows the choice:** Overview, Forecast, Breakdown and the Excel export. The choice is kept in the URL (per customer), so a link reopens it.
+  - **MACC consumed stays whole:** it always counts every enrollment that consumes the MACC, whichever are shown.
+  - The other reports (Marketplace, FinOps, Tags, This month) still cover the whole group and show the enrollment count only.
+
 ## [0.30.0] - 2026-10-21
 
 - feat: **Billing date** in the customer report's toolbar (operator, 2026-10-19/21). From this day of the month, the month before counts as closed. Before it, the report reads as of the day before: on 1–4 October, with the default billing date of the 5th, September is still the open month and August the latest closed one; from the 5th, September is final. Azure keeps adjusting a month's figures for about five days after it ends, so this keeps a not-yet-settled month out of the closed figures (latest month, MoM, YTD, run rate, forecast, MACC consumed).

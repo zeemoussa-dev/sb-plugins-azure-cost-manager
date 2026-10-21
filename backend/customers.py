@@ -21,6 +21,12 @@ COMMITMENT_TYPES = ("MACC", "EA commitment", "Azure Prepayment", "Other")
 # `<parent display name>-<parent account number>-<linked enrollment name>`, the way
 # a linked enrollment is named under its parent.
 _LINKED_ENROLLMENT = re.compile(r"^(?P<parent_name>.+?)-(?P<parent>\d{5,})-(?P<child>.+)$")
+
+
+def short_name(display_name: str) -> str:
+    """A linked enrollment's own part: "<parent>-<number>-Masdar" reads "Masdar"."""
+    linked = _LINKED_ENROLLMENT.match(display_name or "")
+    return " ".join(linked.group("child").split()) if linked else display_name
 _DIRECTORY_TTL = timedelta(hours=1)
 _RETRY_AFTER_FAILURE = timedelta(minutes=5)
 

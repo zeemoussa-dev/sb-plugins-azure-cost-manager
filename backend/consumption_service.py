@@ -8,7 +8,7 @@ from typing import Callable
 
 from . import consumption_analysis, export_xlsx, finops, marketplace, months, pricing, tags, this_month
 from .consumption_store import ConsumptionStore
-from .customers import CustomerBook
+from .customers import CustomerBook, short_name
 from .pipeline import Pipeline, PipelineUnavailable, by_month
 
 # The weekly job keeps data at most a week old; past this the page says it is stale.
@@ -69,9 +69,11 @@ class ConsumptionService:
         affiliates = [listed for listed in self._book.list() if listed.get("parent") == customer["id"]]
         return [customer] + affiliates
 
-    def _merged(self, customer: dict, rolled_up: bool = True) -> tuple[dict, str | None, dict[str, dict]]:
+    def _merged(self, customer: dict, rolled_up: bool = True,
+                only: set[str] | None = None) -> tuple[dict, str | None, dict[str, dict]]:
+        """`only`: just these enrollments of the group -- the ones the report shows."""
         accounts = {account["name"]: account for member in (self._group(customer) if rolled_up else [customer])
-                    for account in member["accounts"]}
+                    for account in member["accounts"] if only is None or account["name"] in only}
         entries = {name: self._store.account(name) for name in accounts}
         labels = {name: f"{account['display_name']} ({name})" for name, account in accounts.items()}
         merged, currency = consumption_analysis.merge(entries, labels, self._not_eligible())
@@ -193,30 +195,44 @@ class ConsumptionService:
                           "entity_customer": record.get("entity_customer")}
         return {"parent": parent,
                 "affiliates": [{"id": member["id"], "name": member["name"]} for member in members[1:]],
-                "accounts": [{**account, "member": member["name"]} for member in members for account in member["accounts"]]}
+                "accounts": [{**account, "member": member["name"], "member_id": member["id"],
+                              "short_name": short_name(account.get("display_name") or account["name"])}
+                             for member in members for account in member["accounts"]]}
 
-    def analysis(self, customer_id: str, measure: dict | None = None, view: str = "account") -> dict:
+    def analysis(self, customer_id: str, measure: dict | None = None, view: str = "account",
+                 accounts: list[str] | None = None) -> dict:
+        """`accounts`: show only these of the group's enrollments (operator, 2026-10-21:
+        "select some of them to display their data"); None or empty shows them all."""
         if view not in VIEWS:
             raise ValueError("view is account or customer")
-        found = self._analysis(customer_id, measure)
+        found = self._analysis(customer_id, measure, accounts)
         if view == "customer":
             # Left out on the server, so nothing the Customer view hides reaches the browser.
             return {**found, "scenarios": None, "customer": {**found["customer"], "scenario": None},
                     "customer_view": True}
         return found
 
-    def _analysis(self, customer_id: str, measure: dict | None = None) -> dict:
+    def _analysis(self, customer_id: str, measure: dict | None = None, accounts: list[str] | None = None) -> dict:
         customer = self._customer(customer_id)
         members = self._group(customer)
-        merged, currency, entries = self._merged(customer)
+        in_group = [account["name"] for member in members for account in member["accounts"]]
+        only = {name for name in accounts or [] if name in in_group} or None
+        if accounts and not only:
+            raise ValueError("none of those enrollments belong to this customer")
+        merged, currency, entries = self._merged(customer, only=only)
         # Affiliates that signed their own: the group is shown, the parent's own burns its MACC.
         own_burn = len(members) > 1 and not consumption_analysis.affiliates_roll_up(customer.get("commitment"))
+        # The MACC consumed is the commitment's, whichever enrollments are shown: a
+        # selection must never make a MACC look less consumed than it is.
+        burn_merged = (self._merged(customer, rolled_up=False)[0] if own_burn
+                       else self._merged(customer)[0] if only else None)
         synced = [account["synced_at"] for member in members for account in member["accounts"]]
         synced_at = min(synced) if synced and all(synced) else None
         pipeline = self.pipeline(customer_id)
         as_of = consumption_analysis.report_date(self._today(), (measure or {}).get("billing_day"))
         return {
             "as_of": as_of.isoformat(),
+            "shown_accounts": sorted(only) if only else in_group,
             "customer": customer,
             "group": self._group_info(customer, members),
             # Carving affiliates out of the parent's MACC applies only when they roll up into it.
@@ -229,7 +245,7 @@ class ConsumptionService:
                                            consumption_analysis.merge_forecasts(entries), as_of,
                                            measure=measure, scenario=customer.get("scenario"),
                                            pipeline=pipeline["by_month"],
-                                           burn_merged=self._merged(customer, rolled_up=False)[0] if own_burn else None),
+                                           burn_merged=burn_merged),
         }
 
     def _finops_of(self, customer: dict) -> dict:
@@ -494,18 +510,21 @@ class ConsumptionService:
             })
         return rows
 
-    def export(self, customer_id: str, measure: dict | None = None, view: str = "account") -> tuple[str, bytes]:
+    def export(self, customer_id: str, measure: dict | None = None, view: str = "account",
+               accounts: list[str] | None = None) -> tuple[str, bytes]:
         """`(file name, .xlsx bytes)` for one customer. `view="customer"` is the workbook handed
         to the customer: everything but the forecast scenarios (operator, 2026-10-17)."""
         if view not in VIEWS:
             raise ValueError("view is account or customer")
-        analysis = {**self.analysis(customer_id, measure), "finops": self.finops(customer_id),
+        analysis = {**self.analysis(customer_id, measure, accounts=accounts), "finops": self.finops(customer_id),
                     "tags": self.tags(customer_id)}
         if view == "customer":
             analysis = {**analysis, "customer_view": True, "scenarios": None}
-        merged, _, entries = self._merged(analysis["customer"])
-        # A parent's workbook covers its affiliates' enrollments too.
-        exported = {**analysis["customer"], "accounts": analysis["group"]["accounts"]}
+        shown = set(analysis["shown_accounts"])
+        merged, _, entries = self._merged(analysis["customer"], only=shown)
+        # A parent's workbook covers its affiliates' enrollments too -- the ones shown.
+        exported = {**analysis["customer"],
+                    "accounts": [account for account in analysis["group"]["accounts"] if account["name"] in shown]}
         analysis = {**analysis, "marketplace": self.marketplace(customer_id, "start", None)}
         workbook = export_xlsx.build(exported, analysis, merged, self._today(), entries)
         audience = " - for the customer" if view == "customer" else ""

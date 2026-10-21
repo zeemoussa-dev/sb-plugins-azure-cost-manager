@@ -149,7 +149,8 @@ export interface CustomerDraft {
 export interface GroupInfo {
   parent: { id: string; name: string; amount: number | null; currency: string | null; entity_customer: string | null } | null;
   affiliates: { id: string; name: string }[];
-  accounts: (CustomerAccount & { member: string })[];
+  /** `member`/`member_id`: whose enrollment it is; `short_name` drops a linked one's "<parent>-<number>-" prefix. */
+  accounts: (CustomerAccount & { member: string; member_id?: string; short_name?: string })[];
 }
 
 export interface Allocations {
@@ -313,6 +314,8 @@ export interface Dashboard {
 export interface Analysis {
   /** The date the report is as of, after the billing date: before it, the month before is still open. */
   as_of?: string;
+  /** The enrollments the figures cover: all of the group's unless some were chosen. */
+  shown_accounts?: string[];
   customer: Customer;
   group: GroupInfo;
   allocations: Allocations | null;
@@ -543,12 +546,16 @@ const measureQuery = (measure: Measure) =>
  *  Customer view leaves out the forecast scenarios, on the server. */
 export type View = 'account' | 'customer';
 
-export const fetchAnalysis = (id: string, measure: Measure, view: View = 'account') =>
-  apiFetch<Analysis>(`${customer(id)}/analysis?${measureQuery(measure)}&view=${view}`);
+const accountsQuery = (accounts?: string[]) =>
+  accounts?.length ? `&accounts=${encodeURIComponent(accounts.join(','))}` : '';
+
+/** `accounts`: only these of the group's enrollments; none given shows them all. */
+export const fetchAnalysis = (id: string, measure: Measure, view: View = 'account', accounts?: string[]) =>
+  apiFetch<Analysis>(`${customer(id)}/analysis?${measureQuery(measure)}&view=${view}${accountsQuery(accounts)}`);
 
 /** A path for an `<a href>`: the browser downloads the workbook itself. */
-export const exportPath = (id: string, measure: Measure, view: View = 'account') =>
-  `${customer(id)}/export.xlsx?${measureQuery(measure)}&view=${view}`;
+export const exportPath = (id: string, measure: Measure, view: View = 'account', accounts?: string[]) =>
+  `${customer(id)}/export.xlsx?${measureQuery(measure)}&view=${view}${accountsQuery(accounts)}`;
 
 export interface CoverageFamily { family: string; covered: number; on_demand: number; coverage_pct: number | null }
 export interface CoverageMonth extends CoverageFamily { month: string; families: CoverageFamily[] }

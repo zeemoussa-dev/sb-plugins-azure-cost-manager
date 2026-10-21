@@ -171,3 +171,24 @@ def test_the_portfolio_burns_an_own_parent_by_its_own_enrollments(fake_api):
     holding = next(row for row in service.portfolio() if row["id"] == "holding")
 
     assert holding["burn"]["consumed"] == 9 * 1_000_000
+
+
+def test_the_report_shows_only_the_enrollments_chosen_and_the_macc_stays_whole(fake_api):
+    _, service = group(fake_api)
+
+    hq_only = service.analysis("holding", accounts=["1"])
+
+    assert hq_only["shown_accounts"] == ["1"]
+    assert hq_only["months"][0]["actual"] == 1_000_000            # Holding's own enrollment only
+    assert hq_only["commitment"]["consumed"] == 9 * 1_750_000     # the MACC still counts the whole group
+    assert service.analysis("holding")["shown_accounts"] == ["1", "2", "3"]
+    with pytest.raises(ValueError):
+        service.analysis("holding", accounts=["999"])
+
+
+def test_an_affiliates_enrollment_reads_by_its_own_name():
+    from backend.customers import short_name
+
+    assert short_name("MDC General Services Holding Company LLC-8990244-Abu Dhabi Future Energy Company - PJSC   Masdar") \
+        == "Abu Dhabi Future Energy Company - PJSC Masdar"
+    assert short_name("MDC General Services Holding Company LLC") == "MDC General Services Holding Company LLC"

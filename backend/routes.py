@@ -39,6 +39,10 @@ def _answered(call):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _account_list(accounts: str | None) -> list[str] | None:
+    return [name.strip() for name in (accounts or "").split(",") if name.strip()] or None
+
+
 def build_router(service: ConsumptionService, book: CustomerBook, directory: AccountDirectory,
                  sync: ConsumptionSync, token: AzureCliToken, pipeline: Pipeline,
                  log: SyncLog | None = None) -> APIRouter:
@@ -58,8 +62,9 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
 
     @router.get("/customers/{customer_id}/export.xlsx")
     def get_export(customer_id: str, marketplace: str = "true", credits: bool = True, view: str = "account",
-                   billing_day: int | None = None) -> Response:
-        name, workbook = _answered(lambda: service.export(customer_id, measure(marketplace, credits, billing_day), view))
+                   billing_day: int | None = None, accounts: str | None = None) -> Response:
+        name, workbook = _answered(lambda: service.export(customer_id, measure(marketplace, credits, billing_day), view,
+                                                          _account_list(accounts)))
         return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
@@ -171,8 +176,10 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
 
     @router.get("/customers/{customer_id}/analysis")
     def get_analysis(customer_id: str, marketplace: str = "true", credits: bool = True, view: str = "account",
-                     billing_day: int | None = None) -> dict:
-        return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits, billing_day), view))
+                     billing_day: int | None = None, accounts: str | None = None) -> dict:
+        """`accounts`: comma-separated enrollment numbers to show; empty shows all."""
+        return _answered(lambda: service.analysis(customer_id, measure(marketplace, credits, billing_day), view,
+                                                  _account_list(accounts)))
 
     @router.get("/customers/{customer_id}/finops")
     def get_finops(customer_id: str) -> dict:

@@ -683,3 +683,55 @@
 .azure-cost-sync-events li.kind-step {
   font-weight: 600;
 }
+
+.azure-cost-picker {
+  position: relative;
+}
+
+.azure-cost-picker > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border, rgba(127, 127, 127, 0.4));
+  border-radius: var(--radius-md, 6px);
+  font-size: var(--font-size-sm);
+}
+
+.azure-cost-picker > summary::after {
+  content: " \25BE";
+  color: var(--color-text-muted);
+}
+
+.azure-cost-picker-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(560px, 90vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-3);
+  background: var(--color-surface, var(--color-bg, #fff));
+  border: 1px solid var(--color-border, rgba(127, 127, 127, 0.4));
+  border-radius: var(--radius-md, 6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.azure-cost-picker-panel fieldset {
+  border: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.azure-cost-picker-panel legend {
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+
+.azure-cost-picker-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
