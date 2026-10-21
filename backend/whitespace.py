@@ -50,5 +50,5 @@ def analyse(usage_by_customer: dict[str, dict[str, float]], plays: dict[str, str
                         "typical_monthly": round(median(amounts), 2)}
                        for service, amounts in common.items() if service not in uses),
                       key=lambda gap: (-gap["users"], -gap["typical_monthly"]))
-        found[customer] = {"uses": len(uses), "gaps": gaps}
+        found[customer] = {"uses": len(uses), "monthly": round(sum(spend.values()), 2), "gaps": gaps}
     return found

@@ -764,8 +764,9 @@ export interface WhitespaceRow {
   name: string;
   entity_customer: string | null;
   currency: string;
-  /** How many services it uses ($500 a month or more). */
+  /** How many services it uses ($500 a month or more), and its monthly spend. */
   uses: number;
+  monthly: number;
   gaps: { service: string; play: string; users: number; adoption_pct: number; typical_monthly: number }[];
 }
 

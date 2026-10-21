@@ -14,21 +14,22 @@ import re
 from .consumption_analysis import is_core42_publisher
 
 OTHER = "Other"
-# Order matters: backup before data ("data protection"), security before networking.
+# Order matters: backup before data ("data protection"), security before networking,
+# data before AI ("Oracle AI Database@Azure" is a database).
 _CATEGORIES = [
     ("Backup & DR", r"veeam|commvault|rubrik|cohesity|zerto|druva|netbackup|veritas|backup|disaster recovery"),
     ("Security", r"fortinet|fortigate|palo ?alto|check ?point|crowdstrike|zscaler|barracuda|sophos|trend ?micro|"
                  r"imperva|thales|cyberark|okta|darktrace|tenable|qualys|rapid7|f5|firewall|\bwaf\b|security|"
                  r"cyber|threat|siem|identity"),
-    ("AI & ML", r"openai|anthropic|mistral|cohere|hugging ?face|nvidia|\bai\b|\bllm\b|\bgpt|machine learning|"
-                r"cognitive|copilot"),
     ("Data & Analytics", r"databricks|snowflake|informatica|mongodb|confluent|elastic|redis|cloudera|qlik|tableau|"
                          r"talend|fivetran|data|analytics|database|\bsql\b|\betl\b"),
+    ("AI & ML", r"openai|anthropic|mistral|cohere|hugging ?face|nvidia|\bai\b|\bllm\b|\bgpt|machine learning|"
+                r"cognitive|copilot"),
     ("Networking", r"cisco|netscaler|citrix adc|aviatrix|infoblox|riverbed|sd-?wan|network|load balanc|\bvpn\b"),
     ("DevOps & Apps", r"gitlab|github|jfrog|hashicorp|atlassian|servicenow|\bsap\b|openshift|kubernetes|devops|"
                       r"\bci/cd\b|monitoring|observability|dynatrace|datadog|new relic|splunk"),
     ("OS & images", r"linux|ubuntu|canonical|red ?hat|\brhel\b|suse|centos|rocky|alma|debian|windows server|"
-                    r"\bimage\b|ntegral|\bvm\b"),
+                    r"\bimage\b|ntegral"),
 ]
 _COMPILED = [(name, re.compile(pattern, re.IGNORECASE)) for name, pattern in _CATEGORIES]
 CATEGORIES = [name for name, _ in _CATEGORIES] + [OTHER]

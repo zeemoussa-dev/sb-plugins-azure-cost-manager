@@ -65,7 +65,8 @@ export function RenewalsPage() {
                     {formatMonth(row.next_month)}{row.status === 'overdue' ? ' (overdue)' : ''}</td>
                   <td>{row.customer}</td>
                   <td>{row.publisher}{row.core42 ? <span className="azure-cost-anomaly new"> Core42</span> : null}</td>
-                  <td>{row.offer}{row.plan ? <span className="text-muted"> · {row.plan}</span> : null}</td>
+                  {/* Azure's offer name often ends with the plan already. */}
+                  <td>{row.offer}{row.plan && !row.offer.includes(row.plan) ? <span className="text-muted"> · {row.plan}</span> : null}</td>
                   <td>{row.cadence}{row.cadence_assumed ? <span className="text-muted" title="Charged once so far"> (assumed)</span> : null}</td>
                   <td>{formatMoney(row.last_amount, 'USD', true)} <span className="text-muted">{formatMonth(row.last_month, true)}</span></td>
                 </tr>

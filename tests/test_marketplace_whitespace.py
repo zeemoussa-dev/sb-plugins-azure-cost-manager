@@ -34,4 +34,5 @@ def test_other_publishers_by_category_and_core42s_share():
 def test_categories_are_read_from_names_and_unknown_is_other():
     assert mpw.category_of("Ntegral Inc.", "Oracle Linux 8.9") == "OS & images"
     assert mpw.category_of("Anthropic", "Claude") == "AI & ML"
-    assert mpw.category_of("Context Labs B.V.", "Decarb-as-a-Service Platform") == mpw.OTHER
+    assert mpw.category_of("Context Labs B.V.", "Decarb-as-a-Service Platform Bundle License VM cust 3") == mpw.OTHER
+    assert mpw.category_of("Oracle America, Inc.", "Oracle AI Database@Azure") == "Data & Analytics"

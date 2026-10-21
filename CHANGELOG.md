@@ -2,6 +2,12 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.33.1] - 2026-10-21
+
+- fix: **Service whitespace** led with tiny customers. A crypto miner using no service at $500 a month showed 15 "gaps", Virtual Machines and Storage among them. It now lists the largest customers first and leaves out a customer that uses no service at that level yet.
+- fix: **Marketplace categories.** "Oracle AI Database@Azure" read as AI & ML (it is a database, so now Data & Analytics), and an offer licensed "per VM" read as an OS image. Data is now checked before AI, and "VM" alone no longer means an image.
+- fix: **Marketplace renewals** showed the plan twice when Azure's offer name already ends with it.
+
 ## [0.33.0] - 2026-10-21
 
 Five reports across all customers (operator, 2026-10-21: "what else can we report on based on the data we have", picking 2, 4, 6, 11 and 12). All are built from data already synced, with no new Azure queries, and open from the landing page's "Across all customers".

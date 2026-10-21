@@ -537,8 +537,10 @@ class ConsumptionService:
         rows = [{"id": customer["id"], "name": customer["name"],
                  "entity_customer": customer.get("entity_customer"),
                  "currency": ((customer.get("commitment") or {}).get("currency") or "USD").strip() or "USD",
-                 **found[customer["id"]]} for customer in tops if usage[customer["id"]]]
-        return sorted(rows, key=lambda row: (-len(row["gaps"]), row["name"].lower()))
+                 **found[customer["id"]]} for customer in tops if found[customer["id"]]["uses"]]
+        # The largest customers first: a gap at a big estate is the bigger conversation,
+        # and a customer that uses nothing at $500 a month yet has no peers' pattern to miss.
+        return sorted(rows, key=lambda row: -row["monthly"])
 
     def portfolio(self, only: str | None = None) -> list[dict]:
         """Every customer at a glance -- burn, last month, recent trend, status -- for
