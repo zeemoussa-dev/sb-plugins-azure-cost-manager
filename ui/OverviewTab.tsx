@@ -81,6 +81,19 @@ function Kpis({ analysis }: { analysis: Analysis }) {
 function CommitmentCard({ analysis }: { analysis: Analysis }) {
   const location = useLocation();
   const commitment = analysis.commitment;
+  const parent = analysis.group.parent;
+  if (!commitment && parent?.rolls_up) {
+    return (
+      <section className="card azure-cost-card">
+        <h3>Signed value</h3>
+        <p className="text-muted">
+          {analysis.customer.name} signs no MACC of its own: its consumption counts toward{' '}
+          <Link to={`?report=Overview&customer=${encodeURIComponent(parent.id)}`}>{parent.name}'s MACC</Link>
+          {parent.amount != null ? ` (${formatMoney(parent.amount, parent.currency)})` : ''}.
+        </p>
+      </section>
+    );
+  }
   if (!commitment) {
     return (
       <section className="card azure-cost-card">

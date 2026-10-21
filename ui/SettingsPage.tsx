@@ -7,12 +7,24 @@ import {
 } from './client';
 import { agreementLabel, errorText, formatMoney, formatMonth, grouped } from './format';
 import { usePluginReturn } from '../../pluginHost/breadcrumbs';
+import { useUrlState } from '../../pluginHost/state';
 import { PLUGIN_ID } from './ReportsHome';
 import { HubOptions } from './PipelineTab';
 import { SolutionPlaysSettingsCard } from './SolutionPlays';
 import { SyncControl } from './SyncControl';
 
 const SHOWN_WHILE_SEARCHING = 60;
+
+// One section at a time, picked in a side panel as on the Vault's settings
+// (operator, 2026-10-21: "the Settings page grew too much").
+const SECTIONS = ['customers', 'unassigned', 'plays', 'sync'] as const;
+type Section = typeof SECTIONS[number];
+const SECTION_NAV: { id: Section; label: string; icon: string }[] = [
+  { id: 'customers', label: 'Customers', icon: 'groups' },
+  { id: 'unassigned', label: 'Enrollments in no customer', icon: 'inventory_2' },
+  { id: 'plays', label: 'Solution plays', icon: 'category' },
+  { id: 'sync', label: 'Sync', icon: 'sync' },
+];
 const ACCOUNT_RETRY_SECONDS = [3, 10, 30, 60];
 
 interface Draft {
@@ -312,6 +324,7 @@ export function SettingsPage() {
   const [editing, setEditing] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [params] = useSearchParams();
+  const [section, setSection] = useUrlState<Section>('section', 'customers', { valid: SECTIONS });
   const navigate = useNavigate();
   const back = usePluginReturn(PLUGIN_ID);
   // A customer opened from a report is edited for that report: done, it goes back there.
@@ -369,9 +382,26 @@ export function SettingsPage() {
 
   const syncUrl = apiUrl('/plugins/azure-cost-manager/sync');
 
+  // A customer opened for editing is always shown in its own section.
+  const shown: Section = editing ? 'customers' : section;
+  const parentOf = (customer: Customer) => customers?.find((other) => other.id === customer.parent) ?? null;
+
   return (
     <div className="azure-cost-settings">
       <h2>Azure Cost Manager</h2>
+      <div className="vault-settings-layout">
+        <nav className="vault-settings-nav" aria-label="Azure Cost Manager settings">
+          {SECTION_NAV.map((item) => (
+            <button key={item.id} type="button"
+                    className={`vault-settings-nav-item artifacts-nav-item${shown === item.id ? ' vault-settings-nav-item--active' : ''}`}
+                    aria-current={shown === item.id ? 'page' : undefined}
+                    onClick={() => { setEditing(null); setSection(item.id); }}>
+              <span className="material-symbols-outlined" aria-hidden="true">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="vault-settings-content">
       {accountsProblem ? (
         <div className="azure-cost-error">{accountsProblem}{' '}
           <button type="button" className="btn" onClick={() => loadAccounts()}>Try again</button>
@@ -379,7 +409,7 @@ export function SettingsPage() {
       ) : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
 
-      {editing ? (
+      {shown !== 'customers' ? null : editing ? (
         <CustomerEditor draft={editing} accounts={accounts} types={types} entityCustomers={entityCustomers}
                         parents={(customers ?? []).filter((customer) => !customer.parent && customer.id !== editing.id)}
                         commitmentsOnNotes={commitmentsOnNotes}
@@ -405,7 +435,9 @@ export function SettingsPage() {
                     </td>
                     <td>{customer.commitment
                       ? `${formatMoney(customer.commitment.amount, customer.commitment.currency, true)} ${customer.commitment.type}`
-                      : <span className="text-muted">not entered</span>}
+                      : parentOf(customer)?.commitment && parentOf(customer)?.commitment?.affiliates !== 'own'
+                        ? <span className="text-muted">in {parentOf(customer)!.name}'s MACC</span>
+                        : <span className="text-muted">not entered</span>}
                       {customer.commitment_source === 'note' ? <span className="text-muted"> · on its Customer note</span> : null}
                       {customer.commitment_problem ? <div className="azure-cost-anomaly spike">{customer.commitment_problem}</div> : null}</td>
                     <td className="text-muted">{customer.commitment ? `${customer.commitment.start} → ${customer.commitment.end}` : ''}</td>
@@ -422,14 +454,15 @@ export function SettingsPage() {
         </section>
       )}
 
-      {!editing ? (
+      {shown === 'unassigned' ? (
         <UnassignedEnrollments version={customers}
                                onCreate={(group) => setEditing({ ...draftOf(null), name: group.name,
                                                                  accounts: group.accounts.map((account) => account.name) })} />
       ) : null}
 
-      <SolutionPlaysSettingsCard />
+      {shown === 'plays' ? <SolutionPlaysSettingsCard /> : null}
 
+      {shown === 'sync' ? (
       <section className="card azure-cost-card">
         <h3>Sync</h3>
         <p className="text-muted azure-cost-note">
@@ -448,6 +481,9 @@ export function SettingsPage() {
           then every other billing profile. It returns at once; progress shows here and on the Azure Cost page.
         </p>
       </section>
+      ) : null}
+        </div>
+      </div>
     </div>
   );
 }

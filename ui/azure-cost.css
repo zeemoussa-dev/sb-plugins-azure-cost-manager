@@ -586,6 +586,10 @@
   background: rgba(107, 114, 128, 0.2);
 }
 
+.azure-cost-status.parent-macc {
+  background: rgba(37, 99, 235, 0.15);
+}
+
 .azure-cost-card:has(.azure-cost-chooser) {
   overflow-x: auto;
 }
@@ -742,4 +746,19 @@
 
 tr.azure-cost-affiliate td:first-child {
   padding-left: var(--space-4);
+}
+
+.azure-cost-report-scope {
+  align-self: flex-start;
+  font-size: var(--font-size-xs, 0.72rem);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  background: rgba(107, 114, 128, 0.15);
+}
+
+.azure-cost-report-scope.all {
+  background: rgba(37, 99, 235, 0.15);
 }

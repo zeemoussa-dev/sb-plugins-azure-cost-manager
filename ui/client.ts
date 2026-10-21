@@ -143,7 +143,11 @@ export interface CustomerDraft {
 }
 
 export interface GroupInfo {
-  parent: { id: string; name: string; amount: number | null; currency: string | null; entity_customer: string | null } | null;
+  parent: {
+    id: string; name: string; amount: number | null; currency: string | null; entity_customer: string | null;
+    /** Its consumption counts toward this parent's MACC (the parent's affiliates roll up). */
+    rolls_up?: boolean;
+  } | null;
   affiliates: { id: string; name: string }[];
   /** `member`/`member_id`: whose enrollment it is; `short_name` drops a linked one's "<parent>-<number>-" prefix. */
   accounts: (CustomerAccount & { member: string; member_id?: string; short_name?: string })[];
@@ -501,13 +505,15 @@ export interface UnassignedGroup {
 
 export const fetchUnassigned = () => apiFetch<UnassignedGroup[]>(`${BASE}/unassigned`);
 
-export type PortfolioStatus = 'not-synced' | 'no-macc' | 'consumed' | 'behind' | 'early' | 'on-track';
+export type PortfolioStatus = 'not-synced' | 'no-macc' | 'parent-macc' | 'consumed' | 'behind' | 'early' | 'on-track';
 
 /** One customer at a glance; a parent's figures include its affiliates. */
 export interface PortfolioRow {
   id: string;
   name: string;
   parent: string | null;
+  /** The parent whose MACC this affiliate consumes, when it signed none of its own. */
+  covered_by?: string | null;
   affiliates: string[];
   enrollments: number;
   currency: string | null;

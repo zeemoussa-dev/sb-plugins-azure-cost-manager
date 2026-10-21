@@ -71,7 +71,8 @@ def test_the_status_reads_the_burn(fake_api):
     # runs out of 7M in 2027 with more than a year of term left.
     assert rows["holding"]["status"] == "early"
     assert rows["northwind"]["status"] == "early"
-    assert rows["litware"]["status"] == "no-macc"
+    # No MACC of its own, and its parent's affiliates roll up: it consumes the parent's.
+    assert (rows["litware"]["status"], rows["litware"]["covered_by"]) == ("parent-macc", "Holding")
 
 
 def test_a_macc_the_run_rate_cannot_reach_is_behind(fake_api):

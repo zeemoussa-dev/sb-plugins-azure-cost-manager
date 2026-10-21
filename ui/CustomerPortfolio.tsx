@@ -11,10 +11,11 @@ const STATUS_LABELS: Record<PortfolioStatus, string> = {
   'on-track': 'On track',
   consumed: 'Consumed',
   'no-macc': 'No MACC set',
+  'parent-macc': "In parent's MACC",
   'not-synced': 'Not synced',
 };
 // Worst first, so sorting by status puts what needs attention on top.
-const STATUS_ORDER: PortfolioStatus[] = ['behind', 'early', 'on-track', 'consumed', 'no-macc', 'not-synced'];
+const STATUS_ORDER: PortfolioStatus[] = ['behind', 'early', 'on-track', 'consumed', 'no-macc', 'parent-macc', 'not-synced'];
 
 const FILTERS = ['all', 'behind', 'early', 'no-macc', 'not-synced', 'groups', 'standalone'] as const;
 type Filter = typeof FILTERS[number];
@@ -183,7 +184,8 @@ export function CustomerPortfolio({ report }: { report: Report }) {
       </td>
       <td>{projectedText(row)}</td>
       <td>
-        <span className={`azure-cost-status ${row.status}`}>{STATUS_LABELS[row.status]}</span>
+        <span className={`azure-cost-status ${row.status}`}>
+          {row.status === 'parent-macc' && row.covered_by ? `In ${row.covered_by}'s MACC` : STATUS_LABELS[row.status]}</span>
         {row.synced_at ? (
           <div className="text-muted azure-cost-row-detail">
             {row.unsynced_enrollments ? `${row.unsynced_enrollments} of ${row.enrollments} not synced yet · `

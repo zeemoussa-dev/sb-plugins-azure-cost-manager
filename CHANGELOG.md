@@ -2,6 +2,12 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.34.0] - 2026-10-21
+
+- fix: **an affiliate that signs no MACC of its own no longer reads "No MACC set"** (operator, 2026-10-21: DGE's affiliates "written no MACC" while they have none of their own). When its parent's affiliates roll up into the parent's MACC, the customer list says **In DGE's MACC**. Its Overview says its consumption counts toward the parent's MACC, with a link to it, and Settings' customer list says the same. An affiliate of a parent whose affiliates sign their own (Mubadala) still reads No MACC set.
+- change: **Settings has a side panel of sections**, as the Vault's settings do (operator: "the Settings page grows too much"). The sections are Customers, Enrollments in no customer, Solution plays and Sync. The section is kept in the page address, and editing a customer always opens Customers.
+- change: **the reports are grouped by theme** (operator: "the reports need a different grouping"). The groups are Consumption and MACC, Opportunities, Marketplace, and Optimization and governance. Each card says whether it is about one customer or all customers.
+
 ## [0.33.1] - 2026-10-21
 
 - fix: **Service whitespace** led with tiny customers. A crypto miner using no service at $500 a month showed 15 "gaps", Virtual Machines and Storage among them. It now lists the largest customers first and leaves out a customer that uses no service at that level yet.

@@ -20,6 +20,41 @@ const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
   Breakdown: { title: 'Breakdown', summary: 'Consumption by service, subscription and resource group.' },
 };
 
+type ThemeItem = { report: Report } | { to: string; title: string; summary: string };
+
+// Grouped by what the operator is after, one customer's reports beside the ones
+// across all customers (operator, 2026-10-21: "the reports need a different grouping").
+const THEMES: { title: string; items: ThemeItem[] }[] = [
+  { title: 'Consumption and MACC', items: [
+    { report: 'Overview' }, { report: 'This month' }, { report: 'Forecast' }, { report: 'Breakdown' },
+    { to: '/azure-cost-manager/growth', title: 'Growth and churn',
+      summary: 'Who is growing and who is falling away: three and twelve months against the ones before, services that stopped or started, and each solution play\'s move.' },
+  ] },
+  { title: 'Opportunities', items: [
+    { report: 'Pipeline' },
+    { to: '/azure-cost-manager/whitespace', title: 'Service whitespace',
+      summary: 'The services most other customers use and this one does not, by solution play — each one an opportunity to create.' },
+    { to: '/azure-cost-manager/marketplace-whitespace', title: 'Marketplace whitespace',
+      summary: 'What customers buy from publishers other than Core42, by category — MACC spend a Core42 offer could compete for.' },
+  ] },
+  { title: 'Marketplace', items: [
+    { report: 'Marketplace' },
+    { to: '/azure-cost-manager/marketplace', title: 'Marketplace, all customers',
+      summary: 'Every partner solution, who bought it, and how much counts toward the MACCs.' },
+    { to: '/azure-cost-manager/renewals', title: 'Marketplace renewals',
+      summary: 'When each recurring Marketplace purchase next charges, and for how much — and the ones that did not renew.' },
+  ] },
+  { title: 'Optimization and governance', items: [
+    { report: 'FinOps' }, { report: 'Tags' },
+    { to: '/azure-cost-manager/finops', title: 'Optimization opportunities',
+      summary: 'Every customer ranked by steady on-demand spend and commitment coverage: where to start the savings conversation.' },
+    { to: '/azure-cost-manager/tags', title: 'Tag coverage',
+      summary: 'How much of each customer\'s spend carries environment, project and the other business tags.' },
+    { to: '/azure-cost-manager/hygiene', title: 'Subscription and tag hygiene',
+      summary: 'Each customer\'s subscriptions — new, dormant, tiny, concentrated — beside how much of its spend is tagged.' },
+  ] },
+];
+
 export function reportTitle(report: Report): string {
   return REPORT_SUMMARIES[report].title;
 }
@@ -76,50 +111,26 @@ export function ReportsHome() {
           No customers yet. <Link to={settingsLink()}>Add a customer</Link> and pick its enrollments.
         </p>
       ) : null}
-      <h2 className="azure-cost-section-title">Per customer</h2>
-      <div className="azure-cost-report-grid">
-        {REPORTS.map((report) => (
-          <Link key={report} to={reportLink(report)} className="card azure-cost-report-card">
-            <strong>{REPORT_SUMMARIES[report].title}</strong>
-            <span className="text-muted">{REPORT_SUMMARIES[report].summary}</span>
-          </Link>
-        ))}
-      </div>
-      <h2 className="azure-cost-section-title">Across all customers</h2>
-      <div className="azure-cost-report-grid">
-        <Link to="/azure-cost-manager/growth" className="card azure-cost-report-card">
-          <strong>Growth and churn</strong>
-          <span className="text-muted">Who is growing and who is falling away: three and twelve months against the ones before, services that stopped or started, and each solution play's move.</span>
-        </Link>
-        <Link to="/azure-cost-manager/whitespace" className="card azure-cost-report-card">
-          <strong>Service whitespace</strong>
-          <span className="text-muted">The services most other customers use and this one does not, by solution play — each one an opportunity to create.</span>
-        </Link>
-        <Link to="/azure-cost-manager/marketplace-whitespace" className="card azure-cost-report-card">
-          <strong>Marketplace whitespace</strong>
-          <span className="text-muted">What customers buy from publishers other than Core42, by category — MACC spend a Core42 offer could compete for.</span>
-        </Link>
-        <Link to="/azure-cost-manager/marketplace" className="card azure-cost-report-card">
-          <strong>Marketplace, all customers</strong>
-          <span className="text-muted">Every partner solution, who bought it, and how much counts toward the MACCs.</span>
-        </Link>
-        <Link to="/azure-cost-manager/finops" className="card azure-cost-report-card">
-          <strong>Optimization opportunities</strong>
-          <span className="text-muted">Every customer ranked by steady on-demand spend and commitment coverage: where to start the savings conversation.</span>
-        </Link>
-        <Link to="/azure-cost-manager/renewals" className="card azure-cost-report-card">
-          <strong>Marketplace renewals</strong>
-          <span className="text-muted">When each recurring Marketplace purchase next charges, and for how much — and the ones that did not renew.</span>
-        </Link>
-        <Link to="/azure-cost-manager/hygiene" className="card azure-cost-report-card">
-          <strong>Subscription and tag hygiene</strong>
-          <span className="text-muted">Each customer's subscriptions — new, dormant, tiny, concentrated — beside how much of its spend is tagged.</span>
-        </Link>
-        <Link to="/azure-cost-manager/tags" className="card azure-cost-report-card">
-          <strong>Tag coverage</strong>
-          <span className="text-muted">How much of each customer's spend carries environment, project and the other business tags.</span>
-        </Link>
-      </div>
+      {THEMES.map((theme) => (
+        <section key={theme.title}>
+          <h2 className="azure-cost-section-title">{theme.title}</h2>
+          <div className="azure-cost-report-grid">
+            {theme.items.map((item) => {
+              const to = 'report' in item ? reportLink(item.report) : item.to;
+              const title = 'report' in item ? REPORT_SUMMARIES[item.report].title : item.title;
+              const summary = 'report' in item ? REPORT_SUMMARIES[item.report].summary : item.summary;
+              return (
+                <Link key={to} to={to} className="card azure-cost-report-card">
+                  <span className={`azure-cost-report-scope ${'report' in item ? 'one' : 'all'}`}>
+                    {'report' in item ? 'One customer' : 'All customers'}</span>
+                  <strong>{title}</strong>
+                  <span className="text-muted">{summary}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

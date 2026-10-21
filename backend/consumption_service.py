@@ -22,11 +22,13 @@ RECENT_MONTHS = 6
 EARLY_EXHAUSTION_MONTHS = 3
 
 
-def _status(burn: dict | None, synced_at: str | None) -> str:
+def _status(burn: dict | None, synced_at: str | None, covered_by_parent: bool = False) -> str:
     if not synced_at:
         return "not-synced"
     if not burn:
-        return "no-macc"
+        # An affiliate that signs no MACC of its own consumes its parent's (DGE's
+        # affiliates, operator 2026-10-21): it has no MACC to set.
+        return "parent-macc" if covered_by_parent else "no-macc"
     if burn["remaining"] <= 0:
         return "consumed"
     if burn["projected_shortfall"] > 0:
@@ -197,7 +199,10 @@ class ConsumptionService:
                 parent = {"id": record["id"], "name": record["name"],
                           "amount": (record.get("commitment") or {}).get("amount"),
                           "currency": (record.get("commitment") or {}).get("currency"),
-                          "entity_customer": record.get("entity_customer")}
+                          "entity_customer": record.get("entity_customer"),
+                          # Whether this customer's consumption counts toward the parent's MACC.
+                          "rolls_up": bool(record.get("commitment"))
+                          and consumption_analysis.affiliates_roll_up(record.get("commitment"))}
         return {"parent": parent,
                 "affiliates": [{"id": member["id"], "name": member["name"]} for member in members[1:]],
                 "accounts": [{**account, "member": member["name"], "member_id": member["id"],
@@ -580,10 +585,14 @@ class ConsumptionService:
             synced = [account["synced_at"] for member in members for account in member["accounts"]
                       if account.get("synced_at")]
             synced_at = min(synced) if synced else None
+            parent = next((listed for listed in everyone if listed["id"] == customer.get("parent")), None)
+            covered = bool(parent and not commitment and parent.get("commitment")
+                           and consumption_analysis.affiliates_roll_up(parent.get("commitment")))
             rows.append({
                 "id": customer["id"],
                 "name": customer["name"],
                 "parent": customer.get("parent"),
+                "covered_by": parent["name"] if covered else None,
                 "affiliates": [member["id"] for member in members[1:]],
                 "enrollments": len(accounts),
                 # The Consumption API pads the currency code ("USD  ").
@@ -596,7 +605,7 @@ class ConsumptionService:
                     "projected_shortfall", "projected_exhaustion", "end")},
                 "last_month": closed[-1] if closed else None,
                 "recent": [{"month": month["month"], "actual": month["actual"]} for month in closed[-RECENT_MONTHS:]],
-                "status": _status(burn, synced_at),
+                "status": _status(burn, synced_at, covered),
                 "synced_at": synced_at,
                 "unsynced_enrollments": len(accounts) - len(synced),
                 "stale": not synced_at or self._now() - datetime.fromisoformat(synced_at) > STALE_AFTER,

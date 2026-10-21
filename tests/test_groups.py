@@ -77,7 +77,7 @@ def test_an_affiliate_sees_its_own_macc_and_the_group_it_belongs_to(fake_api):
 
     assert result["commitment"]["consumed"] == 4_500_000
     assert result["group"]["parent"] == {"id": "holding", "name": "Holding", "amount": 50_000_000, "currency": "USD",
-                                         "entity_customer": None}
+                                         "entity_customer": None, "rolls_up": True}
     assert result["allocations"] is None
 
 
