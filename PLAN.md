@@ -312,6 +312,24 @@ Design:
 
 ---
 
+## Billing report — months from a billing date (requested 2026-10-21, not started)
+
+The operator wants a separate **Billing report** whose months run from a billing date, for
+example the 5th to the 4th, across **all data, not only the current month** (operator,
+2026-10-21). It was tried as a setting on the default report (0.30.0) and taken out the
+same day (0.31.1). That setting only decided when a month counted as closed, which isn't
+what was meant.
+
+- **The constraint:** Azure reports cost by calendar month, and EA invoices, credits and
+  Marketplace charges are billed per calendar billing period. A 5th-to-4th month can only
+  be rebuilt from daily cost, and today daily cost is fetched only for last month and this one.
+- **What it needs:** daily usage for the whole history, fetched once per settled month and
+  never again, in the background like the monthly sync (a large enrollment pages 40+ times
+  per month under throttling, so a first fill takes hours). Credits and Marketplace can't be
+  split by day, so the report must say how it places them, or leave them out.
+- **Already there:** `measure.billing_day` and `consumption_analysis.report_date` (the
+  closed-month rule), which the report keeps at the 1st.
+
 ## Framework work this needs (in `second_brain`, not here)
 
 1. **Plugin API: Hermes-content layer** — ADR-022 promised plugins could carry

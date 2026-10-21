@@ -6,7 +6,7 @@ import { useRememberedState, useUrlSelection, useUrlState } from '../../pluginHo
 import { BreakdownTab } from './BreakdownTab';
 import { MarketplaceTab } from './MarketplaceTab';
 import {
-  DEFAULT_BILLING_DAY, exportPath, fetchAnalysis, fetchCustomers, fetchSignIn,
+  exportPath, fetchAnalysis, fetchCustomers, fetchSignIn,
   type Analysis, type Customer, type Measure, type SignInState, type View,
 } from './client';
 import { ForecastTab } from './ForecastTab';
@@ -14,14 +14,13 @@ import { CustomerPortfolio } from './CustomerPortfolio';
 import { FinOpsTab } from './FinOpsTab';
 import { TagsTab } from './TagsTab';
 import { ThisMonthTab } from './ThisMonthTab';
-import { errorText, ordinal } from './format';
+import { errorText } from './format';
 import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
 import { REPORTS, reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
 const VIEWS = ['account', 'customer'] as const;
-const BILLING_DAYS = Array.from({ length: 28 }, (_, index) => index + 1);
 
 // The reports read from the analysis -- the ones the enrollment choice applies to.
 const CHOOSES_ENROLLMENTS: Report[] = ['Overview', 'Forecast', 'Breakdown'];
@@ -148,7 +147,7 @@ export function AzureCostPage() {
   // never leaks onto the next one opened.
   const [enrollments, setEnrollments] = useUrlState<string>('enrollments', '');
   const [measure, setMeasure] = useRememberedState<Measure>('azure-cost-manager.measure',
-    { marketplace: true, credits: true, billing_day: DEFAULT_BILLING_DAY });
+    { marketplace: true, credits: true });
   const [error, setError] = useState<string | null>(null);
 
   const loadCustomers = useCallback(() => {
@@ -228,14 +227,6 @@ export function AzureCostPage() {
                     <option value="true">All (MACC consumed)</option>
                     <option value="core42">Core42's only (Core42 revenue)</option>
                     <option value="false">None</option>
-                  </select>
-                </label>
-                <label className="azure-cost-check"
-                       title="From this day of the month, the month before counts as closed. Azure keeps adjusting a month's figures for about five days after it ends.">
-                  Billing date{' '}
-                  <select value={measure.billing_day ?? DEFAULT_BILLING_DAY}
-                          onChange={(event) => setMeasure({ ...measure, billing_day: Number(event.target.value) })}>
-                    {BILLING_DAYS.map((day) => <option key={day} value={day}>{ordinal(day)}</option>)}
                   </select>
                 </label>
                 <label className="azure-cost-check" title="Credits applied to the bill, e.g. a Contract Price Match Credit">

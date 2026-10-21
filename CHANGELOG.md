@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.31.1] - 2026-10-21
+
+- change: **the Billing date is out of the report's toolbar** (operator, 2026-10-21: "remove the billing date from the default view for now; it can be a billing report done separately", needing "all data, not only the current month"). It only decided when last month counted as closed, so before the 22nd it seemed to do nothing. The report reads calendar months again, and the workbook no longer mentions a billing date. A separate Billing report whose months run from the billing date across all history is planned in PLAN.md.
+
 ## [0.31.0] - 2026-10-21
 
 - feat: **choose which enrollments a report shows** (operator, 2026-10-21: "for Mubadala I can't see Mubadala HQ ... the list of enrollments is too big to appear at the top without wrapping; let's select some of them to display their data").

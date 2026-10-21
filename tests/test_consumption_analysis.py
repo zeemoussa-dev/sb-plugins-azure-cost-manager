@@ -138,7 +138,7 @@ def test_before_the_billing_date_the_month_before_stays_open():
     assert report_date(date(2026, 10, 3), 5) == date(2026, 9, 29)    # September still open
     assert report_date(date(2026, 10, 5), 5) == date(2026, 10, 1)    # from the 5th, September is closed
     assert report_date(date(2026, 10, 3), 1) == date(2026, 10, 3)    # billing date 1: calendar months
-    assert report_date(date(2026, 10, 3), None) == date(2026, 9, 29)  # the default is the 5th
+    assert report_date(date(2026, 10, 3), None) == date(2026, 10, 3)  # by default, calendar months
 
 
 def test_the_report_reads_as_of_the_billing_date(fake_api):

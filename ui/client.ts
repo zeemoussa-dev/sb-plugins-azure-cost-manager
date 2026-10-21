@@ -40,11 +40,7 @@ export interface Measure {
   /** All Marketplace, none, or only Core42's own offers -- which makes the totals Core42's revenue. */
   marketplace: boolean | 'core42';
   credits: boolean;
-  /** The billing date: from this day of the month, the month before counts as closed. */
-  billing_day?: number;
 }
-
-export const DEFAULT_BILLING_DAY = 5;
 
 export interface ScenarioSettings {
   growth: { Base: number; Upside: number; Downside: number };
@@ -539,8 +535,7 @@ export const saveCustomer = (id: string | null, draft: CustomerDraft) =>
 
 export const deleteCustomer = (id: string) => apiFetch<{ deleted: string }>(customer(id), { method: 'DELETE' });
 
-const measureQuery = (measure: Measure) =>
-  `marketplace=${measure.marketplace}&credits=${measure.credits}&billing_day=${measure.billing_day ?? DEFAULT_BILLING_DAY}`;
+const measureQuery = (measure: Measure) => `marketplace=${measure.marketplace}&credits=${measure.credits}`;
 
 /** Who a page or workbook is for: the operator, or the customer it is about. The
  *  Customer view leaves out the forecast scenarios, on the server. */

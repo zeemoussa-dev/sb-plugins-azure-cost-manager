@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import { BurnDownChart, Change, CommitmentGauge, SeriesChart, TrendChart } from './charts';
-import { DEFAULT_BILLING_DAY, type Analysis } from './client';
-import { formatMoney, formatMonth, ordinal } from './format';
+import type { Analysis } from './client';
+import { formatMoney, formatMonth } from './format';
 import { settingsLink } from './ReportsHome';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -35,10 +35,7 @@ function Kpis({ analysis }: { analysis: Analysis }) {
            value={money(kpis.latest_total, currency)}
            detail={<>MoM {percent(kpis.latest_mom_pct)} · YoY {percent(kpis.latest_yoy_pct)}</>} />
       <Kpi label={kpis.current_month ? `${formatMonth(kpis.current_month)} so far` : 'This month so far'}
-           value={money(kpis.current_so_far, currency)}
-           detail={kpis.current_month && kpis.current_month < new Date().toISOString().slice(0, 7)
-             ? `still open: the billing date is the ${ordinal(analysis.measure.billing_day ?? DEFAULT_BILLING_DAY)}`
-             : null} />
+           value={money(kpis.current_so_far, currency)} />
       <Kpi label="Next 12 months (auto forecast)" value={money(kpis.next_12_months, currency)}
            detail={analysis.automatic_forecast
              ? `${formatMoney(analysis.automatic_forecast.next_12_months_with_pipeline, currency)} with pipeline` : null} />

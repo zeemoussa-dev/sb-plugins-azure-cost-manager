@@ -33,8 +33,9 @@ BREAKDOWNS = ("service", "subscription")
 DEFAULT_MEASURE = {"marketplace": True, "credits": True}
 # The billing date (operator, 2026-10-21): the day of the month from which the month
 # before counts as closed. Azure settles a month's figures for about five days after
-# it ends, so on the 1st-4th the report still treats that month as open.
-DEFAULT_BILLING_DAY = 5
+# it ends. Taken out of the report's view the same day ("it can be a billing report
+# done separately"), so the report reads calendar months unless a caller asks.
+DEFAULT_BILLING_DAY = 1
 LATEST_BILLING_DAY = 28
 
 

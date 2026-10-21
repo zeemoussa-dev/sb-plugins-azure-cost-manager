@@ -208,6 +208,13 @@ def _components(data: dict, measure: dict) -> dict[str, float]:
             "total": usage + marketplace_counted - credits_counted}
 
 
+def _as_of(analysis: dict, measure: dict) -> str:
+    """Said only when a billing date moved the report off calendar months."""
+    if measure.get("billing_day", 1) == 1 or not analysis.get("as_of"):
+        return ""
+    return f"  ·  as of {analysis['as_of']} (billing date {measure['billing_day']})"
+
+
 def _marketplace_counted(measure: dict) -> str:
     if measure["marketplace"] == "core42":
         return "Core42's own offers only (Core42 revenue)"
@@ -227,7 +234,7 @@ def _dashboard(workbook: Workbook, customer: dict, analysis: dict, merged: dict,
         f"Data through {kpis['latest_month'] or '—'}  ·  {kpis['months_of_history']} months of history  ·  "
         f"{len(customer['accounts'])} billing profiles  ·  Marketplace {_marketplace_counted(measure)}"
         f", credits {'subtracted' if measure['credits'] else 'not subtracted'}"
-        f"  ·  as of {analysis.get('as_of') or today.isoformat()} (billing date {measure.get('billing_day', 1)})"
+        f"{_as_of(analysis, measure)}"
         f"  ·  exported {today.isoformat()}",
         tab=NAVY, sheet=workbook.active)
     sheet.sheet_view.zoomScale = 115
