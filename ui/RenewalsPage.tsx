@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
-import { fetchRenewals, type RenewalRow } from './client';
+import { apiUrl } from '../../pluginHost/api';
+import { fetchRenewals, type RenewalRow, reportExportPath } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 
 const WINDOWS = { 3: 'Next 3 months', 12: 'Next 12 months', overdue: 'Overdue' } as const;
@@ -33,7 +34,10 @@ export function RenewalsPage() {
   return (
     <div className="page azure-cost-page">
       <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Marketplace renewals' }]} />
-      <header className="azure-cost-header"><h1>Marketplace renewals</h1></header>
+      <header className="azure-cost-header">
+        <h1>Marketplace renewals</h1>
+        <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('renewals'))}>Export to Excel</a>
+      </header>
       <p className="text-muted azure-cost-note">
         Recurring Marketplace charges, per customer, offer, plan and subscription. The cadence is the usual gap between
         charges; one charged only once is taken as yearly. Overdue: the expected month passed with no charge — renewed

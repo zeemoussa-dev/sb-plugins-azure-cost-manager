@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
-import { fetchHygiene, type HygieneRow } from './client';
+import { apiUrl } from '../../pluginHost/api';
+import { fetchHygiene, type HygieneRow, reportExportPath } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -22,7 +23,10 @@ export function HygienePage() {
   return (
     <div className="page azure-cost-page">
       <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Subscription and tag hygiene' }]} />
-      <header className="azure-cost-header"><h1>Subscription and tag hygiene</h1></header>
+      <header className="azure-cost-header">
+        <h1>Subscription and tag hygiene</h1>
+        <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('hygiene'))}>Export to Excel</a>
+      </header>
       <p className="text-muted azure-cost-note">
         The last closed month. New: $100 a month or more and not billed in the three months before. Dormant: $100 a month
         or more over those three months, now under a tenth of it. Tiny: under $50. Tag coverage is the share of the month's

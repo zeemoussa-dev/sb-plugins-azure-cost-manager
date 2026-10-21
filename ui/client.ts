@@ -832,6 +832,10 @@ export interface RenewalRow {
 
 export const fetchRenewals = () => apiFetch<RenewalRow[]>(`${BASE}/marketplace/renewals`);
 
+/** The cross-customer reports that export to Excel. */
+export type ExportedReport = 'growth' | 'whitespace' | 'marketplace-whitespace' | 'hygiene' | 'renewals';
+export const reportExportPath = (report: ExportedReport) => `${BASE}/reports/${report}/export.xlsx`;
+
 export const fetchWhitespace = () => apiFetch<WhitespaceRow[]>(`${BASE}/whitespace`);
 
 export const fetchGrowth = () => apiFetch<GrowthRow[]>(`${BASE}/growth`);

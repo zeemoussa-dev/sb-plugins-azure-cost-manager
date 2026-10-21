@@ -101,6 +101,13 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                                                            (change.get("offer") or "").strip(),
                                                            bool(change.get("eligible", True))))
 
+    @router.get("/reports/{report}/export.xlsx")
+    def get_report_export(report: str) -> Response:
+        """growth, whitespace, marketplace-whitespace, hygiene or renewals, as a workbook."""
+        name, workbook = _answered(lambda: service.export_report(report))
+        return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
+
     @router.get("/marketplace/export.xlsx")
     def get_marketplace_export(first_month: str | None = None, last_month: str | None = None) -> Response:
         name, workbook = _answered(lambda: service.export_marketplace(first_month, last_month))

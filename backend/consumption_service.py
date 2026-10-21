@@ -6,8 +6,8 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (consumption_analysis, export_xlsx, finops, growth, hygiene, marketplace, marketplace_whitespace, months,
-               pricing, renewals, solution_plays, tags, this_month, whitespace)
+from . import (consumption_analysis, export_reports, export_xlsx, finops, growth, hygiene, marketplace,
+               marketplace_whitespace, months, pricing, renewals, solution_plays, tags, this_month, whitespace)
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -132,6 +132,23 @@ class ConsumptionService:
             current.append({"publisher": publisher, "offer": offer})
         self._store.save_not_macc_eligible(current)
         return current
+
+    def export_report(self, report: str) -> tuple[str, bytes]:
+        """`(file name, .xlsx bytes)` for one of the cross-customer reports, on the
+        plugin's workbook template (operator, 2026-10-21)."""
+        today = self._today()
+        builders = {
+            "growth": ("Growth and churn", lambda: export_reports.build_growth(self.growth_across(), today)),
+            "whitespace": ("Service whitespace", lambda: export_reports.build_whitespace(self.whitespace_across(), today)),
+            "marketplace-whitespace": ("Marketplace whitespace", lambda: export_reports.build_marketplace_whitespace(
+                self.marketplace_whitespace(), today)),
+            "hygiene": ("Subscription and tag hygiene", lambda: export_reports.build_hygiene(self.hygiene_across(), today)),
+            "renewals": ("Marketplace renewals", lambda: export_reports.build_renewals(self.renewals(), today)),
+        }
+        if report not in builders:
+            raise ValueError(f"report is one of {', '.join(builders)}")
+        title, build = builders[report]
+        return f"Azure {title} - all customers - {today.isoformat()}.xlsx", build()
 
     def export_marketplace(self, first: str | None = None, last: str | None = None) -> tuple[str, bytes]:
         report = self.marketplace_across(first, last)

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
-import { fetchMarketplaceWhitespace, type MarketplaceWhitespace } from './client';
+import { apiUrl } from '../../pluginHost/api';
+import { fetchMarketplaceWhitespace, type MarketplaceWhitespace, reportExportPath } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 
 /** What customers buy on the Marketplace from publishers other than Core42
@@ -19,7 +20,10 @@ export function MarketplaceWhitespacePage() {
   return (
     <div className="page azure-cost-page">
       <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Marketplace whitespace' }]} />
-      <header className="azure-cost-header"><h1>Marketplace whitespace</h1></header>
+      <header className="azure-cost-header">
+        <h1>Marketplace whitespace</h1>
+        <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('marketplace-whitespace'))}>Export to Excel</a>
+      </header>
       <p className="text-muted azure-cost-note">
         {period ? `${period.first ? formatMonth(period.first) : 'From the start'} to ${formatMonth(period.last)}. ` : ''}
         Marketplace charges from every customer and billing profile. A category is read from the publisher's and

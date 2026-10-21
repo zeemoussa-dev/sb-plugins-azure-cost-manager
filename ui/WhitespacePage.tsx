@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
-import { createOpportunity, fetchWhitespace, type WhitespaceRow } from './client';
+import { apiUrl } from '../../pluginHost/api';
+import { createOpportunity, fetchWhitespace, type WhitespaceRow, reportExportPath } from './client';
 import { errorText, formatMoney } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -44,7 +45,10 @@ export function WhitespacePage() {
   return (
     <div className="page azure-cost-page">
       <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Service whitespace' }]} />
-      <header className="azure-cost-header"><h1>Service whitespace</h1></header>
+      <header className="azure-cost-header">
+        <h1>Service whitespace</h1>
+        <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('whitespace'))}>Export to Excel</a>
+      </header>
       <p className="text-muted azure-cost-note">
         A customer uses a service when it spent $500 a month or more on it over its last three closed months. A gap is
         a service at least 30% of customers (and three or more) use that this one does not. Groups include their

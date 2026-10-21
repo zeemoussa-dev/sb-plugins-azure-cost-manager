@@ -2,6 +2,16 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.35.0] - 2026-10-21
+
+- feat: **Export to Excel on the five cross-customer reports** (operator, 2026-10-21: "the new reports don't have export; add it and maintain the templates"). Each is built on the plugin's workbook template (`export_reports`, on `export_xlsx`'s helpers): Aptos Narrow, a navy summary tab with KPI tiles, navy section bars, #D9E1F2 headers, `"$"#,##0` and `0.0%`, and a chart in column J. Values only.
+  - **Growth and churn:** a summary with a chart of last month by customer, then Stopped and New, and By Solution Play.
+  - **Service whitespace:** a summary, then Gaps (one row per customer and service).
+  - **Marketplace whitespace:** by category with a chart, Leading Offers, and By Customer (a column per category).
+  - **Subscription and tag hygiene:** a summary with tag coverage, then New and Dormant.
+  - **Marketplace renewals:** by month expected, with a chart, then the Calendar.
+  - **Route:** `GET /reports/{growth|whitespace|marketplace-whitespace|hygiene|renewals}/export.xlsx`. All five were opened in Excel with real data before release.
+
 ## [0.34.1] - 2026-10-21
 
 - fix: Settings' customer list said "· on its Customer note" beside a customer with no signed value (for example "in DGE's MACC · on its Customer note"). It now says it only when there is a value on the note.

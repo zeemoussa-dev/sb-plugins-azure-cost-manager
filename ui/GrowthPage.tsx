@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
-import { fetchGrowth, type GrowthRow } from './client';
+import { apiUrl } from '../../pluginHost/api';
+import { fetchGrowth, type GrowthRow, reportExportPath } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -39,7 +40,10 @@ export function GrowthPage() {
   return (
     <div className="page azure-cost-page">
       <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Growth and churn' }]} />
-      <header className="azure-cost-header"><h1>Growth and churn</h1></header>
+      <header className="azure-cost-header">
+        <h1>Growth and churn</h1>
+        <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('growth'))}>Export to Excel</a>
+      </header>
       <p className="text-muted azure-cost-note">
         Closed months only. A change of 20% either way over three months is a signal; a service that cost $1,000 a
         month or more and fell below a tenth of that has stopped. Groups include their affiliates.
