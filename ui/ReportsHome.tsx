@@ -6,13 +6,14 @@ import { errorText } from './format';
 
 export const REPORT_PATH = '/azure-cost-manager/report';
 
-export const REPORTS = ['Overview', 'This month', 'Forecast', 'Pipeline', 'Marketplace', 'FinOps', 'Tags', 'Breakdown'] as const;
+export const REPORTS = ['Overview', 'This month', 'Forecast', 'Quota', 'Pipeline', 'Marketplace', 'FinOps', 'Tags', 'Breakdown'] as const;
 export type Report = typeof REPORTS[number];
 
 const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
   Overview: { title: 'Consumption overview', summary: 'Signed MACC, MACC consumed, monthly consumption, top services and anomalies.' },
   'This month': { title: 'This month', summary: 'This month so far, day by day: pace against last month and every new service, subscription or resource group -- early signs of an opportunity.' },
   Forecast: { title: 'Forecast', summary: 'Run rate and where consumption lands by the end of the term.' },
+  Quota: { title: 'Quota', summary: 'The fiscal year against the baseline: what the customer added above the line, where the year lands, and the pipeline\'s plan against what happened.' },
   Pipeline: { title: 'Pipeline', summary: 'The customer\'s Opportunities and their effect on consumption.' },
   Marketplace: { title: 'Marketplace', summary: 'The partner solutions one customer bought, and how much of its MACC they consumed.' },
   FinOps: { title: 'FinOps', summary: 'Commitment coverage, steady on-demand spend to commit, purchases, growth and the budget.' },
@@ -29,6 +30,11 @@ const THEMES: { title: string; items: ThemeItem[] }[] = [
     { report: 'Overview' }, { report: 'This month' }, { report: 'Forecast' }, { report: 'Breakdown' },
     { to: '/azure-cost-manager/growth', title: 'Growth and churn',
       summary: 'Who is growing and who is falling away: three and twelve months against the ones before, services that stopped or started, and each solution play\'s move.' },
+  ] },
+  { title: 'Quota and forecast', items: [
+    { report: 'Quota' },
+    { to: '/azure-cost-manager/quota', title: 'Baseline and quota',
+      summary: 'Every customer above its baseline and your quota\'s attainment — to date, projected and with the pipeline — and the opportunities that missed their forecast.' },
   ] },
   { title: 'Opportunities', items: [
     { report: 'Pipeline' },

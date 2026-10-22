@@ -33,8 +33,10 @@ LEGACY_TRACKED_ACCOUNTS_FILE = "Azure-Cost-Manager/Tracked-Accounts.json"
 FINOPS_FILE = "Azure-Cost-Manager/FinOps.json"
 # The operator's own service -> solution play choices, over `solution_plays`' defaults.
 SOLUTION_PLAYS_FILE = "Azure-Cost-Manager/Solution-Plays.json"
+# The seller's baseline (start, months), fiscal year and quota -- one for everyone.
+QUOTA_FILE = "Azure-Cost-Manager/Quota.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
-              FINOPS_FILE, SOLUTION_PLAYS_FILE)
+              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -123,6 +125,14 @@ class ConsumptionStore:
     def save_finops_state(self, state: dict) -> None:
         with self._lock:
             _write_json(self._api, FINOPS_FILE, state)
+
+    def quota_state(self) -> dict:
+        with self._lock:
+            return dict(_read_json(self._api, QUOTA_FILE, {}))
+
+    def save_quota_state(self, state: dict) -> None:
+        with self._lock:
+            _write_json(self._api, QUOTA_FILE, state)
 
     def solution_play_overrides(self) -> dict[str, str]:
         with self._lock:

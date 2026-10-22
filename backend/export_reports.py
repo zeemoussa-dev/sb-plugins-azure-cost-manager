@@ -250,3 +250,50 @@ def build_renewals(rows: list[dict], today: date) -> bytes:
            {0: MONTH, 7: MONTH, 8: MONEY})
     calendar.freeze_panes = "C5"
     return _saved(workbook)
+
+
+# -- baseline and quota --------------------------------------------------------------
+
+def build_quota(report: dict, today: date) -> bytes:
+    workbook = _workbook()
+    chosen = report["settings"]
+    measure = report.get("measure") or {}
+    counted = ("Core42's own Marketplace" if measure.get("marketplace") == "core42"
+               else "all Marketplace" if measure.get("marketplace", True) else "no Marketplace")
+    sheet = _summary(workbook, "Quota", f"Baseline and quota – {chosen['fy']}",
+                     f"{chosen['fy_first']} to {chosen['fy_last']}  ·  baseline: the average of {chosen['baseline_start']} "
+                     f"to {chosen['baseline_last']}  ·  {counted}, credits "
+                     f"{'subtracted' if measure.get('credits', True) else 'not subtracted'}  ·  counted net", today)
+    _widths(sheet, {"A": 44, "B": 16, "C": 18, "D": 18, "E": 20, "F": 16, "G": 16, "H": 12})
+    _tiles(sheet, 3, [("Quota", chosen.get("quota"), MONEY), ("Above baseline to date", report["above_to_date"], MONEY),
+                      ("Attained", _fraction(report["attained_pct"]), PERCENT),
+                      ("Projected", report["above_projected"], MONEY),
+                      ("With pipeline", report["above_with_pipeline"], MONEY),
+                      ("Gap to quota", report.get("gap_to_quota"), MONEY)])
+    row = 7
+    _section(sheet, row, "Every customer, the most projected above the line first", last_column=8)
+    header = row + 1
+    last = _table(sheet, header, ["Customer", "Baseline a month", "Above, to date", "Projected, year",
+                                  "With pipeline", "Pipeline planned", "Pipeline gap", "Behind plan"],
+                  [[item["name"], item["baseline"], item["above_to_date"], item["above_projected"],
+                    item["above_with_pipeline"], item["pipeline"]["planned_to_date"] or None,
+                    item["pipeline"]["gap"] if item["pipeline"]["planned_to_date"] else None,
+                    "Yes" if item["pipeline"]["behind"] else ""] for item in report["customers"]],
+                  {1: MONEY, 2: MONEY, 3: MONEY, 4: MONEY, 5: MONEY, 6: MONEY}, bold_first=True,
+                  total_row=["Total", None, report["above_to_date"], report["above_projected"],
+                             report["above_with_pipeline"], None, None, None])
+    sheet.freeze_panes = sheet.cell(header + 1, 2)
+    _chart_beside(sheet, "Projected Above Baseline by Customer", header, last - 1, 4, row)
+
+    missed = _new_sheet(workbook, "Missed Forecasts", "Opportunities that planned more than happened",
+                        "Open and Won opportunities' planned consumption in the year's closed months, where the customer "
+                        "added less above its line than they planned together.")
+    _widths(missed, {"A": 40, "B": 60, "C": 10, "D": 16, "E": 12, "F": 18, "G": 20})
+    _table(missed, 4, ["Customer", "Opportunity", "Status", "Stage", "Planned from", "Planned to date",
+                       "Customer added to date"],
+           [[item["name"], opportunity["title"], opportunity["status"], opportunity["stage"],
+             _month_date(opportunity["first_month"]), opportunity["planned_to_date"], item["pipeline"]["achieved_to_date"]]
+            for item in report["customers"] for opportunity in item["missed"]],
+           {4: MONTH, 5: MONEY, 6: MONEY})
+    missed.freeze_panes = "B5"
+    return _saved(workbook)

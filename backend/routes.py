@@ -101,10 +101,29 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                                                            (change.get("offer") or "").strip(),
                                                            bool(change.get("eligible", True))))
 
+    @router.get("/quota/settings")
+    def get_quota_settings() -> dict:
+        return _answered(service.quota_settings)
+
+    @router.put("/quota/settings")
+    def put_quota_settings(changes: dict = Body(...)) -> dict:
+        """Any of baseline_start (YYYY-MM or null for the default), baseline_months,
+        fy_start_month and quota."""
+        return _answered(lambda: service.save_quota_settings(changes))
+
+    @router.get("/quota")
+    def get_quota(marketplace: str = "true", credits: bool = True) -> dict:
+        """Every customer above the baseline, and the quota's attainment."""
+        return _answered(lambda: service.quota_across(measure(marketplace, credits)))
+
+    @router.get("/customers/{customer_id}/quota")
+    def get_customer_quota(customer_id: str, marketplace: str = "true", credits: bool = True) -> dict:
+        return _answered(lambda: service.quota_customer(customer_id, measure(marketplace, credits)))
+
     @router.get("/reports/{report}/export.xlsx")
-    def get_report_export(report: str) -> Response:
-        """growth, whitespace, marketplace-whitespace, hygiene or renewals, as a workbook."""
-        name, workbook = _answered(lambda: service.export_report(report))
+    def get_report_export(report: str, marketplace: str = "true", credits: bool = True) -> Response:
+        """growth, whitespace, marketplace-whitespace, hygiene, renewals or quota, as a workbook."""
+        name, workbook = _answered(lambda: service.export_report(report, measure(marketplace, credits)))
         return Response(workbook, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 

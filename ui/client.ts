@@ -833,8 +833,72 @@ export interface RenewalRow {
 export const fetchRenewals = () => apiFetch<RenewalRow[]>(`${BASE}/marketplace/renewals`);
 
 /** The cross-customer reports that export to Excel. */
-export type ExportedReport = 'growth' | 'whitespace' | 'marketplace-whitespace' | 'hygiene' | 'renewals';
-export const reportExportPath = (report: ExportedReport) => `${BASE}/reports/${report}/export.xlsx`;
+export type ExportedReport = 'growth' | 'whitespace' | 'marketplace-whitespace' | 'hygiene' | 'renewals' | 'quota';
+/** `measure`: for a report counted under the Marketplace and credits filters (quota). */
+export const reportExportPath = (report: ExportedReport, measure?: Measure) =>
+  `${BASE}/reports/${report}/export.xlsx${measure ? `?${measureQuery(measure)}` : ''}`;
+
+/** One baseline for every customer, the fiscal year, and the seller's quota. */
+export interface QuotaSettings {
+  fy_start_month: number;
+  fy_first: string;
+  fy_last: string;
+  fy: string;
+  baseline_start: string;
+  baseline_months: number;
+  baseline_last: string;
+  quota: number | null;
+  baseline_is_default: boolean;
+}
+
+export interface QuotaOpportunity {
+  id?: string; title: string; status: string; stage: string; route?: string; first_month: string; planned_to_date: number;
+}
+
+export interface QuotaPipeline {
+  planned_to_date: number;
+  achieved_to_date: number;
+  gap: number;
+  behind: boolean;
+  opportunities: QuotaOpportunity[];
+}
+
+export interface CustomerQuota {
+  customer: { id: string; name: string };
+  settings: QuotaSettings;
+  currency: string | null;
+  baseline: number;
+  baseline_covered: number;
+  months: { month: string; kind: 'actual' | 'forecast'; consumption: number; baseline: number; above: number; pipeline: number }[];
+  above_to_date: number;
+  above_projected: number;
+  above_with_pipeline: number;
+  pipeline: QuotaPipeline;
+  pipeline_available: boolean;
+}
+
+export interface QuotaAcross {
+  settings: QuotaSettings;
+  customers: {
+    id: string; name: string; affiliates: number; currency: string | null; baseline: number; baseline_covered: number;
+    above_to_date: number; above_projected: number; above_with_pipeline: number;
+    pipeline: Omit<QuotaPipeline, 'opportunities'>; missed: QuotaOpportunity[];
+  }[];
+  above_to_date: number;
+  above_projected: number;
+  above_with_pipeline: number;
+  attained_pct: number | null;
+  projected_pct: number | null;
+  with_pipeline_pct: number | null;
+  gap_to_quota: number | null;
+}
+
+export const fetchQuota = (measure: Measure) => apiFetch<QuotaAcross>(`${BASE}/quota?${measureQuery(measure)}`);
+export const fetchCustomerQuota = (id: string, measure: Measure) =>
+  apiFetch<CustomerQuota>(`${customer(id)}/quota?${measureQuery(measure)}`);
+export const saveQuotaSettings = (changes: Partial<{ quota: number | null; baseline_start: string | null;
+  baseline_months: number; fy_start_month: number }>) =>
+  apiFetch<QuotaSettings>(`${BASE}/quota/settings`, { method: 'PUT', body: JSON.stringify(changes) });
 
 export const fetchWhitespace = () => apiFetch<WhitespaceRow[]>(`${BASE}/whitespace`);
 

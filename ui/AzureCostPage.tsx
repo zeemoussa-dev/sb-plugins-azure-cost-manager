@@ -17,6 +17,7 @@ import { ThisMonthTab } from './ThisMonthTab';
 import { errorText } from './format';
 import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
+import { QuotaTab } from './Quota';
 import { REPORTS, reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
@@ -122,6 +123,7 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
           : report === 'FinOps' ? <FinOpsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
           : report === 'Tags' ? <TagsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
           : report === 'This month' ? <ThisMonthTab customerId={customerId} view={view} />
+          : report === 'Quota' && view === 'account' ? <QuotaTab customerId={customerId} measure={measure} />
           : nothingBilled ? <p className="empty-state">Nothing was billed on these enrollments in the synced period.</p>
             : report === 'Overview' ? <OverviewTab analysis={analysis} />
               : report === 'Forecast' ? <ForecastTab analysis={analysis} onChanged={reload} />
@@ -213,7 +215,8 @@ export function AzureCostPage() {
               {view === 'account' ? <SyncControl customerId={customer.id} syncedAt={customer.synced_at} onSynced={onSynced} /> : null}
               <div className="azure-cost-toolbar azure-cost-tabs-row">
                 <div className="azure-cost-segmented" role="tablist">
-                  {REPORTS.map((name) => (
+                  {/* The quota is the seller's: never in what the customer sees. */}
+                  {REPORTS.filter((name) => view === 'account' || name !== 'Quota').map((name) => (
                     <button key={name} type="button" role="tab" aria-selected={report === name}
                             className={report === name ? 'active' : undefined} onClick={() => setReport(name)}>{name}</button>
                   ))}

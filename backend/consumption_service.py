@@ -6,8 +6,8 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (consumption_analysis, export_reports, export_xlsx, finops, growth, hygiene, marketplace,
-               marketplace_whitespace, months, pricing, renewals, solution_plays, tags, this_month, whitespace)
+from . import (consumption_analysis, export_reports, export_xlsx, finops, forecasting, growth, hygiene, marketplace,
+               marketplace_whitespace, months, pricing, quota, renewals, solution_plays, tags, this_month, whitespace)
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -133,7 +133,63 @@ class ConsumptionService:
         self._store.save_not_macc_eligible(current)
         return current
 
-    def export_report(self, report: str) -> tuple[str, bytes]:
+    # -- baseline and quota ------------------------------------------------------
+
+    def quota_settings(self) -> dict:
+        return quota.settings(self._store.quota_state(), months.month_of(self._today()))
+
+    def save_quota_settings(self, changes: dict) -> dict:
+        self._store.save_quota_state({**self._store.quota_state(), **quota.validated(changes)})
+        return self.quota_settings()
+
+    def _quota_of(self, customer: dict, measure: dict | None, chosen: dict) -> dict:
+        """One customer (a group, with its affiliates) against the baseline."""
+        current_month = months.month_of(self._today())
+        merged, currency, _ = self._merged(customer)
+        trend = consumption_analysis.monthly_totals(merged, current_month, measure)
+        pipeline = self.pipeline(customer["id"])
+        automatic = forecasting.automatic(trend, self._today(), pipeline["by_month"])
+        found = quota.analyse(trend, (automatic or {}).get("series"), chosen, current_month)
+        return {**found, "currency": (currency or "").strip() or None,
+                "pipeline": quota.pipeline_against_actual(pipeline["opportunities"], found, current_month),
+                "pipeline_available": pipeline["available"]}
+
+    def quota_customer(self, customer_id: str, measure: dict | None = None) -> dict:
+        """A customer's fiscal year above its baseline (operator, 2026-10-22)."""
+        customer = self._customer(customer_id)
+        chosen = self.quota_settings()
+        return {"customer": {"id": customer["id"], "name": customer["name"]}, "settings": chosen,
+                "measure": measure, **self._quota_of(customer, measure, chosen)}
+
+    def quota_across(self, measure: dict | None = None) -> dict:
+        """Every top-level customer above its baseline, and the seller's quota
+        attainment: to date, projected, and projected with the pipeline."""
+        chosen = self.quota_settings()
+        rows = []
+        for customer in self._book.list():
+            if customer.get("parent"):
+                continue
+            found = self._quota_of(customer, measure, chosen)
+            rows.append({"id": customer["id"], "name": customer["name"], "affiliates": len(customer.get("affiliates") or []),
+                         **{key: found[key] for key in ("currency", "baseline", "baseline_covered", "above_to_date",
+                                                        "above_projected", "above_with_pipeline")},
+                         "pipeline": {key: found["pipeline"][key] for key in
+                                      ("planned_to_date", "achieved_to_date", "gap", "behind")},
+                         "missed": [item for item in found["pipeline"]["opportunities"]] if found["pipeline"]["behind"]
+                         else []})
+        rows.sort(key=lambda row: -row["above_projected"])
+        totals = {key: round(sum(row[key] for row in rows), 2)
+                  for key in ("above_to_date", "above_projected", "above_with_pipeline")}
+        target = chosen.get("quota")
+
+        def share(amount: float) -> float | None:
+            return round(amount / target * 100, 1) if target else None
+        return {"settings": chosen, "measure": measure, "customers": rows, **totals,
+                "attained_pct": share(totals["above_to_date"]), "projected_pct": share(totals["above_projected"]),
+                "with_pipeline_pct": share(totals["above_with_pipeline"]),
+                "gap_to_quota": round(target - totals["above_projected"], 2) if target else None}
+
+    def export_report(self, report: str, measure: dict | None = None) -> tuple[str, bytes]:
         """`(file name, .xlsx bytes)` for one of the cross-customer reports, on the
         plugin's workbook template (operator, 2026-10-21)."""
         today = self._today()
@@ -144,6 +200,7 @@ class ConsumptionService:
                 self.marketplace_whitespace(), today)),
             "hygiene": ("Subscription and tag hygiene", lambda: export_reports.build_hygiene(self.hygiene_across(), today)),
             "renewals": ("Marketplace renewals", lambda: export_reports.build_renewals(self.renewals(), today)),
+            "quota": ("Baseline and quota", lambda: export_reports.build_quota(self.quota_across(measure), today)),
         }
         if report not in builders:
             raise ValueError(f"report is one of {', '.join(builders)}")

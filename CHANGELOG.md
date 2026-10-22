@@ -2,6 +2,17 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.36.0] - 2026-10-22
+
+- feat: **Baseline and quota** (operator, 2026-10-22: "a baseline, the last three months of consumption ... what's on top of that line is counted as revenue for me, part of my quota"):
+  - **The baseline:** one for every customer, a start month and number of months averaged into a monthly line. The default is the three months before the fiscal year.
+  - **What counts:** each fiscal-year month's consumption minus the line, counted **net** (a month under the line takes away). Closed months are actual; the current and later months use the automatic forecast, with the pipeline beside it.
+  - **The figure counted** follows the report's filters: All (MACC consumed) or Core42's only (Core42 revenue), with credits subtracted or not.
+  - **Your quota:** a total for the fiscal year (the year's first month is set, default July).
+  - **Per customer:** a **Quota** tab with the baseline, above the line to date, projected and with pipeline, the year month by month against the line, and **Pipeline against what happened**: Open and Won opportunities' planned consumption for the closed months, against what the customer actually added. It is not shown in Customer view.
+  - **All customers:** **Baseline and quota** (under the landing page's Quota and forecast) holds the settings, the attainment (to date, projected, with pipeline, gap to quota), every customer group, and the opportunities that missed their forecast. **Export to Excel** follows the filters (Quota, Missed Forecasts).
+  - **Routes:** `GET/PUT /quota/settings`, `GET /quota`, `GET /customers/{id}/quota`, `GET /reports/quota/export.xlsx`.
+
 ## [0.35.0] - 2026-10-21
 
 - feat: **Export to Excel on the five cross-customer reports** (operator, 2026-10-21: "the new reports don't have export; add it and maintain the templates"). Each is built on the plugin's workbook template (`export_reports`, on `export_xlsx`'s helpers): Aptos Narrow, a navy summary tab with KPI tiles, navy section bars, #D9E1F2 headers, `"$"#,##0` and `0.0%`, and a chart in column J. Values only.

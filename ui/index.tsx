@@ -6,6 +6,7 @@ import { WhitespacePage } from './WhitespacePage';
 import { MarketplaceWhitespacePage } from './MarketplaceWhitespacePage';
 import { HygienePage } from './HygienePage';
 import { RenewalsPage } from './RenewalsPage';
+import { QuotaPage } from './Quota';
 import { MarketplacePage } from './MarketplacePage';
 import { ReportsHome } from './ReportsHome';
 import { SettingsPage } from './SettingsPage';
@@ -24,6 +25,7 @@ const ui: PluginUi = {
     { path: '/azure-cost-manager/marketplace-whitespace', component: MarketplaceWhitespacePage },
     { path: '/azure-cost-manager/hygiene', component: HygienePage },
     { path: '/azure-cost-manager/renewals', component: RenewalsPage },
+    { path: '/azure-cost-manager/quota', component: QuotaPage },
   ],
   nav: [{ to: '/azure-cost-manager', label: 'Azure Cost', icon: '☁' }],
   settingsPages: [{ path: '', label: 'Azure Cost Manager', component: SettingsPage }],
