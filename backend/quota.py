@@ -20,6 +20,10 @@ from . import months
 DEFAULT_BASELINE_MONTHS = 3
 DEFAULT_FY_START_MONTH = 7          # Microsoft's fiscal year: July to June
 LONGEST_BASELINE = 24
+LONGEST_PERIOD = 24
+_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+_NAMED_SPANS = {("01", "06"): "H1", ("07", "12"): "H2", ("01", "03"): "Q1", ("04", "06"): "Q2", ("07", "09"): "Q3",
+                ("10", "12"): "Q4", ("01", "12"): "CY"}
 COUNTED_STATUSES = {"Open", "Won"}
 
 
@@ -37,14 +41,36 @@ def fy_label(first: str, fy_start_month: int) -> str:
     return f"FY{last[2:4]}" if fy_start_month != 1 else f"FY{first[2:4]}"
 
 
+def period_label(first: str, last: str) -> str:
+    """H2 2026 for July to December 2026; otherwise the months themselves."""
+    named = _NAMED_SPANS.get((first[5:7], last[5:7])) if first[:4] == last[:4] else None
+    if named:
+        return f"{named} {first[:4]}"
+    return f"{_MONTHS[int(first[5:7]) - 1]} {first[:4]} – {_MONTHS[int(last[5:7]) - 1]} {last[:4]}"
+
+
+def _is_month(value) -> bool:
+    return isinstance(value, str) and len(value) == 7 and value[4] == "-" and value.replace("-", "").isdigit() \
+        and 1 <= int(value[5:7]) <= 12
+
+
 def settings(stored: dict | None, current_month: str) -> dict:
-    """The stored settings with their defaults filled in."""
+    """The stored settings with their defaults filled in. The quota's period is the
+    one set (operator, 2026-10-22: "this year the quota was set for H2 only"), else
+    the fiscal year; `fy*` name the period either way."""
     stored = stored or {}
     fy_start = int(stored.get("fy_start_month") or DEFAULT_FY_START_MONTH)
-    first, last = fiscal_year(current_month, fy_start)
+    custom = bool(stored.get("period_first") and stored.get("period_last"))
+    if custom:
+        first, last = stored["period_first"], stored["period_last"]
+        label = period_label(first, last)
+    else:
+        first, last = fiscal_year(current_month, fy_start)
+        label = fy_label(first, fy_start)
     count = int(stored.get("baseline_months") or DEFAULT_BASELINE_MONTHS)
     start = stored.get("baseline_start") or months.shift(first, -count)
-    return {"fy_start_month": fy_start, "fy_first": first, "fy_last": last, "fy": fy_label(first, fy_start),
+    return {"fy_start_month": fy_start, "fy_first": first, "fy_last": last, "fy": label,
+            "period_is_default": not custom,
             "baseline_start": start, "baseline_months": count,
             "baseline_last": months.shift(start, count - 1), "quota": stored.get("quota"),
             "baseline_is_default": not stored.get("baseline_start")}
@@ -65,9 +91,20 @@ def validated(changes: dict) -> dict:
         clean["baseline_months"] = value
     if "baseline_start" in changes:
         value = changes["baseline_start"] or None
-        if value is not None and (len(value) != 7 or value[4] != "-" or not value.replace("-", "").isdigit()):
+        if value is not None and not _is_month(value):
             raise ValueError("the baseline starts in a month, YYYY-MM")
         clean["baseline_start"] = value
+    if "period_first" in changes or "period_last" in changes:
+        first, last = changes.get("period_first") or None, changes.get("period_last") or None
+        if (first is None) != (last is None):
+            raise ValueError("a quota period has both a first and a last month, or neither (the fiscal year)")
+        if first is not None:
+            if not _is_month(first) or not _is_month(last):
+                raise ValueError("a quota period runs between months, YYYY-MM")
+            span = len(months.span(first, last)) if first <= last else 0
+            if not 1 <= span <= LONGEST_PERIOD:
+                raise ValueError(f"a quota period ends after it starts and lasts at most {LONGEST_PERIOD} months")
+        clean["period_first"], clean["period_last"] = first, last
     if "quota" in changes:
         value = changes["quota"]
         if value in (None, ""):

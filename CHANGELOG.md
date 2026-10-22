@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.36.1] - 2026-10-22
+
+- feat: **a quota period** (operator, 2026-10-22: "this year the quota was set for H2 only, July to December"). The quota is counted over a period you set (from and to month, up to 24 months) instead of always the fiscal year. It is named H1, H2, Q1–Q4 or CY when it is one (H2 2026), otherwise by its months. **Use the fiscal year** puts it back. The default baseline follows: the months before the period.
+
 ## [0.36.0] - 2026-10-22
 
 - feat: **Baseline and quota** (operator, 2026-10-22: "a baseline, the last three months of consumption ... what's on top of that line is counted as revenue for me, part of my quota"):

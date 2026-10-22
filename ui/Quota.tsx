@@ -33,9 +33,10 @@ function Kpi({ label, value, detail }: { label: string; value: string; detail?: 
 }
 
 function describe(settings: QuotaSettings): string {
-  return `${settings.fy}: ${formatMonth(settings.fy_first)} to ${formatMonth(settings.fy_last)}. Baseline: the monthly `
+  return `${settings.fy}: ${formatMonth(settings.fy_first)} to ${formatMonth(settings.fy_last)}`
+    + `${settings.period_is_default ? ' (the fiscal year)' : ''}. Baseline: the monthly `
     + `average of ${formatMonth(settings.baseline_start)} to ${formatMonth(settings.baseline_last)}`
-    + `${settings.baseline_is_default ? ' (the default: the months before the fiscal year)' : ''}.`;
+    + `${settings.baseline_is_default ? ' (the default: the months before the period)' : ''}.`;
 }
 
 /** The Marketplace and credits filters, as the customer report's toolbar has them. */
@@ -149,13 +150,17 @@ function SettingsBar({ settings, onSaved }: { settings: QuotaSettings; onSaved: 
   const [draft, setDraft] = useState({
     quota: settings.quota != null ? String(settings.quota) : '', start: settings.baseline_start,
     months: String(settings.baseline_months), fy: String(settings.fy_start_month),
+    from: settings.fy_first, to: settings.fy_last,
   });
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   function save() {
     setSaving(true);
+    // A period that is just the fiscal year is stored as none, so it moves with the year.
+    const period = settings.period_is_default && draft.from === settings.fy_first && draft.to === settings.fy_last
+      ? {} : { period_first: draft.from || null, period_last: draft.to || null };
     saveQuotaSettings({ quota: draft.quota.trim() ? Number(draft.quota) : null, baseline_start: draft.start || null,
-      baseline_months: Number(draft.months), fy_start_month: Number(draft.fy) })
+      baseline_months: Number(draft.months), fy_start_month: Number(draft.fy), ...period })
       .then((next) => { setProblem(null); onSaved(next); }, (failure) => setProblem(errorText(failure)))
       .finally(() => setSaving(false));
   }
@@ -166,6 +171,12 @@ function SettingsBar({ settings, onSaved }: { settings: QuotaSettings; onSaved: 
         <label className="field-labeled">Quota, {settings.fy} (USD)
           <input type="number" min="0" step="100000" value={draft.quota} placeholder="not set"
                  onChange={(event) => setDraft({ ...draft, quota: event.target.value })} />
+        </label>
+        <label className="field-labeled">Quota period from
+          <input type="month" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} />
+        </label>
+        <label className="field-labeled">to
+          <input type="month" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} />
         </label>
         <label className="field-labeled">Fiscal year starts in
           <select value={draft.fy} onChange={(event) => setDraft({ ...draft, fy: event.target.value })}>
@@ -180,6 +191,11 @@ function SettingsBar({ settings, onSaved }: { settings: QuotaSettings; onSaved: 
                  onChange={(event) => setDraft({ ...draft, months: event.target.value })} />
         </label>
         <button type="button" className="btn" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
+        {!settings.period_is_default ? (
+          <button type="button" className="btn azure-cost-link-button"
+                  onClick={() => saveQuotaSettings({ period_first: null, period_last: null }).then(onSaved, (failure) => setProblem(errorText(failure)))}>
+            Use the fiscal year</button>
+        ) : null}
         {!settings.baseline_is_default ? (
           <button type="button" className="btn azure-cost-link-button"
                   onClick={() => saveQuotaSettings({ baseline_start: null }).then(onSaved, (failure) => setProblem(errorText(failure)))}>

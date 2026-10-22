@@ -843,7 +843,9 @@ export interface QuotaSettings {
   fy_start_month: number;
   fy_first: string;
   fy_last: string;
+  /** The quota's period: the one set (e.g. H2 2026), else the fiscal year (FY27). */
   fy: string;
+  period_is_default: boolean;
   baseline_start: string;
   baseline_months: number;
   baseline_last: string;
@@ -897,7 +899,7 @@ export const fetchQuota = (measure: Measure) => apiFetch<QuotaAcross>(`${BASE}/q
 export const fetchCustomerQuota = (id: string, measure: Measure) =>
   apiFetch<CustomerQuota>(`${customer(id)}/quota?${measureQuery(measure)}`);
 export const saveQuotaSettings = (changes: Partial<{ quota: number | null; baseline_start: string | null;
-  baseline_months: number; fy_start_month: number }>) =>
+  baseline_months: number; fy_start_month: number; period_first: string | null; period_last: string | null }>) =>
   apiFetch<QuotaSettings>(`${BASE}/quota/settings`, { method: 'PUT', body: JSON.stringify(changes) });
 
 export const fetchWhitespace = () => apiFetch<WhitespaceRow[]>(`${BASE}/whitespace`);

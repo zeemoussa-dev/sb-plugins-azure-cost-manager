@@ -73,3 +73,22 @@ def test_settings_are_checked_and_kept(fake_api):
     for bad in ({"fy_start_month": 13}, {"baseline_months": 0}, {"quota": -1}, {"baseline_start": "March"}):
         with pytest.raises(ValueError):
             service.save_quota_settings(bad)
+
+
+def test_a_quota_period_replaces_the_fiscal_year_and_moves_the_default_baseline():
+    h2 = quota.settings({"period_first": "2026-07", "period_last": "2026-12"}, "2026-10")
+
+    assert (h2["fy_first"], h2["fy_last"], h2["fy"], h2["period_is_default"]) == ("2026-07", "2026-12", "H2 2026", False)
+    assert (h2["baseline_start"], h2["baseline_last"]) == ("2026-04", "2026-06")
+    assert quota.period_label("2026-02", "2026-11") == "Feb 2026 – Nov 2026"
+    trend = [{"month": m, "actual": 100.0, "partial": False} for m in ("2026-04", "2026-05", "2026-06", "2026-07")]
+    assert [row["month"] for row in quota.analyse(trend, [], h2, "2026-10")["months"]] == \
+        ["2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12"]
+
+
+def test_a_period_needs_both_ends_in_order():
+    for bad in ({"period_first": "2026-07"}, {"period_first": "2026-12", "period_last": "2026-07"},
+                {"period_first": "2026-07", "period_last": "2028-12"}, {"period_first": "July", "period_last": "Dec"}):
+        with pytest.raises(ValueError):
+            quota.validated(bad)
+    assert quota.validated({"period_first": None, "period_last": None}) == {"period_first": None, "period_last": None}
