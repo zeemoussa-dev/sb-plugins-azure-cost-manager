@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation } from 'react-router';
 import { pluginSettingsLink } from '../../pluginHost/breadcrumbs';
 import { fetchCustomers, fetchSignIn, type Customer, type SignInState } from './client';
 import { errorText } from './format';
+import { AskBox } from './Advisor';
 
 export const REPORT_PATH = '/azure-cost-manager/report';
 
@@ -38,6 +39,8 @@ const THEMES: { title: string; items: ThemeItem[] }[] = [
       summary: 'Every customer above its baseline and your quota\'s attainment — to date, projected and with the pipeline — and the opportunities that missed their forecast.' },
   ] },
   { title: 'Opportunities', items: [
+    { to: '/azure-cost-manager/actions', title: 'Next best actions',
+      summary: 'Compass ranks what is most worth doing this week across your largest customers -- MACCs, growth, pitches with their sizing, pipeline and quota.' },
     { report: 'Pipeline' }, { report: 'Solutions' },
     { to: '/azure-cost-manager/guide', title: 'Solutions Guide',
       summary: 'The sales playbooks, every solution with its sizing and diagram, and every Azure service -- what it is and which customers use it.' },
@@ -117,6 +120,7 @@ export function ReportsHome() {
       </header>
       {signIn && !signIn.signed_in ? <div className="azure-cost-error">{signIn.message}</div> : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
+      <AskBox />
       {customers && customers.length === 0 ? (
         <p className="empty-state">
           No customers yet. <Link to={settingsLink()}>Add a customer</Link> and pick its enrollments.

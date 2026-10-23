@@ -2,6 +2,17 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.46.0] - 2026-10-23
+
+- feat: **the rest of Compass for sellers** (operator, 2026-10-23: "the rest of the features LLM reasoning can help the sellers with"). The rule throughout: the plugin supplies every figure, Compass explains, ranks and drafts, and its answer is checked before it is shown.
+  - **Explain this**, in every drill: what moved and when, which of its parts moved, the likeliest reason the figures support, and the question to ask the customer. Kept per item until its data moves.
+  - **Next best actions** (landing page, Opportunities): Compass ranks what is most worth doing across the 30 largest customers -- MACCs running out or short, growth and decline, pitches, thin pipeline, the quota -- with urgency and reason. An action about a customer not in the facts is dropped; the sizing shown is the Solution note's, never Compass's. Kept until the data moves.
+  - **Draft** beside each pitch on the Solutions tab: an opportunity (title, summary, next steps) and an email to the customer, editable; **Create opportunity** files it as Identified with the expected monthly value taken from the note's sizing for the size Compass chose; **Copy the email**.
+  - **Size it for a customer**, in every Solution popup: say what you know (users, data, environments) and Compass picks a size and a factor per building block with its reason; the money is the bill's list price times the factor, with assumptions and questions to firm it up.
+  - **Ask** (landing page): a question about the customers, answered from the reports Compass chose to read (customers using a service, running a solution, having one service but not another, growth, MACCs, one customer, Marketplace buyers, quota) -- the reports read are listed under the answer.
+  - **What a Marketplace product is**: in the Solutions Guide, SaaS lists each product's category, a one-line description and whether Compass could serve it, described once by Compass from its names and kept.
+  - **Routes:** `GET/POST /customers/{id}/explain`, `GET/POST /advisor/actions`, `POST /customers/{id}/draft`, `POST /solutions/{id}/size`, `POST /ask`, `GET/POST /guide/marketplace`.
+
 ## [0.45.0] - 2026-10-23
 
 - feat: **Compass places the subscriptions the rules could not** -- the second part of LLM enablement (operator, 2026-10-23). On a customer's Solutions tab and on Solutions, all customers, **Placed by Compass** asks Compass about the 24 largest unplaced subscriptions not asked about yet. For each, from its services, meters, resource-group names and environment, it names the solution it most likely is -- one from the catalog, or a **new** one -- with a confidence and a one-line reason (click a row). It is shown as Compass's suggestion, never as the rules' verdict.

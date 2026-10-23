@@ -4,6 +4,7 @@ import { FinOpsPage } from './FinOpsPage';
 import { GrowthPage } from './GrowthPage';
 import { SolutionsPage } from './Solutions';
 import { GuidePage } from './GuidePage';
+import { ActionsPage } from './Advisor';
 import { WhitespacePage } from './WhitespacePage';
 import { MarketplaceWhitespacePage } from './MarketplaceWhitespacePage';
 import { HygienePage } from './HygienePage';
@@ -25,6 +26,7 @@ const ui: PluginUi = {
     { path: '/azure-cost-manager/growth', component: GrowthPage },
     { path: '/azure-cost-manager/solutions', component: SolutionsPage },
     { path: '/azure-cost-manager/guide', component: GuidePage },
+    { path: '/azure-cost-manager/actions', component: ActionsPage },
     { path: '/azure-cost-manager/whitespace', component: WhitespacePage },
     { path: '/azure-cost-manager/marketplace-whitespace', component: MarketplaceWhitespacePage },
     { path: '/azure-cost-manager/hygiene', component: HygienePage },

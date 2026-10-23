@@ -7,6 +7,7 @@ import { Popup } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink, type Report } from './ReportsHome';
 import { Loading } from './Loading';
+import { ExplainBox } from './Advisor';
 
 const KIND_LABELS: Record<DrillKind, string> = {
   service: 'Service', subscription: 'Subscription', play: 'Solution play', month: 'Month',
@@ -77,6 +78,7 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
            onClose={onClose} tall>
       {error ? <div className="azure-cost-error">{error}</div> : !drill ? <Loading /> : (
         <>
+          <ExplainBox customerId={customerId} kind={opened.kind} name={opened.name} accounts={accounts} />
           <p className="azure-cost-note">
             {drill.play ? <>Solution play: <DrillLink kind="play" name={drill.play} />. </> : null}
             {drill.technology_note ? <NoteLink stem={drill.technology_note}>Read about it: {drill.technology_note}</NoteLink> : null}

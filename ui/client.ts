@@ -867,6 +867,80 @@ export interface Drill {
   by_play?: { name: string; cost: number }[];
 }
 
+/** A Compass answer kept with the fingerprint of the facts it was written from. */
+export interface Kept<T> {
+  value: T | null;
+  at: string | null;
+  kept: boolean;
+  stale: boolean;
+  available: boolean;
+}
+
+export interface NextAction {
+  customer_id: string;
+  customer: string;
+  action: string;
+  why: string;
+  urgency: 'now' | 'this quarter' | 'later';
+  pitch: string | null;
+  /** Small, medium, large -- the Solution note's sizing, never Compass's. */
+  sized_monthly: number[] | null;
+  last_month: number | null;
+}
+
+export interface DraftOpportunity {
+  title: string;
+  summary: string;
+  size: 'small' | 'medium' | 'large';
+  expected_monthly: number | null;
+  next_steps: string[];
+  email_subject: string;
+  email_body: string;
+  solution: string;
+}
+
+export interface SizedSolution {
+  solution: string;
+  note: string | null;
+  rows: { block: string; service: string; size: string; factor: number; list_monthly: number; monthly: number;
+    basis: string | null; reason: string }[];
+  total: number;
+  assumptions: string[];
+  questions: string[];
+}
+
+export interface Answer {
+  question: string;
+  answer: string;
+  calls: { report: string; args: Record<string, string>; rows: unknown }[];
+}
+
+export interface MarketplaceClasses {
+  available: boolean;
+  /** `<publisher>|<offer>|<plan>` -> what Compass said it is. */
+  classified: Record<string, { category: string; what: string; compass_alternative: boolean }>;
+  products: number;
+  pending: number;
+}
+
+const explainQuery = (kind: DrillKind, name: string, accounts: string[] | null) =>
+  `kind=${kind}&name=${encodeURIComponent(name)}${accounts?.length ? `&accounts=${encodeURIComponent(accounts.join(','))}` : ''}`;
+export const fetchExplain = (id: string, kind: DrillKind, name: string, accounts: string[] | null) =>
+  apiFetch<Kept<string>>(`${customer(id)}/explain?${explainQuery(kind, name, accounts)}`);
+export const writeExplain = (id: string, kind: DrillKind, name: string, accounts: string[] | null) =>
+  apiFetch<Kept<string>>(`${customer(id)}/explain?${explainQuery(kind, name, accounts)}`, { method: 'POST' });
+export const fetchActions = () => apiFetch<Kept<NextAction[]>>(`${BASE}/advisor/actions`);
+export const writeActions = () => apiFetch<Kept<NextAction[]>>(`${BASE}/advisor/actions`, { method: 'POST' });
+export const draftFromPitch = (id: string, pitch: string) =>
+  apiFetch<DraftOpportunity>(`${customer(id)}/draft`, { method: 'POST', body: JSON.stringify({ pitch }) });
+export const sizeSolution = (solutionId: string, answers: string, customerId?: string) =>
+  apiFetch<SizedSolution>(`${BASE}/solutions/${encodeURIComponent(solutionId)}/size`,
+    { method: 'POST', body: JSON.stringify({ answers, customer: customerId ?? null }) });
+export const askData = (question: string) =>
+  apiFetch<Answer>(`${BASE}/ask`, { method: 'POST', body: JSON.stringify({ question }) });
+export const fetchMarketplaceClasses = () => apiFetch<MarketplaceClasses>(`${BASE}/guide/marketplace`);
+export const classifyMarketplace = () => apiFetch<MarketplaceClasses>(`${BASE}/guide/marketplace`, { method: 'POST' });
+
 /** A new solution Compass proposed for subscriptions the rules could not place. */
 export interface ProposedSolution {
   id: string;
@@ -959,6 +1033,7 @@ export interface SolutionSizing {
 
 /** What the vault's Solution note adds: where to read more, its sizing and its diagram. */
 export interface SolutionGuide {
+  id?: string;
   note?: string | null;
   sizing?: SolutionSizing | null;
   architecture?: string | null;

@@ -12,13 +12,16 @@ Everything it needs from the framework arrives through the Plugin API handed to
 from __future__ import annotations
 
 import threading
+from datetime import datetime, timezone
 
 from .azure_token import AzureCliToken
 from .billing_client import BillingClient
 from .commitment_notes import CommitmentNotes
 from .consumption_provider import SERVICE as CONSUMPTION_SERVICE, ConsumptionProvider
 from .consumption_service import ConsumptionService
-from .consumption_store import BRIEFS_FILE, DATA_FILES, PLACEMENTS_FILE, ConsumptionStore
+from .consumption_store import BRIEFS_FILE, COMPASS_ANSWERS_FILE, DATA_FILES, PLACEMENTS_FILE, ConsumptionStore
+from .advisor_service import Advisor
+from .compass import Answers
 from .customer_context import CustomerContext
 from .consumption_sync import RESUME_AFTER_SECONDS, ConsumptionSync
 from .customers import AccountDirectory, CustomerBook
@@ -30,8 +33,12 @@ from .technology_notes import TechnologyNotes
 from .sync_log import SYNC_LOG_FILE, SyncLog
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def register(api) -> None:
-    for data_file in (*DATA_FILES, SYNC_LOG_FILE, BRIEFS_FILE, PLACEMENTS_FILE):
+    for data_file in (*DATA_FILES, SYNC_LOG_FILE, BRIEFS_FILE, PLACEMENTS_FILE, COMPASS_ANSWERS_FILE):
         api.register_seed_data_file(data_file)
     token = AzureCliToken()
     log = SyncLog(lambda: api.data.read_text(SYNC_LOG_FILE), lambda text: api.data.write_text(SYNC_LOG_FILE, text))
@@ -45,7 +52,9 @@ def register(api) -> None:
                                  customer_context=CustomerContext(api))
     sync = ConsumptionSync(store, directory, lambda: BillingClient(token, observe=log), customers=book.records,
                            after_customers=service.refresh_prices, log=log)
-    api.register_router(build_router(service, book, directory, sync, token, pipeline, log))
+    answers = Answers(store.compass_answers, store.save_compass_answers, _now)
+    advisor = Advisor(service, answers, getattr(api, "llm", None))
+    api.register_router(build_router(service, book, directory, sync, token, pipeline, log, advisor))
     resume = threading.Timer(RESUME_AFTER_SECONDS, sync.resume_interrupted)
     resume.daemon = True
     resume.start()

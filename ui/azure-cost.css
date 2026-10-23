@@ -910,3 +910,16 @@ tr.azure-cost-affiliate td:first-child {
   overflow: auto;
 }
 
+/* Compass's explanation, above the drill's figures. */
+.azure-cost-explain {
+  padding: var(--space-3, 12px);
+  margin-bottom: var(--space-3, 12px);
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-surface-alt, rgba(76, 155, 232, 0.08));
+}
+
+.azure-cost-ask input {
+  flex: 1;
+  min-width: 0;
+}
+

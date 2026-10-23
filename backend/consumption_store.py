@@ -39,6 +39,9 @@ BRIEFS_FILE = "Azure-Cost-Manager/Briefs.json"
 # Compass's placements of subscriptions the rules could not place, each with the
 # fingerprint of what the subscription ran when it was asked.
 PLACEMENTS_FILE = "Azure-Cost-Manager/Placements.json"
+# Compass's other kept answers (explanations, next best actions, Marketplace products),
+# each with the fingerprint of the facts it was written from.
+COMPASS_ANSWERS_FILE = "Azure-Cost-Manager/Compass-Answers.json"
 # The seller's baseline (start, months), fiscal year and quota -- one for everyone.
 QUOTA_FILE = "Azure-Cost-Manager/Quota.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
@@ -190,6 +193,14 @@ class ConsumptionStore:
             state = _read_json(self._api, PLACEMENTS_FILE, {})
             state.setdefault("placements", {}).update(found)
             _write_json(self._api, PLACEMENTS_FILE, state)
+
+    def compass_answers(self) -> dict:
+        with self._lock:
+            return dict(_read_json(self._api, COMPASS_ANSWERS_FILE, {}))
+
+    def save_compass_answers(self, state: dict) -> None:
+        with self._lock:
+            _write_json(self._api, COMPASS_ANSWERS_FILE, state)
 
     def customer(self, customer_id: str) -> dict | None:
         return next((customer for customer in self.customers() if customer["id"] == customer_id), None)

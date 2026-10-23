@@ -43,9 +43,26 @@ def _account_list(accounts: str | None) -> list[str] | None:
     return [name.strip() for name in (accounts or "").split(",") if name.strip()] or None
 
 
+def _compass(call):
+    """A Compass feature's failures said by who can fix them: a framework or install
+    without Compass (424), Compass itself (502)."""
+    try:
+        return _answered(call)
+    except RuntimeError as exc:
+        if type(exc).__name__ in ("CompassUnavailable", "BriefUnavailable"):
+            raise HTTPException(status_code=424, detail=str(exc)) from exc
+        if type(exc).__name__ == "LlmError":
+            raise HTTPException(status_code=502, detail=f"Compass could not answer: {exc}") from exc
+        raise
+    except HTTPException as exc:
+        if exc.status_code == 400 and "Compass did not answer" in str(exc.detail):
+            raise HTTPException(status_code=502, detail=exc.detail) from exc
+        raise
+
+
 def build_router(service: ConsumptionService, book: CustomerBook, directory: AccountDirectory,
                  sync: ConsumptionSync, token: AzureCliToken, pipeline: Pipeline,
-                 log: SyncLog | None = None) -> APIRouter:
+                 log: SyncLog | None = None, advisor=None) -> APIRouter:
     router = APIRouter()
 
     def measure(marketplace: str, credits: bool, billing_day: int | None = None) -> dict:
@@ -129,6 +146,44 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
             if type(exc).__name__ == "LlmError":
                 raise HTTPException(status_code=502, detail=f"Compass could not write the brief: {exc}") from exc
             raise
+
+    # -- the seller's Compass features (operator, 2026-10-23) --------------------------
+
+    @router.get("/customers/{customer_id}/explain")
+    def get_explain(customer_id: str, kind: str, name: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.explain(customer_id, kind, name, False, [a for a in (accounts or "").split(",") if a] or None))
+
+    @router.post("/customers/{customer_id}/explain")
+    def post_explain(customer_id: str, kind: str, name: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.explain(customer_id, kind, name, True, [a for a in (accounts or "").split(",") if a] or None))
+
+    @router.get("/advisor/actions")
+    def get_actions() -> dict:
+        return _compass(advisor.actions)
+
+    @router.post("/advisor/actions")
+    def post_actions() -> dict:
+        return _compass(lambda: advisor.actions(True))
+
+    @router.post("/customers/{customer_id}/draft")
+    def post_draft(customer_id: str, submitted: dict = Body(...)) -> dict:
+        return _compass(lambda: advisor.draft(customer_id, str(submitted.get("pitch") or "")))
+
+    @router.post("/solutions/{solution_id}/size")
+    def post_size(solution_id: str, submitted: dict = Body(...)) -> dict:
+        return _compass(lambda: advisor.size(solution_id, str(submitted.get("answers") or ""), submitted.get("customer")))
+
+    @router.post("/ask")
+    def post_ask(submitted: dict = Body(...)) -> dict:
+        return _compass(lambda: advisor.ask(str(submitted.get("question") or "")))
+
+    @router.get("/guide/marketplace")
+    def get_marketplace_classes() -> dict:
+        return _compass(advisor.marketplace)
+
+    @router.post("/guide/marketplace")
+    def post_marketplace_classes() -> dict:
+        return _compass(lambda: advisor.marketplace(True))
 
     @router.get("/solutions/placements")
     def get_placements(customer: str | None = None) -> dict:

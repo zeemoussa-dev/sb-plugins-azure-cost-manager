@@ -8,6 +8,7 @@ import { errorText, formatMoney, formatMonth } from './format';
 import { PopupRow } from './Popup';
 import { SolutionDetail } from './Solutions';
 import { Loading } from './Loading';
+import { useMarketplaceClasses } from './Advisor';
 
 const TABS = { playbooks: 'Playbooks', solutions: 'Solutions', services: 'Services' } as const;
 type Tab = keyof typeof TABS;
@@ -94,6 +95,8 @@ function Solutions({ guide, play, search }: { guide: Guide; play: string; search
 function ServiceRow({ service, open, onOpen, onClose }: {
   service: GuideService; open: boolean; onOpen: () => void; onClose: () => void;
 }) {
+  const [classes, classify, classifying, classError] = useMarketplaceClasses(open && Boolean(service.marketplace?.length));
+  const keyOf = (product: { publisher: string; offer: string; plan: string }) => `${product.publisher}|${product.offer}|${product.plan}`;
   return (
     <>
       <tr className="azure-cost-clickable" onClick={onOpen}>
@@ -118,14 +121,29 @@ function ServiceRow({ service, open, onOpen, onClose }: {
               <h4>What {service.name} is: the Marketplace products behind it</h4>
               <p className="text-muted azure-cost-note">
                 Cost Management bills every Marketplace offer as "{service.name}"; the Marketplace charges name each one.
-                Monthly averages over the last three closed months, across all customers.
+                Monthly averages over the last three closed months, across all customers. "What it is" is Compass's
+                reading of the product's names.
               </p>
+              {classes && classes.pending ? (
+                <div className="azure-cost-toolbar">
+                  <button type="button" className="btn" disabled={classifying || !classes.available} onClick={classify}>
+                    {classifying ? 'Compass is reading the products…' : `Describe ${classes.pending} products with Compass`}</button>
+                </div>
+              ) : null}
+              {classError ? <div className="azure-cost-error">{classError}</div> : null}
               <table className="azure-cost-table">
-                <thead><tr><th>Publisher</th><th>Offer</th><th>Plan</th><th>Kind</th><th>Monthly</th><th>Customers</th></tr></thead>
+                <thead><tr><th>Publisher</th><th>Offer</th><th>What it is</th><th>Kind</th><th>Monthly</th><th>Customers</th></tr></thead>
                 <tbody>
                   {service.marketplace.map((product) => (
                     <tr key={`${product.publisher}|${product.offer}|${product.plan}`}>
-                      <td>{product.publisher}</td><td>{product.offer}</td><td className="text-muted">{product.plan}</td>
+                      <td>{product.publisher}</td><td>{product.offer}<br /><span className="text-muted">{product.plan}</span></td>
+                      <td>{classes?.classified[keyOf(product)] ? (
+                        <>
+                          <span className="azure-cost-tag-key">{classes.classified[keyOf(product)].category}</span>
+                          {classes.classified[keyOf(product)].compass_alternative ? <span className="azure-cost-anomaly new">Compass could serve this</span> : null}
+                          <br /><span className="text-muted">{classes.classified[keyOf(product)].what}</span>
+                        </>
+                      ) : <span className="text-muted">—</span>}</td>
                       <td className="text-muted">{product.recurring ? 'Subscription' : 'Usage-based'}</td>
                       <td>{money(product.monthly)}</td>
                       <td>{product.customers.map((customer, index) => (

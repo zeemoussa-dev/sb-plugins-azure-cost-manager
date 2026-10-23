@@ -14,6 +14,7 @@ import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 import { Loading } from './Loading';
+import { DraftButton, SizeIt } from './Advisor';
 
 const ALL_PLAYS = 'All plays';
 // The footprint is Cost Management's actual cost, billed in USD for these agreements.
@@ -45,7 +46,7 @@ function PlayChips({ plays, chosen, onChoose }: { plays: string[]; chosen: strin
 }
 
 /** A solution's guide from its vault note: the sizing bill and the architecture diagram. */
-export function SolutionDetail({ guide }: { guide: SolutionGuide }) {
+export function SolutionDetail({ guide, customerId }: { guide: SolutionGuide; customerId?: string }) {
   if (!guide.note) return <p className="text-muted">No Solution note in the vault for this one yet.</p>;
   return (
     <div>
@@ -68,6 +69,7 @@ export function SolutionDetail({ guide }: { guide: SolutionGuide }) {
         </table>
       ) : <p className="text-muted">The note has no sizing table yet.</p>}
       {guide.architecture ? <NoteText text={guide.architecture} /> : null}
+      {guide.id && guide.sizing ? <SizeIt solutionId={guide.id} customerId={customerId} /> : null}
     </div>
   );
 }
@@ -172,7 +174,7 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
                   <td>{money(item.monthly)}</td>
                   <td>{item.sizing ? `${money(item.sizing.totals.small)} – ${money(item.sizing.totals.large)}` : '—'}</td></tr>
                 {open === item.id ? (
-                  <PopupRow kicker="Solution" title={item.name} onClose={() => setOpen(null)}><SolutionDetail guide={item} /></PopupRow>
+                  <PopupRow kicker="Solution" title={item.name} onClose={() => setOpen(null)}><SolutionDetail guide={item} customerId={view.customer.id} /></PopupRow>
                 ) : null}
               </Fragment>
             ))}
@@ -183,11 +185,12 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
         <h3>What to pitch</h3>
         {pitches.length ? (
           <table className="azure-cost-table">
-            <thead><tr><th>Pitch</th><th>Because of</th><th>Subscriptions</th></tr></thead>
+            <thead><tr><th>Pitch</th><th>Because of</th><th>Subscriptions</th><th /></tr></thead>
             <tbody>
               {pitches.map((pitch) => (
                 <tr key={`${pitch.solution}|${pitch.pitch}`}><td>{pitch.pitch}</td><td>{pitch.solution}</td>
-                  <td className="text-muted">{pitch.subscriptions.join(', ')}</td></tr>
+                  <td className="text-muted">{pitch.subscriptions.join(', ')}</td>
+                  <td><DraftButton customerId={view.customer.id} pitch={pitch.pitch} /></td></tr>
               ))}
             </tbody>
           </table>

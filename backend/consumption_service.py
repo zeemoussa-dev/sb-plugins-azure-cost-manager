@@ -249,7 +249,9 @@ class ConsumptionService:
             for customer in everyone if not customer.get("parent")]
         return solutions.across(views)
 
-    def _brief_facts(self, customer_id: str) -> dict:
+    def brief_facts(self, customer_id: str) -> dict:
+        """Everything the reports know about one customer, as the brief and the seller's other
+        Compass features are handed it."""
         customer = self._customer(customer_id)
         analysis = self._analysis(customer_id)
         try:
@@ -265,7 +267,7 @@ class ConsumptionService:
         """The customer's brief before a meeting (operator, 2026-10-23), written by Compass
         over the facts the reports computed. `write`: write it now, even when the facts
         have not changed; otherwise the kept one is returned, `stale` when they have."""
-        found = self._brief_facts(customer_id)
+        found = self.brief_facts(customer_id)
         stamp = brief.fingerprint(found)
         kept = self._store.brief(customer_id)
         available = bool(self._llm and self._llm.available())
