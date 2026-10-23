@@ -141,7 +141,7 @@ class ConsumptionService:
     def export_data(self) -> tuple[str, bytes]:
         """Every data file, zipped, for another machine (operator, 2026-10-23)."""
         archive = data_transfer.build(self._store.read_files(), self._now())
-        return f"Azure Cost Manager data - {self._today().isoformat()}.zip", archive
+        return f"Azure Customer 360 data - {self._today().isoformat()}.zip", archive
 
     def import_data(self, content: bytes) -> dict:
         """Replaces this machine's data with an export's; says what came in."""

@@ -29,8 +29,8 @@ const ui: PluginUi = {
     { path: '/azure-cost-manager/renewals', component: RenewalsPage },
     { path: '/azure-cost-manager/quota', component: QuotaPage },
   ],
-  nav: [{ to: '/azure-cost-manager', label: 'Azure Cost', icon: '☁' }],
-  settingsPages: [{ path: '', label: 'Azure Cost Manager', component: SettingsPage }],
+  nav: [{ to: '/azure-cost-manager', label: 'Azure Customer 360', icon: '☁' }],
+  settingsPages: [{ path: '', label: 'Azure Customer 360', component: SettingsPage }],
 };
 
 export default ui;

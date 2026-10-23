@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.40.1] - 2026-10-23
+
+- chore: **renamed Azure Customer 360** (operator, 2026-10-23: "Azure Cost is not the right name anymore"). The name shown everywhere -- the sidebar, breadcrumbs, report landing page, Settings, the Marketplace card, a data export's file name and its messages -- is Azure Customer 360. Only the display name changed: the plugin id, its routes (`/azure-cost-manager/...`), its data folder (`Azure-Cost-Manager/`) and the `azure-cost-manager.*` services other plugins call are unchanged, so nothing moves and older exports still import.
+
 ## [0.40.0] - 2026-10-23
 
 - feat: **the Solutions Guide lives in the vault** (operator, 2026-10-23: "a Solutions Guide as a new section of the vault ... the seller can read about the solutions ... help with the sizing ... add diagrams"). Each solution is a **Solution** note (`type: Solution`, `Work/Solutions/`) that the seller reads and the report matches with:

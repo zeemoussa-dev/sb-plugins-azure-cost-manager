@@ -44,16 +44,16 @@ def read(content: bytes, known: tuple[str, ...]) -> dict[str, str]:
     try:
         archive = zipfile.ZipFile(io.BytesIO(content))
     except zipfile.BadZipFile as exc:
-        raise DataImportError("this is not an Azure Cost Manager export (not a zip file)") from exc
+        raise DataImportError("this is not an Azure Customer 360 export (not a zip file)") from exc
     with archive:
         try:
             manifest = json.loads(archive.read(MANIFEST))
         except (KeyError, ValueError) as exc:
-            raise DataImportError("this is not an Azure Cost Manager export (no manifest)") from exc
+            raise DataImportError("this is not an Azure Customer 360 export (no manifest)") from exc
         if manifest.get("format") != FORMAT:
-            raise DataImportError("this is not an Azure Cost Manager export")
+            raise DataImportError("this is not an Azure Customer 360 export")
         if int(manifest.get("format_version") or 0) > FORMAT_VERSION:
-            raise DataImportError("this export is from a newer Azure Cost Manager; update the plugin first")
+            raise DataImportError("this export is from a newer Azure Customer 360; update the plugin first")
         by_name = {posixpath.basename(path): path for path in known}
         found: dict[str, str] = {}
         for path in manifest.get("files") or []:
@@ -67,7 +67,7 @@ def read(content: bytes, known: tuple[str, ...]) -> dict[str, str]:
                 raise DataImportError(f"{name} in the export is damaged; nothing was imported") from exc
             found[by_name[name]] = text
     if not found:
-        raise DataImportError("the export holds no Azure Cost Manager data")
+        raise DataImportError("the export holds no Azure Customer 360 data")
     return found
 
 

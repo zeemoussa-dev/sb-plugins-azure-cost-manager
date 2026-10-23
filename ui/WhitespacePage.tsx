@@ -44,7 +44,7 @@ export function WhitespacePage() {
 
   return (
     <div className="page azure-cost-page">
-      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Service whitespace' }]} />
+      <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Service whitespace' }]} />
       <header className="azure-cost-header">
         <h1>Service whitespace</h1>
         <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('whitespace'))}>Export to Excel</a>

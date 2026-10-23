@@ -19,7 +19,7 @@ export function MarketplaceWhitespacePage() {
   const period = report?.period;
   return (
     <div className="page azure-cost-page">
-      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Marketplace whitespace' }]} />
+      <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Marketplace whitespace' }]} />
       <header className="azure-cost-header">
         <h1>Marketplace whitespace</h1>
         <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('marketplace-whitespace'))}>Export to Excel</a>

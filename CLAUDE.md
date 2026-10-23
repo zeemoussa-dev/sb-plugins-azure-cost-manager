@@ -4,7 +4,7 @@ Guidance for Claude Code working in this repository.
 
 ## What this repository is
 
-**The Azure Cost Manager plugin** for Second Brain (`ADR-022`): customers'
+**The Azure Customer 360 plugin** (formerly Azure Cost Manager; id `azure-cost-manager`) for Second Brain (`ADR-022`): customers'
 Azure agreements (EA, MCA/MACC) and their monthly consumption, read from Azure
 Cost Management with the operator's own `az login`, analysed and charted. A
 backend mounted at `/plugins/azure-cost-manager/`, an **Azure Cost** screen and

@@ -110,7 +110,7 @@ export function ReportsHome() {
   return (
     <div className="page azure-cost-page">
       <header className="azure-cost-header">
-        <h1>Azure Cost</h1>
+        <h1>Azure Customer 360</h1>
         <Link to={settingsLink()} className="azure-cost-settings-link">Customers and enrollments</Link>
       </header>
       {signIn && !signIn.signed_in ? <div className="azure-cost-error">{signIn.message}</div> : null}

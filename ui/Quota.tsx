@@ -223,7 +223,7 @@ export function QuotaPage() {
 
   return (
     <div className="page azure-cost-page">
-      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Baseline and quota' }]} />
+      <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Baseline and quota' }]} />
       <header className="azure-cost-header">
         <h1>Baseline and quota</h1>
         <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('quota', measure))}>Export to Excel</a>

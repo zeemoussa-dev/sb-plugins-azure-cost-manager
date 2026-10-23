@@ -33,7 +33,7 @@ export function RenewalsPage() {
 
   return (
     <div className="page azure-cost-page">
-      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Marketplace renewals' }]} />
+      <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Marketplace renewals' }]} />
       <header className="azure-cost-header">
         <h1>Marketplace renewals</h1>
         <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('renewals'))}>Export to Excel</a>

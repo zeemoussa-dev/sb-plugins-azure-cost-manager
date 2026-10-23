@@ -38,7 +38,7 @@ export function MarketplacePage() {
 
   return (
     <div className="page azure-cost-page">
-      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Marketplace, all customers' }]} />
+      <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Marketplace, all customers' }]} />
       <header className="azure-cost-header">
         <h1>Azure Marketplace</h1>
       </header>

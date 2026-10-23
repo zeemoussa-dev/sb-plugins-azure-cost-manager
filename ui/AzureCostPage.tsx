@@ -178,7 +178,7 @@ export function AzureCostPage() {
   return (
     <div className="page azure-cost-page">
       <Breadcrumbs items={[
-        { label: 'Azure Cost', to: '/azure-cost-manager' },
+        { label: 'Azure Customer 360', to: '/azure-cost-manager' },
         { label: reportTitle(report), to: reportLink(report) },
         ...(parent ? [{ label: parent.name, to: reportLink(report, parent.id) }] : []),
         ...(customer ? [{ label: customer.name }] : []),

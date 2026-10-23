@@ -32,7 +32,7 @@ export function FinOpsPage() {
   const saving = withMeters.reduce((sum, row) => sum + (row.savings_monthly.ri_3y ?? 0), 0);
   return (
     <div className="page azure-cost-page">
-      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Optimization opportunities' }]} />
+      <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Optimization opportunities' }]} />
       <header className="azure-cost-header">
         <h1>Optimization opportunities</h1>
         <button type="button" className="btn azure-cost-settings-link" onClick={priceNow}>Price candidates now</button>

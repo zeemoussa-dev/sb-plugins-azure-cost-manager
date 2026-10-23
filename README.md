@@ -1,4 +1,6 @@
-# Azure Cost Manager — a Second Brain plugin
+# Azure Customer 360 — a Second Brain plugin
+
+_Formerly Azure Cost Manager; the plugin id is still `azure-cost-manager`._
 
 Customers' Azure agreements and monthly consumption, read from Azure Cost
 Management with your own `az login`:
@@ -18,7 +20,7 @@ Management with your own `az login`:
    Billing Reader (or better) on the customers' billing accounts.
 2. Install the plugin from Settings → Marketplace → **Install from a repository**,
    and restart the backend.
-3. Settings → Plugins → **Azure Cost Manager**: tick the billing accounts to follow.
+3. Settings → Plugins → **Azure Customer 360**: tick the billing accounts to follow.
 4. Open **Azure Cost** in the sidebar.
 
 Phase 1 displays only. Linking an account to a Customer and storing the data in

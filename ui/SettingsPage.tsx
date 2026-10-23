@@ -436,9 +436,9 @@ export function SettingsPage() {
 
   return (
     <div className="azure-cost-settings">
-      <h2>Azure Cost Manager</h2>
+      <h2>Azure Customer 360</h2>
       <div className="vault-settings-layout">
-        <nav className="vault-settings-nav" aria-label="Azure Cost Manager settings">
+        <nav className="vault-settings-nav" aria-label="Azure Customer 360 settings">
           {SECTION_NAV.map((item) => (
             <button key={item.id} type="button"
                     className={`vault-settings-nav-item artifacts-nav-item${shown === item.id ? ' vault-settings-nav-item--active' : ''}`}

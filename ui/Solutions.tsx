@@ -219,7 +219,7 @@ export function SolutionsPage() {
 
   return (
     <div className="page azure-cost-page">
-      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Solutions' }]} />
+      <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Solutions' }]} />
       <header className="azure-cost-header">
         <h1>Solutions</h1>
         <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('solutions'))}>Export to Excel</a>

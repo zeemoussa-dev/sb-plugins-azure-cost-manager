@@ -22,7 +22,7 @@ export function HygienePage() {
 
   return (
     <div className="page azure-cost-page">
-      <Breadcrumbs items={[{ label: 'Azure Cost', to: '/azure-cost-manager' }, { label: 'Subscription and tag hygiene' }]} />
+      <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Subscription and tag hygiene' }]} />
       <header className="azure-cost-header">
         <h1>Subscription and tag hygiene</h1>
         <a className="btn azure-cost-settings-link" href={apiUrl(reportExportPath('hygiene'))}>Export to Excel</a>
