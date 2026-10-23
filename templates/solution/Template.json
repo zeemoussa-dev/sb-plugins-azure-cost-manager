@@ -1,0 +1,65 @@
+{
+  "id": "solution",
+  "schema_version": 2,
+  "version": 1,
+  "identity": {
+    "strategy": "id"
+  },
+  "on_missing": "create",
+  "allow_create_folder": true,
+  "root": {
+    "type": "md",
+    "own_folder": false,
+    "plain_filename": true,
+    "on_existing_title": "update_section",
+    "frontmatter_defaults": {
+      "type": "Solution",
+      "name": "",
+      "solution_id": "",
+      "play": "",
+      "status": "draft",
+      "last_refreshed": "",
+      "tags": [
+        "kind/solution"
+      ]
+    },
+    "sections": [
+      {
+        "name": "Summary",
+        "access": "machine_write"
+      },
+      {
+        "name": "Architecture",
+        "access": "machine_write"
+      },
+      {
+        "name": "What the customer is building",
+        "access": "machine_write"
+      },
+      {
+        "name": "How to recognise it in the bill",
+        "access": "machine_write"
+      },
+      {
+        "name": "Pitches",
+        "access": "machine_write"
+      },
+      {
+        "name": "Sizing",
+        "access": "machine_write"
+      },
+      {
+        "name": "Playbooks",
+        "access": "machine_write"
+      },
+      {
+        "name": "Pattern",
+        "access": "machine_write"
+      },
+      {
+        "name": "Sources",
+        "access": "machine_write"
+      }
+    ]
+  }
+}

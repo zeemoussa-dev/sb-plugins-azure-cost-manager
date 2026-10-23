@@ -2,6 +2,18 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.40.0] - 2026-10-23
+
+- feat: **the Solutions Guide lives in the vault** (operator, 2026-10-23: "a Solutions Guide as a new section of the vault ... the seller can read about the solutions ... help with the sizing ... add diagrams"). Each solution is a **Solution** note (`type: Solution`, `Work/Solutions/`) that the seller reads and the report matches with:
+  - frontmatter `solution_id`, `name`, `play`; `## Pattern` holds the rules as one ```json block (the same fields the shipped patterns have);
+  - `## Sizing` is a template bill -- building blocks at small, medium and large, USD a month at list price, with the basis -- shown on the Solutions screens with its totals;
+  - `## Architecture` is a Mermaid diagram, drawn on the Solutions screens as in the note.
+  - With no Solution note in the vault the shipped patterns apply; a note whose Pattern does not read is left out and named in Settings. Notes are re-read within a minute of an edit.
+- **Templates:** the plugin ships `solution` and `playbook` (`type: Playbook`, for `Work/Sales/Playbooks/`, linking the solutions it covers).
+- **Solutions tab and all-customers page:** a solution opens to its guide link, sizing bill and diagram; the tab shows each solution's small-to-large range.
+- **Settings > Solution patterns** lists the Solution notes, their ids and any problem, in place of 0.38.0's JSON editor; `PUT /solutions/catalog` and `Solution-Patterns.json` are gone (an older data export carrying it imports without it).
+- fix: a sizing table's aliased wikilink (`[[Note\|Alias]]`, as Obsidian writes it in a table) no longer splits the cell.
+
 ## [0.39.1] - 2026-10-23
 
 - fix: **Solutions name what a subscription is for, and list the rest as "also"** (checked on ADNOC's real data, 2026-10-23: its largest subscription matched twelve patterns, among them $59 of Backup read as a backup solution). A solution is the subscription's when its required services are at least 2% of the subscription's spend, or its or its resource groups' names say so (an AKS cluster bills as VMs; `aks-...` names carry it). The rest is shown as *also* on screen and in a new **Also runs** column of the export, and drives no pitch.

@@ -861,7 +861,20 @@ export interface SubscriptionSolutions {
   resource_groups: string[];
 }
 
-export interface SolutionSummary {
+/** A Solution note's template bill: building blocks at three sizes, USD a month. */
+export interface SolutionSizing {
+  rows: { block: string; service: string; small: number | null; medium: number | null; large: number | null; basis: string }[];
+  totals: { small: number; medium: number; large: number };
+}
+
+/** What the vault's Solution note adds: where to read more, its sizing and its diagram. */
+export interface SolutionGuide {
+  note?: string | null;
+  sizing?: SolutionSizing | null;
+  architecture?: string | null;
+}
+
+export interface SolutionSummary extends SolutionGuide {
   id: string;
   name: string;
   play: string;
@@ -904,16 +917,14 @@ export interface SolutionsAcross {
 
 export interface SolutionCatalog {
   patterns: unknown[];
-  customised: boolean;
-  plays: string[];
+  /** `vault`: from the Solution notes; `shipped`: the vault has none yet. */
+  source: 'vault' | 'shipped';
+  notes: { stem: string; name: string; id: string | null; status: string | null; error: string | null }[];
 }
 
 export const fetchCustomerSolutions = (id: string) => apiFetch<CustomerSolutions>(`${customer(id)}/solutions`);
 export const fetchSolutionsAcross = () => apiFetch<SolutionsAcross>(`${BASE}/solutions`);
 export const fetchSolutionCatalog = () => apiFetch<SolutionCatalog>(`${BASE}/solutions/catalog`);
-/** `null` goes back to the shipped patterns. */
-export const saveSolutionCatalog = (patterns: unknown[] | null) =>
-  apiFetch<SolutionCatalog>(`${BASE}/solutions/catalog`, { method: 'PUT', body: JSON.stringify({ patterns }) });
 
 /** One baseline for every customer, the fiscal year, and the seller's quota. */
 export interface QuotaSettings {

@@ -52,9 +52,10 @@ def _now() -> datetime:
 class ConsumptionService:
     def __init__(self, store: ConsumptionStore, book: CustomerBook,
                  today: Callable[[], date] = date.today, now: Callable[[], datetime] = _now,
-                 pipeline: Pipeline | None = None) -> None:
+                 pipeline: Pipeline | None = None, solution_notes=None) -> None:
         self._store = store
         self._book = book
+        self._solution_notes = solution_notes
         self.prices = pricing.PriceBook(store.finops_state, store.save_finops_state, now)
         self._pipeline = pipeline
         self._today = today
@@ -208,13 +209,13 @@ class ConsumptionService:
     # -- solutions: what each subscription is used for --------------------------
 
     def solution_catalog(self) -> dict:
-        own = self._store.solution_patterns()
-        return {"patterns": solutions.patterns(own), "customised": bool(own), "plays": solution_plays.PLAYS[:-2]}
+        """The patterns from the vault's Solution notes, or the shipped ones when it has none."""
+        if self._solution_notes is None:
+            return {"patterns": solutions.patterns(None), "source": "shipped", "notes": []}
+        return self._solution_notes.catalog()
 
-    def save_solution_catalog(self, patterns: list[dict] | None) -> dict:
-        """The operator's catalog replaces the defaults whole; None goes back to them."""
-        self._store.save_solution_patterns(solutions.validated(patterns) if patterns else None)
-        return self.solution_catalog()
+    def _patterns(self) -> list[dict]:
+        return self.solution_catalog()["patterns"]
 
     def _solutions_view(self, members: list[dict], catalog: list[dict]) -> dict:
         entries = {account["name"]: self._store.account(account["name"])
@@ -225,13 +226,13 @@ class ConsumptionService:
         """Each of the customer's subscriptions (a group's: with its affiliates'), the
         solution it looks like, and what to pitch (operator, 2026-10-23)."""
         customer = self._customer(customer_id)
-        catalog = solutions.patterns(self._store.solution_patterns())
+        catalog = self._patterns()
         return {"customer": {"id": customer["id"], "name": customer["name"]},
                 **self._solutions_view(self._group(customer), catalog)}
 
     def solutions_across(self) -> dict:
         everyone = self._book.list()
-        catalog = solutions.patterns(self._store.solution_patterns())
+        catalog = self._patterns()
         views = [(customer, self._solutions_view(
             [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]], catalog))
             for customer in everyone if not customer.get("parent")]

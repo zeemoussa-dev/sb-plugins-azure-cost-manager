@@ -105,11 +105,6 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def get_solution_catalog() -> dict:
         return _answered(service.solution_catalog)
 
-    @router.put("/solutions/catalog")
-    def put_solution_catalog(submitted: dict = Body(...)) -> dict:
-        """`{"patterns": [...]}` replaces the catalog; `{"patterns": null}` restores the defaults."""
-        return _answered(lambda: service.save_solution_catalog(submitted.get("patterns")))
-
     @router.get("/solutions")
     def get_solutions_across() -> dict:
         return _answered(service.solutions_across)

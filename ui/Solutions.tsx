@@ -2,9 +2,11 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
+import { NoteText } from '../../pluginHost/noteText';
 import {
-  fetchCustomerSolutions, fetchSolutionCatalog, fetchSolutionsAcross, reportExportPath, saveSolutionCatalog,
-  startTagSync, type CustomerSolutions, type SolutionCatalog, type SolutionsAcross, type SubscriptionSolutions,
+  fetchCustomerSolutions, fetchSolutionCatalog, fetchSolutionsAcross, reportExportPath,
+  startTagSync, type CustomerSolutions, type SolutionCatalog, type SolutionGuide, type SolutionsAcross,
+  type SubscriptionSolutions,
 } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
@@ -34,6 +36,34 @@ function PlayChips({ plays, chosen, onChoose }: { plays: string[]; chosen: strin
         <button key={play} type="button" className={chosen === play ? 'active' : undefined}
                 aria-pressed={chosen === play} onClick={() => onChoose(play)}>{play}</button>
       ))}
+    </div>
+  );
+}
+
+/** A solution's guide from its vault note: the sizing bill and the architecture diagram. */
+function SolutionDetail({ guide }: { guide: SolutionGuide }) {
+  if (!guide.note) return <p className="text-muted">No Solution note in the vault for this one yet.</p>;
+  return (
+    <div>
+      <p><Link to={`/browse/${encodeURIComponent(guide.note)}`}>Read the solution guide: {guide.note}</Link></p>
+      {guide.sizing ? (
+        <table className="azure-cost-table">
+          <thead><tr><th>Building block</th><th>Service</th><th>Small</th><th>Medium</th><th>Large</th><th>Basis</th></tr></thead>
+          <tbody>
+            {guide.sizing.rows.map((row) => (
+              <tr key={row.block}>
+                <td>{row.block}</td><td>{row.service}</td>
+                <td>{row.small != null ? money(row.small) : '—'}</td><td>{row.medium != null ? money(row.medium) : '—'}</td>
+                <td>{row.large != null ? money(row.large) : '—'}</td><td className="text-muted">{row.basis}</td>
+              </tr>
+            ))}
+            <tr><td><strong>Monthly, list price</strong></td><td />
+              <td><strong>{money(guide.sizing.totals.small)}</strong></td><td><strong>{money(guide.sizing.totals.medium)}</strong></td>
+              <td><strong>{money(guide.sizing.totals.large)}</strong></td><td /></tr>
+          </tbody>
+        </table>
+      ) : <p className="text-muted">The note has no sizing table yet.</p>}
+      {guide.architecture ? <NoteText text={guide.architecture} /> : null}
     </div>
   );
 }
@@ -84,6 +114,7 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [play, setPlay] = useState(ALL_PLAYS);
+  const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCustomerSolutions(customerId).then((found) => { setView(found); setError(null); },
@@ -129,11 +160,16 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
       <section className="card azure-cost-card">
         <h3>Solutions</h3>
         <table className="azure-cost-table">
-          <thead><tr><th>Solution</th><th>Solution play</th><th>Subscriptions</th><th>Monthly in them</th></tr></thead>
+          <thead><tr><th>Solution</th><th>Solution play</th><th>Subscriptions</th><th>Monthly in them</th><th>Sized, small – large</th></tr></thead>
           <tbody>
             {view.solutions.filter((item) => play === ALL_PLAYS || item.play === play).map((item) => (
-              <tr key={item.id}><td>{item.name}</td><td>{item.play}</td><td>{item.subscriptions}</td>
-                <td>{money(item.monthly)}</td></tr>
+              <Fragment key={item.id}>
+                <tr className="azure-cost-clickable" onClick={() => setOpen(open === item.id ? null : item.id)}>
+                  <td>{open === item.id ? '▾' : '▸'} {item.name}</td><td>{item.play}</td><td>{item.subscriptions}</td>
+                  <td>{money(item.monthly)}</td>
+                  <td>{item.sizing ? `${money(item.sizing.totals.small)} – ${money(item.sizing.totals.large)}` : '—'}</td></tr>
+                {open === item.id ? <tr><td colSpan={5}><SolutionDetail guide={item} /></td></tr> : null}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -218,7 +254,12 @@ export function SolutionsPage() {
                       <td>{item.name}</td><td>{item.play}</td><td>{item.customers.length}</td>
                       <td>{item.subscriptions}</td><td>{money(item.monthly)}</td>
                     </tr>
-                    {open === item.id ? <tr><td colSpan={5} className="text-muted">{item.customers.join(', ')}</td></tr> : null}
+                    {open === item.id ? (
+                      <tr><td colSpan={5}>
+                        <p className="text-muted">{item.customers.join(', ')}</p>
+                        <SolutionDetail guide={item} />
+                      </td></tr>
+                    ) : null}
                   </Fragment>
                 ))}
               </tbody>
@@ -262,50 +303,46 @@ export function SolutionsPage() {
   );
 }
 
-/** The pattern catalog, edited as JSON: it replaces the shipped one whole. */
+/** Where the patterns come from: the vault's Solution notes, each one a guide the
+ *  seller reads and the rules this report matches with. */
 export function SolutionCatalogCard() {
   const [catalog, setCatalog] = useState<SolutionCatalog | null>(null);
-  const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
-
-  const show = (found: SolutionCatalog) => { setCatalog(found); setText(JSON.stringify(found.patterns, null, 2)); };
-  useEffect(() => { fetchSolutionCatalog().then(show, (failure) => setError(errorText(failure))); }, []);
-
-  const save = (patterns: unknown[] | null) => {
-    setError(null); setSaved(null);
-    saveSolutionCatalog(patterns).then((found) => { show(found); setSaved(patterns ? 'Saved.' : 'Back to the shipped patterns.'); },
-      (failure) => setError(errorText(failure)));
-  };
-  const saveText = () => {
-    try {
-      const parsed = JSON.parse(text);
-      save(Array.isArray(parsed) ? parsed : []);
-    } catch (failure) {
-      setError(`Not valid JSON: ${(failure as Error).message}`);
-    }
-  };
+  useEffect(() => { fetchSolutionCatalog().then(setCatalog, (failure) => setError(errorText(failure))); }, []);
 
   return (
-    <section className="card azure-cost-card azure-cost-editor">
+    <section className="card azure-cost-card">
       <h3>Solution patterns</h3>
       <p className="text-muted azure-cost-note">
-        How a subscription is placed. Each pattern <code>requires</code> groups of signals (one of each group must be
-        there), lists <code>supports</code> and <code>names</code> that make it strong, and <code>pitches</code>: what to
-        sell when the customer runs none of the <code>missing</code> signals. A signal
-        is <code>service:&lt;exact service name&gt;</code>, <code>meter:&lt;words in a meter&gt;</code>
-        or <code>name:&lt;word in a subscription or resource group name&gt;</code>. <code>unless</code> hides a pattern
-        when another fits; <code>fallback</code> shows it only when nothing else does.
-        {catalog?.customised ? ' You are using your own catalog.' : ' These are the shipped patterns.'}
+        Each solution is a <strong>Solution</strong> note in the vault (Work/Solutions): a guide for the seller -- what it
+        is, its architecture, how it shows in the bill, what to pitch and a sizing bill -- whose <code>## Pattern</code>
+        section holds the rules this report matches subscriptions with. Edit a note in Obsidian and the report follows
+        within a minute. A note whose Pattern does not read is left out and named below.
       </p>
-      <textarea className="azure-cost-catalog" rows={24} spellCheck={false} value={text}
-                onChange={(event) => setText(event.target.value)} aria-label="Solution patterns (JSON)" />
-      <div className="azure-cost-toolbar">
-        <button type="button" className="btn btn-primary" onClick={saveText}>Save patterns</button>
-        {catalog?.customised ? <button type="button" className="btn" onClick={() => save(null)}>Back to the shipped patterns</button> : null}
-      </div>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {saved ? <p className="azure-cost-note">{saved}</p> : null}
+      {!catalog ? <p className="text-muted">Loading…</p> : (
+        <>
+          <p className="azure-cost-note">
+            {catalog.source === 'vault'
+              ? `${catalog.patterns.length} patterns from the vault's Solution notes.`
+              : 'No Solution note in the vault yet: the patterns shipped with the plugin apply.'}
+          </p>
+          {catalog.notes.length ? (
+            <table className="azure-cost-table">
+              <thead><tr><th>Solution note</th><th>Id</th><th>Status</th><th>Problem</th></tr></thead>
+              <tbody>
+                {catalog.notes.map((note) => (
+                  <tr key={note.stem}>
+                    <td><Link to={`/browse/${encodeURIComponent(note.stem)}`}>{note.name}</Link></td>
+                    <td>{note.id ?? '—'}</td><td>{note.status ?? '—'}</td>
+                    <td className={note.error ? 'azure-cost-warning' : undefined}>{note.error ?? ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </>
+      )}
     </section>
   );
 }

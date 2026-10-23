@@ -263,6 +263,8 @@ def validated(patterns) -> list[dict]:
             if not str(pitch.get("pitch") or "").strip() or not pitch.get("missing"):
                 raise PatternError(f"{pattern_id}: each pitch has a pitch text and the signals it is missing")
         checked.append({"id": pattern_id, "name": str(pattern["name"]).strip(), "play": pattern["play"],
+                        "note": pattern.get("note"), "sizing": pattern.get("sizing"),
+                        "architecture": pattern.get("architecture"),
                         "description": str(pattern.get("description") or ""),
                         "requires": requires, "supports": list(pattern.get("supports") or []),
                         "names": [str(word).lower() for word in pattern.get("names") or []],
@@ -318,6 +320,7 @@ def classify(estate: _Estate, catalog: list[dict], monthly: float = 0.0) -> list
         named = sorted(word for word in pattern["names"] if word in estate.words)
         required = sum(cost or 0 for name, cost in dict(hit for group in groups for hit in group).items())
         fitted[pattern["id"]] = {
+            "note": pattern.get("note"),
             "primary": bool(named) or any(name.startswith("named ") for group in groups for name, _ in group)
             or (monthly > 0 and required >= PRIMARY_SHARE * monthly),
             "id": pattern["id"], "name": pattern["name"], "play": pattern["play"],
@@ -400,7 +403,10 @@ def customer_view(entries: dict[str, dict], catalog: list[dict]) -> dict:
     for row in rows:
         for solution in row["solutions"]:
             item = summary.setdefault(solution["id"], {"id": solution["id"], "name": solution["name"],
-                                                       "play": solution["play"], "subscriptions": 0, "monthly": 0.0})
+                                                       "play": solution["play"], "note": by_id[solution["id"]].get("note"),
+                                                       "sizing": by_id[solution["id"]].get("sizing"),
+                                                       "architecture": by_id[solution["id"]].get("architecture"),
+                                                       "subscriptions": 0, "monthly": 0.0})
             item["subscriptions"] += 1
             item["monthly"] = round(item["monthly"] + row["monthly"], 2)
     pitches = []
@@ -429,6 +435,7 @@ def across(views: list[tuple[dict, dict]]) -> dict:
             window = view["window"]
         for item in view["solutions"]:
             found = by_solution.setdefault(item["id"], {"id": item["id"], "name": item["name"], "play": item["play"],
+                                                        "note": item.get("note"), "sizing": item.get("sizing"),
                                                         "customers": [], "subscriptions": 0, "monthly": 0.0})
             found["customers"].append(customer["name"])
             found["subscriptions"] += item["subscriptions"]
