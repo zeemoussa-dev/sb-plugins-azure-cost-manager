@@ -145,3 +145,31 @@ def test_the_sellers_answer_is_kept_and_handed_to_every_explanation(fake_api):
     assert "migrating the SAP estate" in told and answered["value"].startswith("A migration")
     assert [note["said"] for note in answered["notes"]] == ["They are migrating the SAP estate this quarter"]
     assert found.explain(customer_id, "service", "VM")["notes"] == answered["notes"]   # kept with the item
+
+
+def test_a_pitch_recommendation_names_a_catalog_solution_and_its_notes_sizing():
+    facts = {"catalog": [{"id": "genai", "name": "GenAI", "play": "AI & ML", "sized_monthly": [150, 1250, 6000]}],
+             "playbooks": [{"name": "GenAI on Compass", "covers": ["genai"]}]}
+    reply = json.dumps([{"solution_id": "genai", "pitch": "Move inference to Compass", "why": "GPT spend grew",
+                         "playbook": "GenAI on Compass", "confidence": "high", "value": 1},
+                        {"solution_id": "made-up", "pitch": "Something"},
+                        {"solution_id": "genai", "pitch": "Move inference to Compass"},
+                        {"solution_id": "genai", "pitch": "Add AI Search", "playbook": "No such playbook"}])
+
+    found = advisor.check_pitches(reply, facts)
+
+    assert [item["pitch"] for item in found] == ["Move inference to Compass", "Add AI Search"]
+    assert found[0]["sized_monthly"] == [150, 1250, 6000] and found[0]["playbook"] == "GenAI on Compass"
+    assert found[1]["playbook"] is None and "value" not in found[0]
+
+
+def test_a_recommended_pitch_can_be_drafted(fake_api):
+    recommend = json.dumps([{"solution_id": "iaas", "pitch": "Modernise the VMs", "why": "VMs grew", "confidence": "high"}])
+    draft = json.dumps({"title": "Contoso: modernise", "summary": "s", "size": "medium", "next_steps": [],
+                        "email_subject": "Hi", "email_body": "Body"})
+    found, _, customer_id = advisor_with(fake_api, [recommend, draft])
+
+    recommended = found.pitches(customer_id, write=True)["value"]
+    drafted = found.draft(customer_id, recommended[0]["pitch"])
+
+    assert recommended[0]["solution"] == "Virtual machines (IaaS)" and drafted["title"] == "Contoso: modernise"

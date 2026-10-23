@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.48.0] - 2026-10-23
+
+- feat: **Compass recommends what to pitch** (operator, 2026-10-23: "add Compass on the recommendation of what to pitch as well"). Under What to pitch on a customer's Solutions tab, **Ask Compass what to pitch** weighs what the customer runs and grows, its MACC position, pipeline, recent conversations and its memory, and recommends up to five pitches beyond the rules' -- best first, each with why, its confidence and the Playbook to use (a link to the note).
+  - **Grounded:** each recommendation must be a solution from the catalog, so its sizing is the Solution note's, never Compass's; a solution or playbook not in the vault is dropped.
+  - **Draft** works on a recommendation as on a rule pitch: an opportunity and an email, sized from the note.
+  - Kept until the customer's facts (or memory) change; **Ask again** rewrites it.
+  - **Routes:** `GET/POST /customers/{id}/pitches`.
+
 ## [0.47.1] - 2026-10-23
 
 - fix: **every customer report can be limited to some enrollments** (operator, 2026-10-23: "some customer reports I can filter enrollments and others I can't"). The Enrollments picker was on Overview, Forecast and Breakdown only; This month, Marketplace, FinOps, Tags, Quota and Solutions read the whole group whatever was chosen. They now read only the enrollments chosen, and the picker shows on all of them. Pipeline keeps the whole group: an opportunity belongs to the customer, not to an enrollment. An enrollment outside the customer is refused.

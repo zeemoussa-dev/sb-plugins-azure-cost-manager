@@ -83,11 +83,29 @@ class Advisor:
             self._answers.put("actions", "all", stamp, ranked)
         return self._kept("actions", "all", stamp)
 
+    # -- what to pitch --------------------------------------------------------------
+
+    def pitches(self, customer_id: str, write: bool = False) -> dict:
+        """Compass's recommendations of what to pitch, beyond the rules' (operator,
+        2026-10-23), kept until the customer's facts move."""
+        facts = advisor.pitch_facts(self._service.brief_facts(customer_id),
+                                    self._service.solution_catalog()["patterns"], self._service.playbooks())
+        stamp = compass.fingerprint(facts)
+        if write:
+            found = advisor.check_pitches(compass.ask(self._llm, advisor.pitch_messages(facts)), facts)
+            self._answers.put("pitches", customer_id, stamp, found)
+        return self._kept("pitches", customer_id, stamp)
+
     # -- draft from a pitch --------------------------------------------------------
 
     def draft(self, customer_id: str, pitch_text: str) -> dict:
         view = self._service.solutions_of(customer_id)
         pitch = next((item for item in view["pitches"] if item["pitch"] == pitch_text), None)
+        if not pitch:
+            # One Compass recommended (kept), drafted the same way as a rule's.
+            kept = (self._answers.get("pitches", customer_id) or {}).get("value") or []
+            pitch = next(({"pitch": item["pitch"], "solution": item["solution"], "play": item["play"],
+                           "subscriptions": []} for item in kept if item["pitch"] == pitch_text), None)
         if not pitch:
             raise ValueError("that pitch is not one this customer is shown")
         sizing = next((pattern.get("sizing") for pattern in self._service.solution_catalog()["patterns"]

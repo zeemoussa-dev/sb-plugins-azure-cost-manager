@@ -953,3 +953,9 @@ tr.azure-cost-affiliate td:first-child {
   gap: var(--space-2, 8px);
 }
 
+.azure-cost-compass-pitches {
+  margin-top: var(--space-4, 16px);
+  padding-top: var(--space-3, 12px);
+  border-top: 1px solid var(--color-border);
+}
+

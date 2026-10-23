@@ -184,6 +184,14 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def post_actions() -> dict:
         return _compass(lambda: advisor.actions(True))
 
+    @router.get("/customers/{customer_id}/pitches")
+    def get_pitches(customer_id: str) -> dict:
+        return _compass(lambda: advisor.pitches(customer_id))
+
+    @router.post("/customers/{customer_id}/pitches")
+    def post_pitches(customer_id: str) -> dict:
+        return _compass(lambda: advisor.pitches(customer_id, True))
+
     @router.post("/customers/{customer_id}/draft")
     def post_draft(customer_id: str, submitted: dict = Body(...)) -> dict:
         return _compass(lambda: advisor.draft(customer_id, str(submitted.get("pitch") or "")))

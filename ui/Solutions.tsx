@@ -14,7 +14,7 @@ import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 import { Loading } from './Loading';
-import { DraftButton, SizeIt } from './Advisor';
+import { CompassPitches, DraftButton, SizeIt } from './Advisor';
 
 const ALL_PLAYS = 'All plays';
 // The footprint is Cost Management's actual cost, billed in USD for these agreements.
@@ -198,6 +198,7 @@ export function SolutionsTab({ customerId, syncedVersion, accounts }: {
             </tbody>
           </table>
         ) : <p className="text-muted">Nothing obvious missing.</p>}
+        <CompassPitches customerId={view.customer.id} />
       </section>
       <section className="card azure-cost-card">
         <h3>Subscriptions</h3>

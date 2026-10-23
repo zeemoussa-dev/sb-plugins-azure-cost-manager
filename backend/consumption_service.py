@@ -247,6 +247,10 @@ class ConsumptionService:
             return {"patterns": solutions.patterns(None), "source": "shipped", "notes": []}
         return self._solution_notes.catalog()
 
+    def playbooks(self) -> list[dict]:
+        """The vault's Playbook notes."""
+        return self._solution_notes.playbooks() if self._solution_notes else []
+
     def _patterns(self) -> list[dict]:
         return self.solution_catalog()["patterns"]
 

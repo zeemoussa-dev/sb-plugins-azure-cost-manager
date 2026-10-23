@@ -945,6 +945,21 @@ export const writeExplain = (id: string, kind: DrillKind, name: string, accounts
     { method: 'POST', body: JSON.stringify({ note: note ?? null }) });
 export const fetchActions = () => apiFetch<Kept<NextAction[]>>(`${BASE}/advisor/actions`);
 export const writeActions = () => apiFetch<Kept<NextAction[]>>(`${BASE}/advisor/actions`, { method: 'POST' });
+/** A pitch Compass recommends: a catalog solution, the note's sizing, the playbook to use. */
+export interface RecommendedPitch {
+  pitch: string;
+  solution_id: string;
+  solution: string;
+  play: string;
+  why: string;
+  playbook: string | null;
+  confidence: 'high' | 'medium' | 'low';
+  sized_monthly: number[] | null;
+}
+
+export const fetchPitches = (id: string) => apiFetch<Kept<RecommendedPitch[]>>(`${customer(id)}/pitches`);
+export const writePitches = (id: string) => apiFetch<Kept<RecommendedPitch[]>>(`${customer(id)}/pitches`, { method: 'POST' });
+
 export const draftFromPitch = (id: string, pitch: string) =>
   apiFetch<DraftOpportunity>(`${customer(id)}/draft`, { method: 'POST', body: JSON.stringify({ pitch }) });
 export const sizeSolution = (solutionId: string, answers: string, customerId?: string) =>

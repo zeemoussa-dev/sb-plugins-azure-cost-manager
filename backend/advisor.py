@@ -262,3 +262,60 @@ def check_marketplace(reply: str, keys: set[str]) -> dict[str, dict]:
                                   "what": str(item.get("what") or "")[:240],
                                   "compass_alternative": bool(item.get("compass_alternative"))}
     return found
+
+
+# -- what to pitch -------------------------------------------------------------------
+
+def pitch_facts(brief_facts: dict, catalog: list[dict], playbooks: list[dict]) -> dict:
+    """What Compass recommends pitches from: the customer as the brief sees it, what the
+    rules already pitch, and the catalog it must choose from (with the notes' sizing)."""
+    return {
+        "customer": brief_facts.get("customer"),
+        "consumption": {key: (brief_facts.get("consumption") or {}).get(key) for key in
+                        ("last_month", "year_on_year_pct", "monthly_run_rate_3m", "top_services_last_month")},
+        "commitment": brief_facts.get("commitment"),
+        "running": brief_facts.get("solutions"),
+        "already_pitched_by_rules": [item.get("pitch") for item in brief_facts.get("pitches") or []],
+        "pipeline": brief_facts.get("pipeline"),
+        "seller_says": brief_facts.get("seller_says"),
+        "recent_conversations": (brief_facts.get("vault") or {}).get("recent"),
+        "catalog": [{"id": pattern["id"], "name": pattern["name"], "play": pattern["play"],
+                     "description": pattern.get("description") or "",
+                     "sized_monthly": [pattern["sizing"]["totals"][size] for size in SIZES]
+                     if pattern.get("sizing") else None} for pattern in catalog],
+        "playbooks": [{"name": item["name"], "covers": item.get("solutions") or []} for item in playbooks],
+    }
+
+
+def pitch_messages(facts: dict) -> list[dict]:
+    return [_system(
+        "Recommend what this seller should pitch to this customer next -- beyond what the rules already pitch "
+        "(listed), unless one of those deserves to be first, in which case say why. Weigh what the customer runs "
+        "and grows, its MACC position (room to grow consumption, or a commitment running out), its pipeline, its "
+        "recent conversations and what the seller told you.\n"
+        'Answer with a JSON array of at most 5 objects, best first: {"solution_id": <an id from the catalog>, '
+        '"pitch": <what to sell, one sentence, naming the situation of the customer>, "why": <one or two sentences '
+        'citing the facts>, "playbook": <a playbook name exactly as given, or null>, "confidence": '
+        '"high"|"medium"|"low"}. Only solutions in the catalog. Nothing else.'),
+        {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
+
+
+def check_pitches(reply: str, facts: dict) -> list[dict]:
+    """Recommendations about catalog solutions only; the sizing is the note's."""
+    catalog = {item["id"]: item for item in facts["catalog"]}
+    playbooks = {item["name"] for item in facts["playbooks"]}
+    found, seen = [], set()
+    for item in compass.json_array(reply):
+        if not isinstance(item, dict) or item.get("solution_id") not in catalog or not str(item.get("pitch") or "").strip():
+            continue
+        pitch = str(item["pitch"]).strip()[:300]
+        if pitch in seen:
+            continue
+        seen.add(pitch)
+        solution = catalog[item["solution_id"]]
+        found.append({"pitch": pitch, "solution_id": solution["id"], "solution": solution["name"],
+                      "play": solution["play"], "why": str(item.get("why") or "")[:500],
+                      "playbook": item.get("playbook") if item.get("playbook") in playbooks else None,
+                      "confidence": item.get("confidence") if item.get("confidence") in ("high", "medium", "low") else "medium",
+                      "sized_monthly": solution["sized_monthly"]})
+    return found[:5]

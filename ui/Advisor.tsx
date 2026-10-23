@@ -4,6 +4,7 @@ import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { NoteText } from '../../pluginHost/noteText';
 import {
   askData, classifyMarketplace, createOpportunity, draftFromPitch, fetchActions, fetchExplain, fetchMarketplaceClasses,
+  fetchPitches, writePitches, type RecommendedPitch,
   sizeSolution, writeActions, writeExplain,
   type Answer, type DraftOpportunity, type DrillKind, type Explanation, type Kept, type MarketplaceClasses, type NextAction, type SizedSolution,
 } from './client';
@@ -284,4 +285,50 @@ export function useMarketplaceClasses(active: boolean): [MarketplaceClasses | nu
     classifyMarketplace().then(setFound, (failure) => setError(errorText(failure))).finally(() => setBusy(false));
   };
   return [found, classify, busy, error];
+}
+
+/** What Compass recommends pitching, beyond the rules (operator, 2026-10-23): a catalog
+ *  solution each, with the note's sizing and the playbook to use; draftable like a rule's. */
+export function CompassPitches({ customerId }: { customerId: string }) {
+  const [found, setFound] = useState<Kept<RecommendedPitch[]> | null>(null);
+  const [writing, setWriting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { fetchPitches(customerId).then(setFound, (failure) => setError(errorText(failure))); }, [customerId]);
+  const write = () => {
+    setWriting(true); setError(null);
+    writePitches(customerId).then(setFound, (failure) => setError(errorText(failure))).finally(() => setWriting(false));
+  };
+  if (!found) return error ? <div className="azure-cost-error">{error}</div> : null;
+  return (
+    <div className="azure-cost-compass-pitches">
+      <div className="azure-cost-card-head">
+        <h4>Compass recommends</h4>
+        <button type="button" className="btn" disabled={writing || !found.available} onClick={write}
+                title={found.available ? 'Compass weighs what the customer runs, grows, its MACC, pipeline, conversations and what you told it' : 'Compass is not available to plugins on this install'}>
+          {found.value ? 'Ask again' : 'Ask Compass what to pitch'}</button>
+      </div>
+      {error ? <div className="azure-cost-error">{error}</div> : null}
+      {writing ? <Loading label="Compass is weighing what this customer runs, grows and needs…" /> : found.value ? (
+        <>
+          {found.stale ? <p className="azure-cost-warning">This customer's data has changed since. Ask again for the latest.</p> : null}
+          <table className="azure-cost-table">
+            <thead><tr><th>Pitch</th><th>Solution</th><th>Sized</th><th>Playbook</th><th /></tr></thead>
+            <tbody>
+              {found.value.map((item) => (
+                <tr key={item.pitch}>
+                  <td><strong>{item.pitch}</strong><br /><span className="text-muted">{item.why}</span>
+                    {item.confidence !== 'high' ? <span className="text-muted"> · {item.confidence} confidence</span> : null}</td>
+                  <td>{item.solution}<br /><span className="text-muted">{item.play}</span></td>
+                  <td className="text-muted">{range(item.sized_monthly) ?? '—'}</td>
+                  <td>{item.playbook ? <Link to={`/browse/${encodeURIComponent(item.playbook)}`}>{item.playbook}</Link> : '—'}</td>
+                  <td><DraftButton customerId={customerId} pitch={item.pitch} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-muted azure-cost-note">Compass's recommendations, sized from each Solution note at list price.</p>
+        </>
+      ) : null}
+    </div>
+  );
 }
