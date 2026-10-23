@@ -20,6 +20,7 @@ import { PipelineTab } from './PipelineTab';
 import { QuotaTab } from './Quota';
 import { SolutionsTab } from './Solutions';
 import { DrillPanel, DrillProvider, useDrillState } from './Drill';
+import { BriefButton } from './Brief';
 import { REPORTS, reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
@@ -192,9 +193,12 @@ export function AzureCostPage() {
       <header className="azure-cost-header">
         <h1>{customer ? customer.name : reportTitle(report)}</h1>
         {customer && view === 'customer' ? null : customer ? (
-          <Link to={settingsLink({ location, label: customer.name }, customer.id)} className="btn azure-cost-settings-link">
-            Edit {customer.name}: MACC, enrollments
-          </Link>
+          <span className="azure-cost-toolbar">
+            <BriefButton customerId={customer.id} customerName={customer.name} />
+            <Link to={settingsLink({ location, label: customer.name }, customer.id)} className="btn azure-cost-settings-link">
+              Edit {customer.name}: MACC, enrollments
+            </Link>
+          </span>
         ) : (
           <Link to={settingsLink({ location, label: reportTitle(report) })} className="azure-cost-settings-link">
             Customers and enrollments

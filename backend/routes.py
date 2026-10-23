@@ -113,6 +113,23 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def get_solutions_across() -> dict:
         return _answered(service.solutions_across)
 
+    @router.get("/customers/{customer_id}/brief")
+    def get_customer_brief(customer_id: str) -> dict:
+        return _answered(lambda: service.customer_brief(customer_id))
+
+    @router.post("/customers/{customer_id}/brief")
+    def post_customer_brief(customer_id: str) -> dict:
+        """Writes the brief now. Compass failing is said as such (502), and a framework
+        without Compass for plugins (424), never as a fault of the request."""
+        try:
+            return _answered(lambda: service.customer_brief(customer_id, write=True))
+        except RuntimeError as exc:
+            if type(exc).__name__ == "BriefUnavailable":
+                raise HTTPException(status_code=424, detail=str(exc)) from exc
+            if type(exc).__name__ == "LlmError":
+                raise HTTPException(status_code=502, detail=f"Compass could not write the brief: {exc}") from exc
+            raise
+
     @router.get("/customers/{customer_id}/drill")
     def get_customer_drill(customer_id: str, kind: str, name: str, accounts: str | None = None) -> dict:
         return _answered(lambda: service.drill(customer_id, kind, name,

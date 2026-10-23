@@ -33,6 +33,9 @@ LEGACY_TRACKED_ACCOUNTS_FILE = "Azure-Cost-Manager/Tracked-Accounts.json"
 FINOPS_FILE = "Azure-Cost-Manager/FinOps.json"
 # The operator's own service -> solution play choices, over `solution_plays`' defaults.
 SOLUTION_PLAYS_FILE = "Azure-Cost-Manager/Solution-Plays.json"
+# Customer briefs written by Compass, kept with the fingerprint of their facts. Not a
+# data file to move between machines: a brief is written again from the data.
+BRIEFS_FILE = "Azure-Cost-Manager/Briefs.json"
 # The seller's baseline (start, months), fiscal year and quota -- one for everyone.
 QUOTA_FILE = "Azure-Cost-Manager/Quota.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
@@ -164,6 +167,16 @@ class ConsumptionStore:
     def save_solution_play_overrides(self, overrides: dict[str, str]) -> None:
         with self._lock:
             _write_json(self._api, SOLUTION_PLAYS_FILE, {"services": overrides})
+
+    def brief(self, customer_id: str) -> dict | None:
+        with self._lock:
+            return (_read_json(self._api, BRIEFS_FILE, {}).get("briefs") or {}).get(customer_id)
+
+    def save_brief(self, customer_id: str, brief: dict) -> None:
+        with self._lock:
+            state = _read_json(self._api, BRIEFS_FILE, {})
+            state.setdefault("briefs", {})[customer_id] = brief
+            _write_json(self._api, BRIEFS_FILE, state)
 
     def customer(self, customer_id: str) -> dict | None:
         return next((customer for customer in self.customers() if customer["id"] == customer_id), None)

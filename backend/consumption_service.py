@@ -6,13 +6,17 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (consumption_analysis, data_transfer, drill, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
+from . import (brief, consumption_analysis, data_transfer, drill, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
                marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tags, this_month,
                whitespace)
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
 from .pipeline import Pipeline, PipelineUnavailable, by_month
+
+class BriefUnavailable(RuntimeError):
+    """No model to write a brief with on this framework."""
+
 
 # Cost Management bills every Marketplace offer under these service names.
 MARKETPLACE_SERVICES = ("SaaS", "Azure Applications")
@@ -55,9 +59,12 @@ def _now() -> datetime:
 class ConsumptionService:
     def __init__(self, store: ConsumptionStore, book: CustomerBook,
                  today: Callable[[], date] = date.today, now: Callable[[], datetime] = _now,
-                 pipeline: Pipeline | None = None, solution_notes=None, technology_notes=None) -> None:
+                 pipeline: Pipeline | None = None, solution_notes=None, technology_notes=None,
+                 llm=None, customer_context=None) -> None:
         self._store = store
         self._book = book
+        self._llm = llm
+        self._customer_context = customer_context
         self._solution_notes = solution_notes
         self._technology_notes = technology_notes
         self.prices = pricing.PriceBook(store.finops_state, store.save_finops_state, now)
@@ -241,6 +248,37 @@ class ConsumptionService:
             [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]], catalog))
             for customer in everyone if not customer.get("parent")]
         return solutions.across(views)
+
+    def _brief_facts(self, customer_id: str) -> dict:
+        customer = self._customer(customer_id)
+        analysis = self._analysis(customer_id)
+        try:
+            quota_found = self.quota_customer(customer_id)
+        except ValueError:
+            quota_found = None
+        sizing = {pattern["name"]: [pattern["sizing"]["totals"][size] for size in ("small", "medium", "large")]
+                  for pattern in self._patterns() if pattern.get("sizing")}
+        vault = self._customer_context.about(customer.get("entity_customer")) if self._customer_context else {}
+        return brief.facts(customer, analysis, quota_found, self.solutions_of(customer_id), sizing, vault)
+
+    def customer_brief(self, customer_id: str, write: bool = False) -> dict:
+        """The customer's brief before a meeting (operator, 2026-10-23), written by Compass
+        over the facts the reports computed. `write`: write it now, even when the facts
+        have not changed; otherwise the kept one is returned, `stale` when they have."""
+        found = self._brief_facts(customer_id)
+        stamp = brief.fingerprint(found)
+        kept = self._store.brief(customer_id)
+        available = bool(self._llm and self._llm.available())
+        if not write:
+            return {**(kept or {}), "kept": bool(kept), "stale": bool(kept) and kept.get("fingerprint") != stamp,
+                    "available": available, "facts": found}
+        if self._llm is None:
+            raise BriefUnavailable("The customer brief needs a framework that offers Compass to plugins "
+                                   "(api.llm, ADR-063): update Second Brain")
+        written = {"markdown": self._llm.complete(brief.messages(found), timeout=180.0),
+                   "generated_at": self._now().isoformat(), "fingerprint": stamp}
+        self._store.save_brief(customer_id, written)
+        return {**written, "kept": True, "stale": False, "available": available, "facts": found}
 
     def guide(self) -> dict:
         """The Solutions Guide without choosing a customer (operator, 2026-10-23: "I don't

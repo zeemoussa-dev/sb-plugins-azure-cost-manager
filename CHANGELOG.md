@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.44.0] - 2026-10-23
+
+- feat: **Brief me** -- a one-click brief before a meeting, written by Compass (operator, 2026-10-23). In a customer's report (My view), the button opens a popup with: Headline, Where they stand, What moved, What they are building, What to pitch, Pipeline and quota, From recent conversations, Questions to ask, Watch out for.
+  - **Grounded, never invented:** the plugin gathers the facts itself -- consumption by month and its top services and anomalies, the MACC's burn and verdict, the solutions found and the pitches with their Solution-note sizing, open opportunities, the quota above baseline and the pipeline against what happened, and from the vault the Customer note's summary and the latest notes linking to it -- and the model is told to use those figures and nothing else, and to say when something is not known.
+  - **Kept, not rewritten on every click:** a brief is kept with a fingerprint of its facts; opened again it shows the kept one, says when the data has changed since, and **Write again** writes it anew. **Copy** puts it on the clipboard.
+  - Uses the framework's `api.llm` (Compass), optional under API 12 (`ADR-063`); on a framework without it, or with Compass not configured, the popup says so.
+  - **Routes:** `GET /customers/{id}/brief` (the kept one, with `stale` and `available`), `POST /customers/{id}/brief` (write it now).
+
 ## [0.43.1] - 2026-10-23
 
 - feat: **in the Solutions Guide, "SaaS" and "Azure Applications" name what they are** across all customers: the Marketplace products behind them -- publisher, offer, plan, subscription or usage-based, monthly spend over the last three closed months -- and the customers buying each, every one opening that customer's report drilled into the service.

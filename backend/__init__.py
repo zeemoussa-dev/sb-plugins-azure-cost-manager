@@ -18,7 +18,8 @@ from .billing_client import BillingClient
 from .commitment_notes import CommitmentNotes
 from .consumption_provider import SERVICE as CONSUMPTION_SERVICE, ConsumptionProvider
 from .consumption_service import ConsumptionService
-from .consumption_store import DATA_FILES, ConsumptionStore
+from .consumption_store import BRIEFS_FILE, DATA_FILES, ConsumptionStore
+from .customer_context import CustomerContext
 from .consumption_sync import RESUME_AFTER_SECONDS, ConsumptionSync
 from .customers import AccountDirectory, CustomerBook
 from .pipeline import Pipeline
@@ -30,7 +31,7 @@ from .sync_log import SYNC_LOG_FILE, SyncLog
 
 
 def register(api) -> None:
-    for data_file in (*DATA_FILES, SYNC_LOG_FILE):
+    for data_file in (*DATA_FILES, SYNC_LOG_FILE, BRIEFS_FILE):
         api.register_seed_data_file(data_file)
     token = AzureCliToken()
     log = SyncLog(lambda: api.data.read_text(SYNC_LOG_FILE), lambda text: api.data.write_text(SYNC_LOG_FILE, text))
@@ -38,8 +39,10 @@ def register(api) -> None:
     directory = AccountDirectory(lambda: BillingClient(token).list_billing_accounts())
     book = CustomerBook(store, directory, CommitmentNotes(api))
     pipeline = Pipeline(api)
+    # Compass, where the framework offers it to plugins (`api.llm`, optional under API 12, ADR-063).
     service = ConsumptionService(store, book, pipeline=pipeline, solution_notes=SolutionNotes(api),
-                                 technology_notes=TechnologyNotes(api))
+                                 technology_notes=TechnologyNotes(api), llm=getattr(api, "llm", None),
+                                 customer_context=CustomerContext(api))
     sync = ConsumptionSync(store, directory, lambda: BillingClient(token, observe=log), customers=book.records,
                            after_customers=service.refresh_prices, log=log)
     api.register_router(build_router(service, book, directory, sync, token, pipeline, log))

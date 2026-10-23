@@ -867,6 +867,23 @@ export interface Drill {
   by_play?: { name: string; cost: number }[];
 }
 
+/** The brief before a meeting, written by Compass (operator, 2026-10-23). */
+export interface CustomerBrief {
+  markdown?: string;
+  generated_at?: string;
+  fingerprint?: string;
+  /** A brief is kept for this customer. */
+  kept: boolean;
+  /** The data has changed since it was written. */
+  stale: boolean;
+  /** Compass can be asked on this install. */
+  available: boolean;
+  facts: unknown;
+}
+
+export const fetchBrief = (id: string) => apiFetch<CustomerBrief>(`${customer(id)}/brief`);
+export const writeBrief = (id: string) => apiFetch<CustomerBrief>(`${customer(id)}/brief`, { method: 'POST' });
+
 export const fetchDrill = (id: string, kind: DrillKind, name: string, accounts: string[] | null) =>
   apiFetch<Drill>(`${customer(id)}/drill?kind=${kind}&name=${encodeURIComponent(name)}`
     + (accounts?.length ? `&accounts=${encodeURIComponent(accounts.join(','))}` : ''));
