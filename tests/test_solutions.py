@@ -152,3 +152,13 @@ def test_a_small_add_on_is_also_run_and_a_pitch_looks_at_the_summed_estate():
     assert not any("Site Recovery" in pitch["pitch"] for pitch in view["pitches"])   # an add-on drives no pitch
     # Defender is $20 a month in each of two subscriptions, $40 together: they run it.
     assert not any("Defender for Cloud" in pitch["pitch"] for pitch in view["pitches"])
+
+
+def test_a_subscription_under_two_enrollments_is_one_subscription():
+    one = entry({"AEN-SPK-11(ca8d84c7-9353-4152-957b-b27eff9077d6)": {"services": {"Virtual Machines": 3000}}})
+    two = entry({"AEN-SPK-11(ca8d84c7-9353-4152-957b-b27eff9077d6)": {"services": {"Virtual Machines": 600}}})
+
+    view = solutions.customer_view({"1": one, "2": two}, CATALOG)
+
+    assert [(row["subscription"], row["monthly"]) for row in view["subscriptions"]] == [
+        ("AEN-SPK-11(ca8d84c7-9353-4152-957b-b27eff9077d6)", 1200.0)]

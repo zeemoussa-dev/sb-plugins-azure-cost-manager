@@ -363,9 +363,17 @@ def _footprints(entries: dict[str, dict]) -> tuple[dict[str, dict], dict | None]
         if window is None or footprint.get("last_month", "") > window["last_month"]:
             window = {"first_month": footprint.get("first_month"), "last_month": footprint.get("last_month"),
                       "months": footprint.get("months") or 1, "fetched_at": footprint.get("fetched_at")}
+        spread = footprint.get("months") or 1
         for name, found in footprint["subscriptions"].items():
-            key = name if name not in subscriptions else f"{name} ({len(subscriptions)})"
-            subscriptions[key] = {**found, "months": footprint.get("months") or 1}
+            # A subscription billed under two of the group's enrollments (moved between them,
+            # as many of Mubadala's were) is one subscription: its monthly costs are added. It
+            # used to be listed twice, the second as "NAME(id) (67)" -- a name no drill knew
+            # (operator, 2026-10-23).
+            merged = subscriptions.setdefault(name, {"services": {}, "meters": {}, "resource_groups": {}, "months": 1})
+            for dimension in ("services", "meters", "resource_groups"):
+                into = merged[dimension]
+                for item, cost in (found.get(dimension) or {}).items():
+                    into[item] = into.get(item, 0.0) + cost / spread
     return subscriptions, window
 
 
@@ -380,7 +388,8 @@ def customer_view(entries: dict[str, dict], catalog: list[dict]) -> dict:
                 totals[name] = totals.get(name, 0.0) + cost
         return totals
 
-    everything = _Estate(summed("services"), summed("meters"), [], max(1, (window or {}).get("months") or 1))
+    # `_footprints` gives monthly figures already, merged across enrollments.
+    everything = _Estate(summed("services"), summed("meters"), [], 1)
     rows = []
     for name, found in subscriptions.items():
         months = found.get("months") or 1

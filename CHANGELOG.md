@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.48.2] - 2026-10-23
+
+- fix: **a subscription billed under two of a customer's enrollments is one subscription** (operator, 2026-10-23, on Mubadala: "half of the subscriptions did, the other half didn't"). Mubadala has many subscriptions that moved between its enrollments; the Solutions view listed each twice, the second named `NAME(id) (67)` -- so its spend was split across two rows, its name could not be shown above its id, and a drill on it found nothing. Its monthly costs are now added into one row under its real name, and the pitches read the estate the same way.
+
 ## [0.48.1] - 2026-10-23
 
 - fix: **a subscription shows its name, with its id underneath, smaller** (operator, 2026-10-23: "the subscription name and a smaller subtext for the ID under it instead of one line"). Cost Management names one `SUB-ENAI-DEV01(57e76ab1-...)`; everywhere a subscription is a name to read -- drill links, the drill popup's title, Breakdown's ranked subscriptions, the Solutions tab, Compass's placements -- it now reads `SUB-ENAI-DEV01` with the id below in small grey type. A popup's title stays plain text for screen readers.
