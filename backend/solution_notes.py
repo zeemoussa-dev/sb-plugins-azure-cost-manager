@@ -25,6 +25,7 @@ import time
 from . import solutions
 
 NOTE_TYPE = "Solution"
+PLAYBOOK_TYPE = "Playbook"
 # Every Solutions page reads every note; they change when someone edits one.
 CACHE_SECONDS = 60
 SIZES = ("small", "medium", "large")
@@ -102,6 +103,22 @@ class SolutionNotes:
         with self._lock:
             self._kept = (self._clock(), found)
         return found
+
+    def playbooks(self) -> list[dict]:
+        """The vault's Playbook notes (`type: Playbook`, under `Work/Sales/Playbooks/`):
+        name, play, the solution ids they cover and their summary."""
+        vault = getattr(self._api, "vault", None)
+        found = []
+        for entry in (vault.entries() if vault else []):
+            frontmatter = entry.get("frontmatter") or {}
+            if str(frontmatter.get("type") or "") != PLAYBOOK_TYPE:
+                continue
+            solutions_covered = frontmatter.get("solutions") or []
+            found.append({"stem": entry["stem"], "name": frontmatter.get("name") or entry["stem"],
+                          "play": frontmatter.get("play"), "status": frontmatter.get("status"),
+                          "solutions": [str(item) for item in solutions_covered] if isinstance(solutions_covered, list) else [],
+                          "summary": _summary(vault.read_section(entry["path"], "Summary"))})
+        return sorted(found, key=lambda item: item["name"].lower())
 
     def _read(self) -> dict:
         vault = getattr(self._api, "vault", None)

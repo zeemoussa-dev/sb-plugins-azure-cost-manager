@@ -954,6 +954,27 @@ export interface SolutionCatalog {
   notes: { stem: string; name: string; id: string | null; status: string | null; error: string | null }[];
 }
 
+/** The Solutions Guide: playbooks, solutions and services, without choosing a customer. */
+export interface GuideService {
+  name: string;
+  note: string | null;
+  play: string | null;
+  category?: string | null;
+  customers: { id: string; name: string; monthly: number }[];
+  monthly: number;
+  solutions: { id: string; name: string; note?: string | null }[];
+}
+
+export interface Guide {
+  window: FootprintWindow | null;
+  playbooks: { stem: string; name: string; play: string | null; status: string | null; solutions: string[]; summary: string }[];
+  solutions: (SolutionGuide & { id: string; name: string; play: string; description?: string | null;
+    customers: string[]; monthly: number })[];
+  services: GuideService[];
+}
+
+export const fetchGuide = () => apiFetch<Guide>(`${BASE}/guide`);
+
 export const fetchCustomerSolutions = (id: string) => apiFetch<CustomerSolutions>(`${customer(id)}/solutions`);
 export const fetchSolutionsAcross = () => apiFetch<SolutionsAcross>(`${BASE}/solutions`);
 export const fetchSolutionCatalog = () => apiFetch<SolutionCatalog>(`${BASE}/solutions/catalog`);

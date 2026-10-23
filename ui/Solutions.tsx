@@ -43,7 +43,7 @@ function PlayChips({ plays, chosen, onChoose }: { plays: string[]; chosen: strin
 }
 
 /** A solution's guide from its vault note: the sizing bill and the architecture diagram. */
-function SolutionDetail({ guide }: { guide: SolutionGuide }) {
+export function SolutionDetail({ guide }: { guide: SolutionGuide }) {
   if (!guide.note) return <p className="text-muted">No Solution note in the vault for this one yet.</p>;
   return (
     <div>

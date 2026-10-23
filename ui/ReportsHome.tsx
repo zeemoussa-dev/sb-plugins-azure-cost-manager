@@ -39,6 +39,8 @@ const THEMES: { title: string; items: ThemeItem[] }[] = [
   ] },
   { title: 'Opportunities', items: [
     { report: 'Pipeline' }, { report: 'Solutions' },
+    { to: '/azure-cost-manager/guide', title: 'Solutions Guide',
+      summary: 'The sales playbooks, every solution with its sizing and diagram, and every Azure service -- what it is and which customers use it.' },
     { to: '/azure-cost-manager/solutions', title: 'Solutions, all customers',
       summary: 'Who runs which solution across every customer, by solution play, and every pitch -- for the Solution Sellers.' },
     { to: '/azure-cost-manager/whitespace', title: 'Service whitespace',

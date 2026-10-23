@@ -2,6 +2,15 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.43.0] - 2026-10-23
+
+- feat: **Solutions Guide** -- its own entry in the sidebar, and a card on the landing page (operator, 2026-10-23: "add a link for the Playbooks somewhere, and Solutions, then Services; I don't have a way to navigate to it unless I am inside a customer view"). Three tabs, each row opening in a popup:
+  - **Playbooks:** the vault's Playbook notes, with their summary, the solutions they cover (and how many customers run each) and a link to the note.
+  - **Solutions:** every Solution note with its play, how many customers run it and its sized range; the popup holds the sizing bill, the diagram and the note.
+  - **Services:** every service a customer was billed for in the last three closed months, and every Technology note besides; with its play, the customers using it and their monthly spend. The popup links the Technology note and the solutions it belongs to, and each customer opens that customer's report drilled into the service.
+  - Filter by solution play, and search, on Solutions and Services.
+- **Route:** `GET /guide`.
+
 ## [0.42.0] - 2026-10-23
 
 - feat: **every drill-down is a popup** (operator, 2026-10-23: "why not a popup with a close button ... same goes for everything, much better with all drill-downs"). A drill, and every row that used to unfold in place -- Growth and churn, Subscription and tag hygiene, Service and Marketplace whitespace, Baseline and quota's missed forecasts, a solution and a subscription on the Solutions screens -- now opens over the page, wherever it was clicked, and Close, Escape or a click outside leaves the page where it was. One `Popup` component, fixed to the window; in a table it sits in a row that takes no space (`PopupRow`), since screens may not use `react-dom` portals. Replaces 0.41.2's scroll-into-view.

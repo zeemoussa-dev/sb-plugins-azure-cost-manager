@@ -105,6 +105,10 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def get_solution_catalog() -> dict:
         return _answered(service.solution_catalog)
 
+    @router.get("/guide")
+    def get_guide() -> dict:
+        return _answered(service.guide)
+
     @router.get("/solutions")
     def get_solutions_across() -> dict:
         return _answered(service.solutions_across)

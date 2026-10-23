@@ -66,6 +66,17 @@ class TechnologyNotes:
             self._kept = (self._clock(), found)
         return found
 
+    def notes(self) -> list[dict]:
+        """Every Technology note: `{stem, title, category}`."""
+        vault = getattr(self._api, "vault", None)
+        found = []
+        for entry in (vault.entries() if vault else []):
+            frontmatter = entry.get("frontmatter") or {}
+            if str(frontmatter.get("type") or "") in NOTE_TYPES:
+                found.append({"stem": entry["stem"], "title": str(frontmatter.get("title") or entry["stem"]),
+                              "category": frontmatter.get("category")})
+        return sorted(found, key=lambda note: note["title"].lower())
+
     def note_for(self, service: str) -> str | None:
         """The stem of the note about a billed service, or None."""
         notes = self._by_key()

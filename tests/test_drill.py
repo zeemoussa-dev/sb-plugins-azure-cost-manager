@@ -100,3 +100,31 @@ def test_without_pairs_a_drill_reads_the_footprint():
         {"name": "Prod", "monthly": 300.0, "last_12": None}, {"name": "Dev", "monthly": 30.0, "last_12": None}]
     assert [row["name"] for row in drill.from_footprints(entries, "subscription", "Prod")] == ["Foundry Models", "VM"]
 
+
+
+def test_the_guide_lists_services_with_their_customers_and_unbilled_notes(fake_api):
+    fake_api.get_service = lambda name: None
+    store = ConsumptionStore(fake_api)
+    book = CustomerBook(store, AccountDirectory(lambda: [{"name": "1", "display_name": "Contoso",
+                                                          "agreement_type": "EnterpriseAgreement"}]))
+    book.save(None, {"name": "Contoso", "accounts": ["1"]})
+    store.save_account("1", ENTRY)
+    vault = SimpleNamespace(entries=lambda: [
+        {"stem": "Virtual Machines", "path": "vm", "frontmatter": {"type": "AzureDoc", "title": "Virtual Machines"}},
+        {"stem": "Azure Bastion", "path": "b", "frontmatter": {"type": "AzureDoc", "title": "Azure Bastion"}},
+        {"stem": "GenAI play", "path": "p", "frontmatter": {"type": "Playbook", "name": "GenAI play", "solutions": ["genai"]}}],
+        read_section=lambda path, header: "A playbook.")
+    from backend.solution_notes import SolutionNotes
+    api = SimpleNamespace(vault=vault)
+    service = ConsumptionService(store, book, today=lambda: date(2026, 10, 23),
+                                 now=lambda: datetime(2026, 10, 23, tzinfo=timezone.utc),
+                                 solution_notes=SolutionNotes(api), technology_notes=TechnologyNotes(api))
+
+    guide = service.guide()
+
+    vm = next(row for row in guide["services"] if row["name"] == "VM")
+    assert vm["customers"][0]["name"] == "Contoso" and vm["monthly"] == 360.0
+    assert any(row["name"] == "Azure Bastion" and row["note"] == "Azure Bastion" for row in guide["services"])
+    assert guide["playbooks"] == [{"stem": "GenAI play", "name": "GenAI play", "play": None, "status": None,
+                                   "solutions": ["genai"], "summary": "A playbook."}]
+    assert len(guide["solutions"]) > 20

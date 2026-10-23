@@ -242,6 +242,64 @@ class ConsumptionService:
             for customer in everyone if not customer.get("parent")]
         return solutions.across(views)
 
+    def guide(self) -> dict:
+        """The Solutions Guide without choosing a customer (operator, 2026-10-23: "I don't
+        have a way to navigate to it unless I am inside a customer"): the playbooks, the
+        solutions with who runs them, and every service billed or written up, with the
+        customers using it."""
+        catalog = self._patterns()
+        across = self.solutions_across()
+        running = {item["id"]: item for item in across["by_solution"]}
+        notes = self._technology_notes
+        plays = self.solution_play_mapping()
+        everyone = self._book.list()
+        current_month = months.month_of(self._today())
+        used: dict[str, dict] = {}
+        for customer in everyone:
+            if customer.get("parent"):
+                continue
+            members = [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]]
+            merged, _ = consumption_analysis.merge({account["name"]: self._store.account(account["name"])
+                                                    for member in members for account in member["accounts"]}, None, set())
+            recent = [month for month in sorted(merged) if month < current_month][-3:]
+            totals: dict[str, float] = {}
+            for month in recent:
+                for service, cost in (merged[month]["actual"].get("service") or {}).items():
+                    totals[service] = totals.get(service, 0.0) + cost
+            for service, cost in totals.items():
+                monthly = round(cost / max(1, len(recent)), 2)
+                if monthly < 1:
+                    continue
+                row = used.setdefault(service, {"customers": [], "monthly": 0.0})
+                row["customers"].append({"id": customer["id"], "name": customer["name"], "monthly": monthly})
+                row["monthly"] = round(row["monthly"] + monthly, 2)
+        signals = {pattern["id"]: {signal for group in pattern["requires"] for signal in group} | set(pattern["supports"])
+                   for pattern in catalog}
+        services = []
+        noted = set()
+        for service, row in used.items():
+            stem = notes.note_for(service) if notes else None
+            noted.add(stem)
+            services.append({"name": service, "note": stem, "play": solution_plays.play_of(service, plays),
+                             "customers": sorted(row["customers"], key=lambda item: -item["monthly"]),
+                             "monthly": row["monthly"],
+                             "solutions": [{"id": pattern["id"], "name": pattern["name"], "note": pattern.get("note")}
+                                           for pattern in catalog if f"service:{service}" in signals[pattern["id"]]]})
+        for note in (notes.notes() if notes else []):
+            if note["stem"] not in noted:
+                services.append({"name": note["title"], "note": note["stem"], "play": None, "customers": [],
+                                 "monthly": 0.0, "solutions": [], "category": note.get("category")})
+        return {
+            "window": across["window"],
+            "playbooks": self._solution_notes.playbooks() if self._solution_notes else [],
+            "solutions": [{"id": pattern["id"], "name": pattern["name"], "play": pattern["play"],
+                           "note": pattern.get("note"), "description": pattern.get("description"),
+                           "sizing": pattern.get("sizing"), "architecture": pattern.get("architecture"),
+                           "customers": (running.get(pattern["id"]) or {}).get("customers") or [],
+                           "monthly": (running.get(pattern["id"]) or {}).get("monthly") or 0.0} for pattern in catalog],
+            "services": sorted(services, key=lambda item: (-item["monthly"], item["name"].lower())),
+        }
+
     def export_report(self, report: str, measure: dict | None = None) -> tuple[str, bytes]:
         """`(file name, .xlsx bytes)` for one of the cross-customer reports, on the
         plugin's workbook template (operator, 2026-10-21)."""
