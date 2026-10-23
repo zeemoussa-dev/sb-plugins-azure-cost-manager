@@ -132,7 +132,7 @@ def _refresh_setup(fake_api, kept: dict | None, today: date = TODAY):
 
 def test_a_refresh_asks_again_only_from_five_days_before_its_marker(fake_api):
     kept = {**daily({"2026-09-05": {"VM": 100.0}, "2026-10-02": {"VM": 1.0}, "2026-10-09": {"VM": 2.0}},
-                    {"2026-09-05": {"rg-core": 100.0}}), "last_day": "2026-10-10"}
+                    {"2026-09-05": {"rg-core": 100.0}}), "pairs": {}, "last_day": "2026-10-10"}
     sync, store, asked = _refresh_setup(fake_api, kept)
 
     sync.run_this_month()
@@ -146,7 +146,7 @@ def test_a_refresh_asks_again_only_from_five_days_before_its_marker(fake_api):
 
 
 def test_into_a_new_month_the_window_moves_and_the_end_of_the_last_one_is_asked_again(fake_api):
-    kept = {**daily({"2026-09-05": {"VM": 100.0}, "2026-10-20": {"VM": 7.0}}), "last_day": "2026-10-31"}
+    kept = {**daily({"2026-09-05": {"VM": 100.0}, "2026-10-20": {"VM": 7.0}}), "pairs": {}, "last_day": "2026-10-31"}
     sync, store, asked = _refresh_setup(fake_api, kept, today=date(2026, 11, 3))
 
     sync.run_this_month()
@@ -155,3 +155,13 @@ def test_into_a_new_month_the_window_moves_and_the_end_of_the_last_one_is_asked_
     saved = store.account("1")["daily"]
     assert saved["first_day"] == "2026-10-01" and "2026-09-05" not in saved["service"]
     assert saved["service"]["2026-10-20"] == {"VM": 7.0}
+
+
+def test_daily_data_from_before_the_pairs_is_asked_for_whole_once(fake_api):
+    kept = {**daily({"2026-10-02": {"VM": 1.0}}), "last_day": "2026-10-10"}
+    sync, store, asked = _refresh_setup(fake_api, kept)
+
+    sync.run_this_month()
+
+    assert asked[0] == ("2026-09-01", ("service", "subscription"))
+    assert store.account("1")["daily"]["pairs"] == {"2026-10-18": {"subscription-new": {"service-new": 4.0}}}

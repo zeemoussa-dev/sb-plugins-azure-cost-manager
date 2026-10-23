@@ -269,11 +269,19 @@ class ConsumptionStore:
     @staticmethod
     def months_to_fetch(entry: dict, wanted: list[str]) -> list[str]:
         """The wanted months that are missing or not yet settled, oldest first.
-        A month synced before meter detail was kept (0.2.0) is fetched once more."""
+        A month synced before meter detail (0.2.0) or service x subscription (0.39.0)
+        was kept is fetched once more."""
         def complete(month: str) -> bool:
             data = entry["months"].get(month) or {}
-            return "meters" in data and is_settled(month, data.get("fetched_at"))
+            return ("meters" in data and "pairs" in (data.get("actual") or {})
+                    and is_settled(month, data.get("fetched_at")))
         return [month for month in wanted if not complete(month)]
+
+    @staticmethod
+    def lacks_pairs(entry: dict) -> bool:
+        """A synced month without service x subscription: fetched before it was kept."""
+        return any("pairs" not in (data.get("actual") or {}) for data in (entry.get("months") or {}).values()
+                   if data.get("actual") is not None)
 
     def not_macc_eligible(self) -> list[dict]:
         """`[{publisher, offer}]` the operator marked as not counting toward a MACC."""

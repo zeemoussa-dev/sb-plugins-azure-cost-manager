@@ -120,3 +120,19 @@ def test_the_sync_reads_the_footprint_once_per_closed_month(fake_api):
     assert sorted(asked[len(first):])[0] == ("MeterSubCategory", "2026-08", "2026-10")
     footprint = store.account("1")["footprint"]
     assert footprint["subscriptions"]["sub-ai"]["services"] == {"Foundry Models": 1500.0}
+
+
+def test_months_keep_service_by_subscription_and_older_months_are_fetched_once_more():
+    from backend.consumption_sync import _aggregate
+
+    found = _aggregate([{"month": "2026-09", "service": "VM", "subscription": "Prod", "cost": 10.0},
+                        {"month": "2026-09", "service": "VM", "subscription": "Dev", "cost": 2.0},
+                        {"month": "2026-09", "service": "SQL", "subscription": "Prod", "cost": 3.0}])
+    assert found["2026-09"]["pairs"] == {"Prod": {"VM": 10.0, "SQL": 3.0}, "Dev": {"VM": 2.0}}
+
+    old = {"months": {"2026-01": {"meters": {}, "fetched_at": "2026-03-01T00:00:00+00:00",
+                                  "actual": {"service": {"VM": 1.0}, "subscription": {"Prod": 1.0}}}}}
+    assert ConsumptionStore.lacks_pairs(old)
+    assert ConsumptionStore.months_to_fetch(old, ["2026-01"]) == ["2026-01"]
+    old["months"]["2026-01"]["actual"]["pairs"] = {}
+    assert not ConsumptionStore.lacks_pairs(old) and ConsumptionStore.months_to_fetch(old, ["2026-01"]) == []

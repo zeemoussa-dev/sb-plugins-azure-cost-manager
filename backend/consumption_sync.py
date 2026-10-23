@@ -62,19 +62,29 @@ def _now() -> datetime:
 
 
 def _aggregate(rows: list[dict]) -> dict[str, dict]:
-    """Rows of month x service x subscription into, per month, two name -> cost
-    maps. The cross product itself is not kept: over three years of a large
-    customer it runs to megabytes, and nothing on screen reads it."""
+    """Rows of month x service x subscription into, per month, name -> cost by
+    service and by subscription, and `pairs`: subscription -> service -> cost.
+    The pairs were once dropped to keep the cache small; that lost which services
+    run in which subscription (operator, 2026-10-23: "a bad move"), so they are kept."""
     by_month: dict[str, dict] = {}
     for row in rows:
-        month = by_month.setdefault(row["month"], {"service": {}, "subscription": {}, "currency": None})
+        month = by_month.setdefault(row["month"], {"service": {}, "subscription": {}, "pairs": {}, "currency": None})
         for key in ("service", "subscription"):
             month[key][row[key]] = month[key].get(row[key], 0.0) + row["cost"]
+        services = month["pairs"].setdefault(row["subscription"], {})
+        services[row["service"]] = services.get(row["service"], 0.0) + row["cost"]
         month["currency"] = month["currency"] or row.get("currency")
     for month in by_month.values():
         for key in ("service", "subscription"):
             month[key] = {name: round(cost, 2) for name, cost in month[key].items() if round(cost, 2) != 0}
+        month["pairs"] = _rounded_pairs(month["pairs"])
     return by_month
+
+
+def _rounded_pairs(pairs: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
+    rounded = {subscription: {service: round(cost, 2) for service, cost in services.items() if round(cost, 2) != 0}
+               for subscription, services in pairs.items()}
+    return {subscription: services for subscription, services in rounded.items() if services}
 
 
 def _aggregate_meters(rows: list[dict]) -> dict[str, dict[str, float]]:
@@ -97,6 +107,15 @@ def _aggregate_daily(rows: list[dict], keys: tuple[str, ...]) -> dict[str, dict[
             day[row[key]] = day.get(row[key], 0.0) + row["cost"]
     return {key: {day: {name: round(cost, 2) for name, cost in names.items() if round(cost, 2) != 0}
                   for day, names in days.items()} for key, days in found.items()}
+
+
+def _daily_pairs(rows: list[dict]) -> dict[str, dict[str, dict[str, float]]]:
+    """Day -> subscription -> service -> cost."""
+    found: dict[str, dict[str, dict[str, float]]] = {}
+    for row in rows:
+        services = found.setdefault(row["day"], {}).setdefault(row["subscription"], {})
+        services[row["service"]] = services.get(row["service"], 0.0) + row["cost"]
+    return {day: _rounded_pairs(pairs) for day, pairs in found.items()}
 
 
 def _aggregate_marketplace(charges: list[dict]) -> list[dict]:
@@ -262,8 +281,9 @@ class ConsumptionSync:
                 self._log.note(f"{account}: fetched by day to {marker}; asking again from {refetch_from}", account)
             self._set(current={**self._named(account), "this_month": True})
             try:
+                # A refresh from before the pairs were kept asks for the whole window once.
                 by_service = self._query(lambda: client.query_daily(
-                    account, since("service"), today.isoformat(),
+                    account, min(since("service"), since("pairs")), today.isoformat(),
                     {"service": "ServiceName", "subscription": "SubscriptionName"}), account)
                 by_group = self._query(lambda: client.query_daily(
                     account, since("resource_group"), today.isoformat(), {"resource_group": "ResourceGroupName"}),
@@ -273,7 +293,7 @@ class ConsumptionSync:
                 self._set(accounts_done=done)
                 continue
             entry = self._store.account(account)
-            fetched = {**_aggregate_daily(by_service, ("service", "subscription")),
+            fetched = {**_aggregate_daily(by_service, ("service", "subscription")), "pairs": _daily_pairs(by_service),
                        **_aggregate_daily(by_group, ("resource_group",))}
             # By tag too: a new Project or Owner value is often the clearest sign of a
             # new initiative (operator, 2026-10-18). One query per dimension, on the
@@ -503,7 +523,10 @@ class ConsumptionSync:
         order = sorted(first_month_by_account, key=lambda name: (synced_at[name] or "", name))
         # The progress counts only what will be fetched: "1 of 112" with 59 to skip read
         # as a sync that fetches everything again (operator, 2026-10-18).
-        due = [name for name in order if customer_id or not self._recent(synced_at[name])]
+        # An enrollment synced before service x subscription was kept is due however
+        # recent its sync: its months are fetched once more to fill the pairs.
+        due = [name for name in order if customer_id or not self._recent(synced_at[name])
+               or self._store.lacks_pairs(self._store.account(name))]
         self._note_skipped(len(order) - len(due), "consumption")
         self._set(accounts_done=0, accounts_total=len(due))
         client = self._client_factory()
@@ -594,9 +617,11 @@ class ConsumptionSync:
                 entry["months"][month] = {
                     "fetched_at": fetched_at,
                     "currency": actual.get("currency") or amortized.get("currency"),
-                    "actual": {"service": actual.get("service", {}), "subscription": actual.get("subscription", {})},
+                    "actual": {"service": actual.get("service", {}), "subscription": actual.get("subscription", {}),
+                               "pairs": actual.get("pairs", {})},
                     "amortized": {"service": amortized.get("service", {}),
-                                  "subscription": amortized.get("subscription", {})},
+                                  "subscription": amortized.get("subscription", {}),
+                                  "pairs": amortized.get("pairs", {})},
                     "meters": meters.get(month, {}),
                     **({"balance": kept_balance} if kept_balance else {}),
                 }

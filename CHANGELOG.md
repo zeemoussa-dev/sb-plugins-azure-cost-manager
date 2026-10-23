@@ -2,6 +2,13 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.39.0] - 2026-10-23
+
+- fix: **which services run in which subscription is kept** (operator, 2026-10-23: "dropping the services' attachment to subscription was a bad move and made us lose data"). Cost Management has always answered by service and subscription together; the sync kept the two apart and threw the pairing away to keep the cache small. Now every month keeps `pairs` (subscription -> service -> cost) under both actual and amortized cost, and the daily data keeps it per day.
+  - **Refetched once:** every month synced before this is fetched again on the next sync, and an enrollment missing them is synced even if it was synced within the day. The daily data asks for its whole window once. The cache grows accordingly.
+  - Nothing on screen reads the pairs yet; they are what drill-downs (a service to its subscriptions, a subscription to its services) will read.
+- docs: 0.38.0 shipped 23 solution patterns, not 24.
+
 ## [0.38.0] - 2026-10-23
 
 - feat: **Solutions**, for the Solution Sellers (operator, 2026-10-23: "Azure services don't map into solutions ... if the customer has this service, this means they might be building a data warehouse"). Rules first; Compass to come for what they cannot place.
