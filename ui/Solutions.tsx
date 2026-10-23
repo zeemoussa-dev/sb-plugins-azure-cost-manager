@@ -15,6 +15,7 @@ import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 import { Loading } from './Loading';
 import { CompassPitches, DraftButton, SizeIt } from './Advisor';
+import { SubscriptionLabel } from './SubscriptionLabel';
 
 const ALL_PLAYS = 'All plays';
 // The footprint is Cost Management's actual cost, billed in USD for these agreements.
@@ -94,7 +95,8 @@ function SubscriptionRow({ row }: { row: SubscriptionSolutions }) {
           <span key={service.name}>{index ? ', ' : ''}<DrillLink kind="service" name={service.name} /></span>))}</td>
       </tr>
       {open ? (
-        <PopupRow kicker="Subscription" title={row.subscription} onClose={() => setOpen(false)}>
+        <PopupRow kicker="Subscription" title={row.subscription} label={<SubscriptionLabel name={row.subscription} />}
+                  onClose={() => setOpen(false)}>
             {[...row.solutions, ...row.also].map((found) => (
               <p key={found.id}>
                 <strong>{found.name}</strong> ({found.play}, {found.confidence}):{' '}

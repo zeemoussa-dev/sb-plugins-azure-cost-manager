@@ -8,6 +8,7 @@ import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink, type Report } from './ReportsHome';
 import { Loading } from './Loading';
 import { ExplainBox } from './Advisor';
+import { SubscriptionLabel } from './SubscriptionLabel';
 
 const KIND_LABELS: Record<DrillKind, string> = {
   service: 'Service', subscription: 'Subscription', play: 'Solution play', month: 'Month',
@@ -45,7 +46,8 @@ export function DrillLink({ kind, name, customerId, report, children }: {
   kind: DrillKind; name: string; customerId?: string; report?: Report; children?: ReactNode;
 }) {
   const open = useDrillOpener();
-  const label = children ?? (kind === 'month' ? formatMonth(name) : name);
+  const label = children ?? (kind === 'month' ? formatMonth(name)
+    : kind === 'subscription' ? <SubscriptionLabel name={name} /> : name);
   if (customerId) return <Link to={drillLink(customerId, kind, name, report)} title={`Open ${name}`}>{label}</Link>;
   if (!open) return <>{label}</>;
   return (
@@ -75,6 +77,7 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
   const money = (value: number) => formatMoney(value, drill?.currency ?? null, true);
   return (
     <Popup kicker={KIND_LABELS[opened.kind]} title={opened.kind === 'month' ? formatMonth(opened.name) : opened.name}
+           label={opened.kind === 'subscription' ? <SubscriptionLabel name={opened.name} /> : undefined}
            onClose={onClose} tall>
       {error ? <div className="azure-cost-error">{error}</div> : !drill ? <Loading /> : (
         <>

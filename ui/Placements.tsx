@@ -6,6 +6,7 @@ import { DrillLink } from './Drill';
 import { errorText, formatMoney } from './format';
 import { Loading } from './Loading';
 import { Popup, PopupRow } from './Popup';
+import { SubscriptionLabel } from './SubscriptionLabel';
 
 const ASK_AT_ONCE = 24;
 const money = (value: number) => formatMoney(value, 'USD', true);
@@ -89,7 +90,8 @@ export function PlacementsCard({ customerId }: { customerId?: string }) {
                   <td>{item.confidence}</td>
                 </tr>
                 {open === key ? (
-                  <PopupRow kicker="Compass's placement" title={subscriptionOf(key)} onClose={() => setOpen(null)}>
+                  <PopupRow kicker="Compass's placement" title={subscriptionOf(key)}
+                            label={<SubscriptionLabel name={subscriptionOf(key)} />} onClose={() => setOpen(null)}>
                     <p><strong>{item.solution ?? item.proposal?.name ?? 'Not placed'}</strong> · {item.confidence} confidence</p>
                     <p>{item.reason}</p>
                   </PopupRow>

@@ -959,3 +959,18 @@ tr.azure-cost-affiliate td:first-child {
   border-top: 1px solid var(--color-border);
 }
 
+/* A subscription's name, with its id underneath, smaller. */
+.azure-cost-subscription {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.25;
+  vertical-align: top;
+}
+
+.azure-cost-subscription-id {
+  font-size: 0.75em;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono, monospace);
+  font-weight: normal;
+}
+

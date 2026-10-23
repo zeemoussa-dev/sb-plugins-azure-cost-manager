@@ -234,8 +234,10 @@ export function StackedMonthsChart({ rows, groupKey, currency, series = 6, onPic
 
 /** Ranked rows with each one's share and change against last month. A table
  *  more than a chart: the share and the change are what is read. */
-export function RankedBars({ rows, currency, onPick }: {
+export function RankedBars({ rows, currency, onPick, renderName }: {
   rows: BreakdownRow[]; currency: string | null; onPick?: (name: string) => void;
+  /** How a row's name is shown, when it is more than text. */
+  renderName?: (name: string) => ReactNode;
 }) {
   const maximum = Math.max(...rows.map((row) => row.cost), 1);
   return (
@@ -246,7 +248,7 @@ export function RankedBars({ rows, currency, onPick }: {
              role={onPick ? 'button' : undefined} tabIndex={onPick ? 0 : undefined}
              onClick={onPick ? () => onPick(row.name) : undefined}
              onKeyDown={onPick ? (event) => { if (event.key === 'Enter') onPick(row.name); } : undefined}>
-          <span className="azure-cost-ranked-name">{row.name}</span>
+          <span className="azure-cost-ranked-name">{renderName ? renderName(row.name) : row.name}</span>
           <span className="azure-cost-ranked-track">
             <span className="azure-cost-ranked-fill" style={{ width: `${(row.cost / maximum) * 100}%` }} />
           </span>

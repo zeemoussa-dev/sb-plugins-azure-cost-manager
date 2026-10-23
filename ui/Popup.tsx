@@ -2,7 +2,10 @@ import { useEffect, useRef, type ReactNode } from 'react';
 
 interface PopupProps {
   kicker?: string;
-  title: ReactNode;
+  /** What the popup is about, as text: its name for screen readers, and what resets its scroll. */
+  title: string;
+  /** How the title is shown, when it is more than text (a subscription's name above its id). */
+  label?: ReactNode;
   onClose: () => void;
   children: ReactNode;
   /** `tall`: opens at its full height, for content that loads after it opens -- growing
@@ -14,7 +17,7 @@ interface PopupProps {
  *  with a close button ... same goes for everything, much better with all drill-downs").
  *  Fixed to the window, so it covers the page wherever it was opened from; Close, Escape
  *  or a click outside leaves the page exactly where it was. */
-export function Popup({ kicker, title, onClose, children, tall = false }: PopupProps) {
+export function Popup({ kicker, title, label, onClose, children, tall = false }: PopupProps) {
   const panel = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -30,11 +33,11 @@ export function Popup({ kicker, title, onClose, children, tall = false }: PopupP
     <div className="azure-cost-drill-backdrop" onClick={onClose}>
       <section ref={panel} className={`card azure-cost-card azure-cost-drill${tall ? ' azure-cost-popup-tall' : ''}`}
                role="dialog" aria-modal="true"
-               aria-label={typeof title === 'string' ? title : kicker} onClick={(event) => event.stopPropagation()}>
+               aria-label={title} onClick={(event) => event.stopPropagation()}>
         <header className="azure-cost-drill-header">
           <div>
             {kicker ? <span className="azure-cost-kpi-label">{kicker}</span> : null}
-            <h3>{title}</h3>
+            <h3>{label ?? title}</h3>
           </div>
           <button type="button" className="azure-cost-popup-close" onClick={onClose} aria-label="Close"
                   title="Close (Esc)">✕</button>

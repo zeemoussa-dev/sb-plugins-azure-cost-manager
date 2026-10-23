@@ -3,6 +3,7 @@ import { RankedBars, SeriesChart, StackedMonthsChart } from './charts';
 import { fetchConsumption, type Analysis, type ConsumptionRow, type MixGroup } from './client';
 import { DrillLink, useDrillOpener } from './Drill';
 import { formatMoney, formatMonth } from './format';
+import { SubscriptionLabel } from './SubscriptionLabel';
 
 const MIX_LABELS: Record<MixGroup, string> = {
   service: 'Services', play: 'Solution plays', subscription: 'Subscriptions', account: 'Enrollments',
@@ -122,7 +123,8 @@ export function BreakdownTab({ analysis, syncedVersion }: { analysis: Analysis; 
         <section className="card azure-cost-card">
           <h3>Subscriptions, {formatMonth(analysis.subscriptions.month)}</h3>
           <RankedBars rows={analysis.subscriptions.rows.slice(0, 10)} currency={analysis.currency}
-                      onPick={drill ? (name) => drill('subscription', name) : undefined} />
+                      onPick={drill ? (name) => drill('subscription', name) : undefined}
+                      renderName={(name) => <SubscriptionLabel name={name} />} />
         </section>
       </div>
       <AnomalyList analysis={analysis} />

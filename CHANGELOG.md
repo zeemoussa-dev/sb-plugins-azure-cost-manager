@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.48.1] - 2026-10-23
+
+- fix: **a subscription shows its name, with its id underneath, smaller** (operator, 2026-10-23: "the subscription name and a smaller subtext for the ID under it instead of one line"). Cost Management names one `SUB-ENAI-DEV01(57e76ab1-...)`; everywhere a subscription is a name to read -- drill links, the drill popup's title, Breakdown's ranked subscriptions, the Solutions tab, Compass's placements -- it now reads `SUB-ENAI-DEV01` with the id below in small grey type. A popup's title stays plain text for screen readers.
+
 ## [0.48.0] - 2026-10-23
 
 - feat: **Compass recommends what to pitch** (operator, 2026-10-23: "add Compass on the recommendation of what to pitch as well"). Under What to pitch on a customer's Solutions tab, **Ask Compass what to pitch** weighs what the customer runs and grows, its MACC position, pipeline, recent conversations and its memory, and recommends up to five pitches beyond the rules' -- best first, each with why, its confidence and the Playbook to use (a link to the note).
