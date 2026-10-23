@@ -963,6 +963,9 @@ export interface GuideService {
   customers: { id: string; name: string; monthly: number }[];
   monthly: number;
   solutions: { id: string; name: string; note?: string | null }[];
+  /** For "SaaS" and "Azure Applications": the Marketplace products behind them, across customers. */
+  marketplace?: { publisher: string; offer: string; plan: string; recurring?: boolean | null; monthly: number;
+    customers: { id: string; name: string; monthly: number }[] }[];
 }
 
 export interface Guide {

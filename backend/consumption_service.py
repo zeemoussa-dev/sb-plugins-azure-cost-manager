@@ -255,13 +255,23 @@ class ConsumptionService:
         everyone = self._book.list()
         current_month = months.month_of(self._today())
         used: dict[str, dict] = {}
+        # What "SaaS" and "Azure Applications" are across every customer: the Marketplace
+        # products behind them (operator, 2026-10-23), each with the customers buying it.
+        products: dict[tuple, dict] = {}
         for customer in everyone:
             if customer.get("parent"):
                 continue
             members = [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]]
-            merged, _ = consumption_analysis.merge({account["name"]: self._store.account(account["name"])
-                                                    for member in members for account in member["accounts"]}, None, set())
+            entries = {account["name"]: self._store.account(account["name"])
+                       for member in members for account in member["accounts"]}
+            merged, _ = consumption_analysis.merge(entries, None, set())
             recent = [month for month in sorted(merged) if month < current_month][-3:]
+            for product in self._marketplace_behind(entries, recent):
+                key = (product["publisher"], product["offer"], product["plan"])
+                row = products.setdefault(key, {"publisher": key[0], "offer": key[1], "plan": key[2],
+                                                "recurring": product.get("recurring"), "customers": [], "monthly": 0.0})
+                row["customers"].append({"id": customer["id"], "name": customer["name"], "monthly": product["monthly"]})
+                row["monthly"] = round(row["monthly"] + product["monthly"], 2)
             totals: dict[str, float] = {}
             for month in recent:
                 for service, cost in (merged[month]["actual"].get("service") or {}).items():
@@ -281,6 +291,8 @@ class ConsumptionService:
             stem = notes.note_for(service) if notes else None
             noted.add(stem)
             services.append({"name": service, "note": stem, "play": solution_plays.play_of(service, plays),
+                             **({"marketplace": sorted(products.values(), key=lambda item: -item["monthly"])}
+                                if service in MARKETPLACE_SERVICES else {}),
                              "customers": sorted(row["customers"], key=lambda item: -item["monthly"]),
                              "monthly": row["monthly"],
                              "solutions": [{"id": pattern["id"], "name": pattern["name"], "note": pattern.get("note")}

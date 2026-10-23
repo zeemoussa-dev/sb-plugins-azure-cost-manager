@@ -128,3 +128,6 @@ def test_the_guide_lists_services_with_their_customers_and_unbilled_notes(fake_a
     assert guide["playbooks"] == [{"stem": "GenAI play", "name": "GenAI play", "play": None, "status": None,
                                    "solutions": ["genai"], "summary": "A playbook."}]
     assert len(guide["solutions"]) > 20
+    saas = next(row for row in guide["services"] if row["name"] == "SaaS")
+    assert [(item["offer"], item["customers"][0]["name"], item["monthly"]) for item in saas["marketplace"]] == [
+        ("FortiFlex", "Contoso", 300.0)]

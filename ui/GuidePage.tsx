@@ -112,6 +112,31 @@ function ServiceRow({ service, open, onOpen, onClose }: {
               <span key={item.id}>{index ? ', ' : ''}{item.note ? <NoteLink stem={item.note}>{item.name}</NoteLink> : item.name}</span>
             ))}</p>
           ) : null}
+          {service.marketplace?.length ? (
+            <>
+              <h4>What {service.name} is: the Marketplace products behind it</h4>
+              <p className="text-muted azure-cost-note">
+                Cost Management bills every Marketplace offer as "{service.name}"; the Marketplace charges name each one.
+                Monthly averages over the last three closed months, across all customers.
+              </p>
+              <table className="azure-cost-table">
+                <thead><tr><th>Publisher</th><th>Offer</th><th>Plan</th><th>Kind</th><th>Monthly</th><th>Customers</th></tr></thead>
+                <tbody>
+                  {service.marketplace.map((product) => (
+                    <tr key={`${product.publisher}|${product.offer}|${product.plan}`}>
+                      <td>{product.publisher}</td><td>{product.offer}</td><td className="text-muted">{product.plan}</td>
+                      <td className="text-muted">{product.recurring ? 'Subscription' : 'Usage-based'}</td>
+                      <td>{money(product.monthly)}</td>
+                      <td>{product.customers.map((customer, index) => (
+                        <span key={customer.id}>{index ? ', ' : ''}
+                          <DrillLink kind="service" name={service.name} customerId={customer.id}>{customer.name}</DrillLink></span>
+                      ))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          ) : null}
           <h4>Customers using it</h4>
           {service.customers.length ? (
             <table className="azure-cost-table">

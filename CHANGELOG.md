@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.43.1] - 2026-10-23
+
+- feat: **in the Solutions Guide, "SaaS" and "Azure Applications" name what they are** across all customers: the Marketplace products behind them -- publisher, offer, plan, subscription or usage-based, monthly spend over the last three closed months -- and the customers buying each, every one opening that customer's report drilled into the service.
+
 ## [0.43.0] - 2026-10-23
 
 - feat: **Solutions Guide** -- its own entry in the sidebar, and a card on the landing page (operator, 2026-10-23: "add a link for the Playbooks somewhere, and Solutions, then Services; I don't have a way to navigate to it unless I am inside a customer view"). Three tabs, each row opening in a popup:
