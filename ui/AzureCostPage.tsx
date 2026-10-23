@@ -19,6 +19,7 @@ import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
 import { QuotaTab } from './Quota';
 import { SolutionsTab } from './Solutions';
+import { DrillPanel, DrillProvider, useDrillState } from './Drill';
 import { REPORTS, reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
@@ -84,6 +85,7 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [reloads, setReloads] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [drilled, openDrill, closeDrill] = useDrillState();
 
   useEffect(() => {
     fetchAnalysis(customerId, measure, view, chosen).then((result) => { setAnalysis(result); setError(null); },
@@ -102,6 +104,7 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
   const nothingBilled = !nothingSynced && analysis.months.every((month) => !month.actual && !month.amortized);
 
   return (
+    <DrillProvider open={openDrill}>
     <div className="azure-cost-account">
       <div className="azure-cost-toolbar">
         {CHOOSES_ENROLLMENTS.includes(report) && analysis.group.accounts.length > 1
@@ -118,6 +121,8 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
           {accountErrors.map(([account, errors]) => `${account}: ${Object.keys(errors).join(', ')}`).join('; ')}
         </p>
       ) : null}
+      {drilled ? <DrillPanel customerId={customerId} accounts={chosen.length ? chosen : null}
+                             opened={drilled} onClose={closeDrill} /> : null}
       {report === 'Pipeline' ? <PipelineTab analysis={analysis} onChanged={reload} />
         : nothingSynced ? <p className="empty-state">Nothing synced for this customer yet. Sync it to load its consumption.</p>
           : report === 'Marketplace' ? <MarketplaceTab customerId={customerId} currency={analysis.currency} syncedVersion={syncedVersion} />
@@ -131,6 +136,7 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
               : report === 'Forecast' ? <ForecastTab analysis={analysis} onChanged={reload} />
                 : <BreakdownTab analysis={analysis} syncedVersion={syncedVersion} />}
     </div>
+    </DrillProvider>
   );
 }
 

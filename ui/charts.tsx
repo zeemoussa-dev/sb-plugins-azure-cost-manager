@@ -61,12 +61,33 @@ function baseOption(currency: string | null) {
   };
 }
 
-function Chart({ option, height = 280, label }: { option: object; height?: number; label: string }) {
+/** `onPick(category, series)`: a bar, point or axis label clicked -- what drill-downs
+ *  open from (operator, 2026-10-23: "every graph can be drilled down"). */
+export type Pick = (category: string, series: string) => void;
+
+interface ClickParams { componentType?: string; name?: string; seriesName?: string; value?: unknown }
+
+function Chart({ option, height = 280, label, onPick }: { option: object; height?: number; label: string; onPick?: Pick }) {
+  const events = onPick ? {
+    click: (params: ClickParams) => {
+      if (params.componentType === 'xAxis') onPick(String(params.value ?? ''), '');
+      else if (params.name) onPick(params.name, params.seriesName ?? '');
+    },
+  } : undefined;
+  const picked = onPick ? withPointer(option as Record<string, unknown>) : option;
   return (
-    <div role="img" aria-label={label}>
-      <ReactEChartsCore echarts={echarts} option={option} notMerge style={{ height, width: '100%' }} />
+    <div role="img" aria-label={label} className={onPick ? 'azure-cost-pickable' : undefined}>
+      <ReactEChartsCore echarts={echarts} option={picked} notMerge onEvents={events} style={{ height, width: '100%' }} />
     </div>
   );
+}
+
+/** A clickable chart shows it: a pointer over bars and points, and axis labels that answer a click. */
+function withPointer(option: Record<string, unknown>): Record<string, unknown> {
+  const axis = option.xAxis as Record<string, unknown> | undefined;
+  const series = (option.series as Record<string, unknown>[] | undefined) ?? [];
+  return { ...option, ...(axis ? { xAxis: { ...axis, triggerEvent: true } } : {}),
+    series: series.map((item) => ({ ...item, cursor: 'pointer' })) };
 }
 
 interface AxisTooltipItem {
@@ -99,14 +120,14 @@ export interface Series {
 /** Any chart of the workbook's kind: categories along the bottom, bars and lines
  *  over them, money or percent up the side. */
 export function SeriesChart({ categories, series, currency, label, percent = false, height = 280,
-  categoryLabel = (value: string) => value }: {
+  categoryLabel = (value: string) => value, onPick }: {
   categories: string[]; series: Series[]; currency: string | null; label: string; percent?: boolean;
-  height?: number; categoryLabel?: (value: string) => string;
+  height?: number; categoryLabel?: (value: string) => string; onPick?: Pick;
 }) {
   const { colors, option } = baseOption(currency);
   const value = (amount: number) => (percent ? `${amount > 0 ? '+' : ''}${amount}%` : formatMoney(amount, currency));
   return (
-    <Chart label={label} height={height} option={{
+    <Chart label={label} height={height} onPick={onPick} option={{
       ...option,
       color: series.map((item, index) => item.color === 'other' ? colors.other
         : colors.series[(typeof item.color === 'number' ? item.color : index) % colors.series.length]),
@@ -139,8 +160,8 @@ export function SeriesChart({ categories, series, currency, label, percent = fal
 /** Monthly spend: actual as bars, amortized as a line, the rest of the year's
  *  forecast as outlined bars. The current month's bar is drawn lighter: it is
  *  still being billed. */
-export function TrendChart({ months, forecast, currency }: {
-  months: MonthTotal[]; forecast: ForecastMonth[]; currency: string | null;
+export function TrendChart({ months, forecast, currency, onPick }: {
+  months: MonthTotal[]; forecast: ForecastMonth[]; currency: string | null; onPick?: Pick;
 }) {
   const { colors, option } = baseOption(currency);
   const categories = [...new Set([...months.map((month) => month.month), ...forecast.map((month) => month.month)])].sort();
@@ -148,7 +169,7 @@ export function TrendChart({ months, forecast, currency }: {
   const forecastByMonth = new Map(forecast.map((month) => [month.month, month]));
 
   return (
-    <Chart label="Monthly spend, actual and amortized, with forecast" option={{
+    <Chart label="Monthly spend, actual and amortized, with forecast" onPick={onPick} option={{
       ...option,
       color: [colors.series[0], colors.series[1], colors.series[0]],
       tooltip: { ...option.tooltip, trigger: 'axis', formatter: axisTooltip(currency, (month) => {
@@ -178,8 +199,8 @@ export function TrendChart({ months, forecast, currency }: {
 
 /** Each month split into the biggest series plus "Other", to see the mix move.
  *  By enrollment it shows a renewal as one colour handing over to another. */
-export function StackedMonthsChart({ rows, groupKey, currency, series = 6 }: {
-  rows: ConsumptionRow[]; groupKey: MixGroup; currency: string | null; series?: number;
+export function StackedMonthsChart({ rows, groupKey, currency, series = 6, onPick }: {
+  rows: ConsumptionRow[]; groupKey: MixGroup; currency: string | null; series?: number; onPick?: Pick;
 }) {
   if (!rows.length) return <p className="text-muted">No consumption synced yet.</p>;
   const { colors, option } = baseOption(currency);
@@ -194,7 +215,7 @@ export function StackedMonthsChart({ rows, groupKey, currency, series = 6 }: {
   const keys = [...named, ...(totalsByName.size > named.length ? ['Other'] : [])];
 
   return (
-    <Chart label={`Monthly spend by ${groupKey}`} height={320} option={{
+    <Chart label={`Monthly spend by ${groupKey}`} height={320} onPick={onPick} option={{
       ...option,
       color: keys.map((key, index) => key === 'Other' ? colors.other : colors.series[index % colors.series.length]),
       legend: { ...option.legend, type: 'scroll', right: 0 },
@@ -213,12 +234,18 @@ export function StackedMonthsChart({ rows, groupKey, currency, series = 6 }: {
 
 /** Ranked rows with each one's share and change against last month. A table
  *  more than a chart: the share and the change are what is read. */
-export function RankedBars({ rows, currency }: { rows: BreakdownRow[]; currency: string | null }) {
+export function RankedBars({ rows, currency, onPick }: {
+  rows: BreakdownRow[]; currency: string | null; onPick?: (name: string) => void;
+}) {
   const maximum = Math.max(...rows.map((row) => row.cost), 1);
   return (
     <div className="azure-cost-ranked">
       {rows.map((row) => (
-        <div key={row.name} className="azure-cost-ranked-row" title={`${row.name}: ${formatMoney(row.cost, currency)}`}>
+        <div key={row.name} className={`azure-cost-ranked-row${onPick ? ' azure-cost-pickable' : ''}`}
+             title={`${row.name}: ${formatMoney(row.cost, currency)}`}
+             role={onPick ? 'button' : undefined} tabIndex={onPick ? 0 : undefined}
+             onClick={onPick ? () => onPick(row.name) : undefined}
+             onKeyDown={onPick ? (event) => { if (event.key === 'Enter') onPick(row.name); } : undefined}>
           <span className="azure-cost-ranked-name">{row.name}</span>
           <span className="azure-cost-ranked-track">
             <span className="azure-cost-ranked-fill" style={{ width: `${(row.cost / maximum) * 100}%` }} />

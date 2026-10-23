@@ -5,6 +5,8 @@ import {
   createOpportunity, fetchSyncStatus, fetchThisMonth, refreshThisMonth,
   type MonthRow, type ThisMonth, type View,
 } from './client';
+import { DrillLink } from './Drill';
+import type { DrillKind } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 
 const POLL_MS = 4000;
@@ -35,7 +37,9 @@ function NewWorkload({ found, kind, name, cost }: { found: ThisMonth; kind: stri
 }
 
 /** A table that shows its first rows and offers the rest. */
-function Rows({ rows, caption, found, view }: { rows: MonthRow[]; caption: string; found: ThisMonth; view: View }) {
+function Rows({ rows, caption, found, view, drillKind }: {
+  rows: MonthRow[]; caption: string; found: ThisMonth; view: View; drillKind?: DrillKind;
+}) {
   const [all, setAll] = useState(false);
   const currency = found.currency;
   if (!rows.length) return <p className="text-muted">Nothing here this month so far.</p>;
@@ -48,7 +52,8 @@ function Rows({ rows, caption, found, view }: { rows: MonthRow[]; caption: strin
         <tbody>
           {shown.map((row) => (
             <tr key={row.name}>
-              <td>{row.name}{row.new ? <span className="azure-cost-anomaly new"> new</span> : null}</td>
+              <td>{drillKind ? <DrillLink kind={drillKind} name={row.name} /> : row.name}
+                {row.new ? <span className="azure-cost-anomaly new"> new</span> : null}</td>
               <td>{formatMoney(row.this_month, currency)}</td>
               <td>{formatMoney(row.last_month_same_days, currency)}</td>
               <td>{row.change >= 0 ? '+' : ''}{formatMoney(row.change, currency)}
@@ -207,7 +212,8 @@ export function ThisMonthTab({ customerId, view }: { customerId: string; view: V
           {chosen.startsWith('tag:') ? ' Tag values are folded as in the Tags report; untagged spend is left out.' : ''}
           {' '}Every new {dimension.label.toLowerCase()} is listed; you decide which is an opportunity.
         </p>
-        <Rows key={`${chosen}|${filter}`} rows={rows} caption={dimension.label} found={found} view={view} />
+        <Rows key={`${chosen}|${filter}`} rows={rows} caption={dimension.label} found={found} view={view}
+              drillKind={chosen === 'service' || chosen === 'subscription' ? chosen : undefined} />
       </details>
     </>
   );

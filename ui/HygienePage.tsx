@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
 import { fetchHygiene, type HygieneRow, reportExportPath } from './client';
+import { DrillLink } from './Drill';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -65,13 +66,13 @@ export function HygienePage() {
                         <div>
                           <h4>New in {formatMonth(row.last_month)}</h4>
                           {row.new.length ? <ul>{row.new.map((item) => (
-                            <li key={item.subscription}>{item.subscription}: {formatMoney(item.last, 'USD', true)}</li>))}</ul>
+                            <li key={item.subscription}><DrillLink kind="subscription" name={item.subscription} customerId={row.id} />: {formatMoney(item.last, 'USD', true)}</li>))}</ul>
                             : <p className="text-muted">None.</p>}
                         </div>
                         <div>
                           <h4>Went dormant</h4>
                           {row.dormant.length ? <ul>{row.dormant.map((item) => (
-                            <li key={item.subscription}>{item.subscription}: {formatMoney(item.before, 'USD', true)} a month
+                            <li key={item.subscription}><DrillLink kind="subscription" name={item.subscription} customerId={row.id} />: {formatMoney(item.before, 'USD', true)} a month
                               before, {formatMoney(item.last, 'USD', true)} now</li>))}</ul>
                             : <p className="text-muted">None.</p>}
                         </div>

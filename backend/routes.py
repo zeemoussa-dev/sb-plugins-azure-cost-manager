@@ -109,6 +109,11 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def get_solutions_across() -> dict:
         return _answered(service.solutions_across)
 
+    @router.get("/customers/{customer_id}/drill")
+    def get_customer_drill(customer_id: str, kind: str, name: str, accounts: str | None = None) -> dict:
+        return _answered(lambda: service.drill(customer_id, kind, name,
+                                               [a for a in (accounts or "").split(",") if a] or None))
+
     @router.get("/customers/{customer_id}/solutions")
     def get_customer_solutions(customer_id: str) -> dict:
         return _answered(lambda: service.solutions_of(customer_id))

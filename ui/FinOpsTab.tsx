@@ -4,6 +4,7 @@ import {
   createOpportunity, fetchFinOps, OPTION_LABELS,
   type Budget, type FinOps, type Growth, type SteadyCandidate, type View,
 } from './client';
+import { DrillLink, useDrillOpener } from './Drill';
 import { errorText, formatMoney, formatMonth } from './format';
 
 /** The flexible option and the deepest one: what a conversation starts and ends with. */
@@ -50,7 +51,9 @@ function percent(value: number | null | undefined): string {
   return value == null ? '—' : `${value}%`;
 }
 
-function GrowthTable({ title, rows, currency }: { title: string; rows: Growth[]; currency: string | null }) {
+function GrowthTable({ title, rows, currency, kind }: {
+  title: string; rows: Growth[]; currency: string | null; kind: 'service' | 'subscription';
+}) {
   if (!rows.length) return null;
   return (
     <section className="card azure-cost-card">
@@ -61,7 +64,7 @@ function GrowthTable({ title, rows, currency }: { title: string; rows: Growth[];
         <tbody>
           {rows.map((row) => (
             <tr key={row.name}>
-              <td>{row.name}</td>
+              <td><DrillLink kind={kind} name={row.name} /></td>
               <td>{formatMoney(row.monthly_now, currency)}</td>
               <td>{formatMoney(row.monthly_before, currency)}</td>
               <td>+{formatMoney(row.change, currency)}</td>
@@ -78,6 +81,7 @@ function GrowthTable({ title, rows, currency }: { title: string; rows: Growth[];
  *  runs on demand steadily enough to commit, what was bought, what is growing,
  *  and the budget. The same findings in both views -- none of it is internal. */
 export function FinOpsTab({ customerId, syncedVersion, view }: { customerId: string; syncedVersion: number; view: View }) {
+  const drill = useDrillOpener();
   const [found, setFound] = useState<FinOps | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,7 +130,7 @@ export function FinOpsTab({ customerId, syncedVersion, view }: { customerId: str
           under a reservation or savings plan, amortized. Closed months only.
         </p>
         {found.coverage.months.length ? (
-          <SeriesChart label="Commitment coverage" currency={currency} height={280}
+          <SeriesChart label="Commitment coverage" currency={currency} height={280} onPick={drill ? (month) => drill('month', month) : undefined}
                        categories={found.coverage.months.map((month) => month.month)}
                        categoryLabel={(month) => formatMonth(month, true)}
                        series={[{ name: 'Covered by commitments', data: found.coverage.months.map((month) => month.covered), stack: 'c', color: 0 },
@@ -199,8 +203,8 @@ export function FinOpsTab({ customerId, syncedVersion, view }: { customerId: str
         </section>
       ) : null}
 
-      <GrowthTable title="Fastest-growing services" rows={found.growth.services} currency={currency} />
-      <GrowthTable title="Fastest-growing subscriptions" rows={found.growth.subscriptions} currency={currency} />
+      <GrowthTable title="Fastest-growing services" rows={found.growth.services} currency={currency} kind="service" />
+      <GrowthTable title="Fastest-growing subscriptions" rows={found.growth.subscriptions} currency={currency} kind="subscription" />
 
       {budget ? (
         <section className="card azure-cost-card">

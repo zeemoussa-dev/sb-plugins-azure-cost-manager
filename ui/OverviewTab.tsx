@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import { BurnDownChart, Change, CommitmentGauge, SeriesChart, TrendChart } from './charts';
 import type { Analysis } from './client';
+import { useDrillOpener } from './Drill';
 import { formatMoney, formatMonth } from './format';
 import { settingsLink } from './ReportsHome';
 import { SolutionPlaysCard } from './SolutionPlays';
@@ -235,6 +236,12 @@ function Card({ title, children, wide }: { title: string; children: ReactNode; w
 }
 
 export function OverviewTab({ analysis }: { analysis: Analysis }) {
+  const drill = useDrillOpener();
+  // Jan..Dec against a year: the bar clicked is that month of that year.
+  const pickMonthOfYear = drill ? (name: string, year: string) => {
+    const index = MONTH_NAMES.indexOf(name);
+    if (index >= 0 && /^\d{4}$/.test(year)) drill('month', `${year}-${String(index + 1).padStart(2, '0')}`);
+  } : undefined;
   const board = analysis.dashboard;
   const currency = analysis.currency;
   const closed = board.monthly.filter((row) => !row.partial);
@@ -249,10 +256,10 @@ export function OverviewTab({ analysis }: { analysis: Analysis }) {
       <CommitmentCard analysis={analysis} />
       <AllocationsCard analysis={analysis} />
       <Card title="Monthly consumption" wide>
-        <TrendChart months={analysis.months} forecast={analysis.forecast.months} currency={currency} />
+        <TrendChart months={analysis.months} forecast={analysis.forecast.months} currency={currency} onPick={drill ? (month) => drill('month', month) : undefined} />
       </Card>
       <Card title="What it was spent on, by month" wide>
-        <SeriesChart label="Plan-line mix by month" currency={currency} height={320} categoryLabel={(m) => formatMonth(m, true)}
+        <SeriesChart label="Plan-line mix by month" currency={currency} height={320} categoryLabel={(m) => formatMonth(m, true)} onPick={drill ? (month) => drill('month', month) : undefined}
                      categories={board.mix.map((row) => row.month)}
                      series={lines.map((line, index) => ({ name: line, stack: 'mix', data: board.mix.map((row) => row.lines[line] ?? 0),
                        color: line === 'Azure (other)' ? 'other' as const : index }))} />
@@ -268,21 +275,21 @@ export function OverviewTab({ analysis }: { analysis: Analysis }) {
                        series={[{ name: 'YTD', data: board.ytd_by_year.map((row) => row.total), color: 1 }]} />
         </Card>
         <Card title="Month over month %">
-          <SeriesChart label="Month over month change" currency={currency} percent categoryLabel={(m) => formatMonth(m, true)}
+          <SeriesChart label="Month over month change" currency={currency} percent categoryLabel={(m) => formatMonth(m, true)} onPick={drill ? (month) => drill('month', month) : undefined}
                        categories={closed.map((row) => row.month)} series={[{ name: 'MoM', data: closed.map((row) => row.mom_pct ?? null) }]} />
         </Card>
         <Card title="Year over year %">
-          <SeriesChart label="Year over year change" currency={currency} percent categoryLabel={(m) => formatMonth(m, true)}
+          <SeriesChart label="Year over year change" currency={currency} percent categoryLabel={(m) => formatMonth(m, true)} onPick={drill ? (month) => drill('month', month) : undefined}
                        categories={closed.map((row) => row.month)}
                        series={[{ name: 'YoY', data: closed.map((row) => row.yoy_pct ?? null), color: 1 }]} />
         </Card>
         <Card title={`${comparison.last_year} against ${comparison.this_year}, by month`}>
-          <SeriesChart label="This year against last year" currency={currency} categories={MONTH_NAMES}
+          <SeriesChart label="This year against last year" currency={currency} categories={MONTH_NAMES} onPick={pickMonthOfYear}
                        series={[{ name: String(comparison.last_year), data: comparison.last, color: 'other' },
                          { name: String(comparison.this_year), data: comparison.this, color: 0 }]} />
         </Card>
         <Card title={`MoM growth %, ${comparison.last_year} against ${comparison.this_year}`}>
-          <SeriesChart label="Month over month growth by year" currency={currency} percent categories={MONTH_NAMES}
+          <SeriesChart label="Month over month growth by year" currency={currency} percent categories={MONTH_NAMES} onPick={pickMonthOfYear}
                        series={[{ name: String(comparison.last_year), data: comparison.last_mom, color: 'other' },
                          { name: String(comparison.this_year), data: comparison.this_mom, color: 0 }]} />
         </Card>

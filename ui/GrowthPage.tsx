@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
 import { fetchGrowth, type GrowthRow, reportExportPath } from './client';
+import { DrillLink } from './Drill';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -93,7 +94,7 @@ export function GrowthPage() {
                             <table className="azure-cost-table">
                               <tbody>
                                 {(row.by_play ?? []).map((play) => (
-                                  <tr key={play.play}><td>{play.play}</td><td>{formatMoney(play.recent, row.currency, true)}</td>
+                                  <tr key={play.play}><td><DrillLink kind="play" name={play.play} customerId={row.id} /></td><td>{formatMoney(play.recent, row.currency, true)}</td>
                                     <td>{play.change >= 0 ? '+' : '−'}{formatMoney(Math.abs(play.change), row.currency, true)}</td>
                                     <td><Movement value={play.change_pct} /></td></tr>
                                 ))}
@@ -104,13 +105,13 @@ export function GrowthPage() {
                             <h4>Stopped</h4>
                             {row.stopped?.length ? (
                               <ul>{row.stopped.map((item) => (
-                                <li key={item.service}>{item.service}: {formatMoney(item.before, row.currency, true)} a month before,
+                                <li key={item.service}><DrillLink kind="service" name={item.service} customerId={row.id} />: {formatMoney(item.before, row.currency, true)} a month before,
                                   {' '}{formatMoney(item.last, row.currency, true)} last month</li>))}</ul>
                             ) : <p className="text-muted">Nothing stopped.</p>}
                             <h4>New</h4>
                             {row.started?.length ? (
                               <ul>{row.started.map((item) => (
-                                <li key={item.service}>{item.service}: {formatMoney(item.last, row.currency, true)} last month</li>))}</ul>
+                                <li key={item.service}><DrillLink kind="service" name={item.service} customerId={row.id} />: {formatMoney(item.last, row.currency, true)} last month</li>))}</ul>
                             ) : <p className="text-muted">Nothing new.</p>}
                           </div>
                         </div>

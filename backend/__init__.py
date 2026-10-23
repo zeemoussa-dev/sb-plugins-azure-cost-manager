@@ -25,6 +25,7 @@ from .pipeline import Pipeline
 from .portfolio_service import SERVICE as PORTFOLIO_SERVICE, PortfolioService
 from .routes import build_router
 from .solution_notes import SolutionNotes
+from .technology_notes import TechnologyNotes
 from .sync_log import SYNC_LOG_FILE, SyncLog
 
 
@@ -37,7 +38,8 @@ def register(api) -> None:
     directory = AccountDirectory(lambda: BillingClient(token).list_billing_accounts())
     book = CustomerBook(store, directory, CommitmentNotes(api))
     pipeline = Pipeline(api)
-    service = ConsumptionService(store, book, pipeline=pipeline, solution_notes=SolutionNotes(api))
+    service = ConsumptionService(store, book, pipeline=pipeline, solution_notes=SolutionNotes(api),
+                                 technology_notes=TechnologyNotes(api))
     sync = ConsumptionSync(store, directory, lambda: BillingClient(token, observe=log), customers=book.records,
                            after_customers=service.refresh_prices, log=log)
     api.register_router(build_router(service, book, directory, sync, token, pipeline, log))

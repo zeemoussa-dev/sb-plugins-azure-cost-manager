@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SeriesChart } from './charts';
 import { fetchSolutionPlays, setSolutionPlay, type Analysis, type SolutionPlaysSettings } from './client';
+import { DrillLink, useDrillOpener } from './Drill';
 import { errorText, formatMoney, formatMonth } from './format';
 
 const SHOWN_MONTHS = 12;
@@ -8,6 +9,7 @@ const SHOWN_MONTHS = 12;
 /** A customer's spend by solution play (operator, 2026-10-21): the last twelve
  *  months stacked, and the last closed month against the one before. */
 export function SolutionPlaysCard({ analysis }: { analysis: Analysis }) {
+  const drill = useDrillOpener();
   const months = (analysis.solution_plays ?? []).slice(-SHOWN_MONTHS);
   if (!months.length) return null;
   const currency = analysis.currency;
@@ -22,6 +24,7 @@ export function SolutionPlaysCard({ analysis }: { analysis: Analysis }) {
       <h3>By solution play</h3>
       <SeriesChart label="Spend by solution play" currency={currency} height={300}
                    categories={months.map((row) => row.month)} categoryLabel={(month) => formatMonth(month, true)}
+                   onPick={drill ? (month, play) => (play ? drill('play', play) : drill('month', month)) : undefined}
                    series={plays.map((play, index) => ({ name: play, stack: 'plays', color: index,
                      data: months.map((row) => row.by_play[play] ?? 0) }))} />
       {latest ? (
@@ -33,7 +36,7 @@ export function SolutionPlaysCard({ analysis }: { analysis: Analysis }) {
               const change = cost - previous;
               return (
                 <tr key={play}>
-                  <td>{play}</td>
+                  <td><DrillLink kind="play" name={play} /></td>
                   <td>{formatMoney(cost, currency)}</td>
                   <td>{total ? `${Math.round((cost / total) * 1000) / 10}%` : '—'}</td>
                   <td>{before ? `${change >= 0 ? '+' : '−'}${formatMoney(Math.abs(change), currency)}` : '—'}

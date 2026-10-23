@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RankedBars, SeriesChart, StackedMonthsChart } from './charts';
 import { fetchConsumption, type Analysis, type ConsumptionRow, type MixGroup } from './client';
+import { DrillLink, useDrillOpener } from './Drill';
 import { formatMoney, formatMonth } from './format';
 
 const MIX_LABELS: Record<MixGroup, string> = {
@@ -20,7 +21,7 @@ function AnomalyList({ analysis }: { analysis: Analysis }) {
           <tbody>
             {analysis.anomalies.map((anomaly) => (
               <tr key={anomaly.service}>
-                <td>{anomaly.service}</td>
+                <td><DrillLink kind="service" name={anomaly.service} /></td>
                 <td><span className={`azure-cost-anomaly ${anomaly.kind}`}>{label[anomaly.kind]}</span></td>
                 <td>{formatMoney(anomaly.cost, analysis.currency)}</td>
                 <td>{formatMoney(anomaly.baseline, analysis.currency)}</td>
@@ -37,6 +38,7 @@ function AnomalyList({ analysis }: { analysis: Analysis }) {
 
 /** GPU by SKU and Azure OpenAI PTU against tokens, each by how it was bought. */
 function GpuAndAi({ analysis }: { analysis: Analysis }) {
+  const drill = useDrillOpener();
   const monthsWithLines = analysis.gpu_and_ai;
   const keys = [...new Set(monthsWithLines.flatMap((row) => row.lines.map((line) => `${line.category} · ${line.pricing}`)))].sort();
   const latest = [...monthsWithLines].reverse().find((row) => row.lines.length);
@@ -51,7 +53,7 @@ function GpuAndAi({ analysis }: { analysis: Analysis }) {
   return (
     <section className="card azure-cost-card">
       <h3>GPU &amp; AI</h3>
-      <SeriesChart label="GPU and AI by month" currency={analysis.currency} height={320}
+      <SeriesChart label="GPU and AI by month" currency={analysis.currency} height={320} onPick={drill ? (month) => drill('month', month) : undefined}
                    categories={monthsWithLines.map((row) => row.month)} categoryLabel={(m) => formatMonth(m, true)}
                    series={keys.map((key, index) => ({ name: key, stack: 'ai', color: index,
                      data: monthsWithLines.map((row) => row.lines.filter((line) => `${line.category} · ${line.pricing}` === key)
@@ -74,6 +76,12 @@ function GpuAndAi({ analysis }: { analysis: Analysis }) {
 export function BreakdownTab({ analysis, syncedVersion }: { analysis: Analysis; syncedVersion: number }) {
   const [mix, setMix] = useState<ConsumptionRow[]>([]);
   const [mixBy, setMixBy] = useState<MixGroup>('service');
+  const drill = useDrillOpener();
+  // A bar of the mix opens what it is (an enrollment or "Other" opens its month instead).
+  const pickMix = drill ? (month: string, series: string) => {
+    if (series && series !== 'Other' && mixBy !== 'account') drill(mixBy, series);
+    else drill('month', month);
+  } : undefined;
   const customerId = analysis.customer.id;
   // The report's Enrollments choice: some of the group's, or all of them.
   const shown = analysis.shown_accounts && analysis.shown_accounts.length < analysis.group.accounts.length
@@ -99,20 +107,22 @@ export function BreakdownTab({ analysis, syncedVersion }: { analysis: Analysis; 
             ))}
           </div>
         </div>
-        <StackedMonthsChart rows={mix} groupKey={mixBy} currency={analysis.currency} />
+        <StackedMonthsChart rows={mix} groupKey={mixBy} currency={analysis.currency} onPick={pickMix} />
         <p className="text-muted azure-cost-note">Cost Management's actual cost: Marketplace included, credits not subtracted.</p>
       </section>
       <div className="azure-cost-columns">
         <section className="card azure-cost-card">
           <h3>Top services, {formatMonth(analysis.top_services.month)}</h3>
-          <RankedBars rows={analysis.top_services.rows} currency={analysis.currency} />
+          <RankedBars rows={analysis.top_services.rows} currency={analysis.currency}
+                      onPick={drill ? (name) => drill('service', name) : undefined} />
           {analysis.top_services.others ? (
             <p className="text-muted azure-cost-note">All other services: {formatMoney(analysis.top_services.others, analysis.currency)}</p>
           ) : null}
         </section>
         <section className="card azure-cost-card">
           <h3>Subscriptions, {formatMonth(analysis.subscriptions.month)}</h3>
-          <RankedBars rows={analysis.subscriptions.rows.slice(0, 10)} currency={analysis.currency} />
+          <RankedBars rows={analysis.subscriptions.rows.slice(0, 10)} currency={analysis.currency}
+                      onPick={drill ? (name) => drill('subscription', name) : undefined} />
         </section>
       </div>
       <AnomalyList analysis={analysis} />

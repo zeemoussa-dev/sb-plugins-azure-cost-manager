@@ -6,13 +6,16 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (consumption_analysis, data_transfer, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
+from . import (consumption_analysis, data_transfer, drill, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
                marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tags, this_month,
                whitespace)
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
 from .pipeline import Pipeline, PipelineUnavailable, by_month
+
+# Cost Management bills every Marketplace offer under these service names.
+MARKETPLACE_SERVICES = ("SaaS", "Azure Applications")
 
 # The weekly job keeps data at most a week old; past this the page says it is stale.
 STALE_AFTER = timedelta(days=8)
@@ -52,10 +55,11 @@ def _now() -> datetime:
 class ConsumptionService:
     def __init__(self, store: ConsumptionStore, book: CustomerBook,
                  today: Callable[[], date] = date.today, now: Callable[[], datetime] = _now,
-                 pipeline: Pipeline | None = None, solution_notes=None) -> None:
+                 pipeline: Pipeline | None = None, solution_notes=None, technology_notes=None) -> None:
         self._store = store
         self._book = book
         self._solution_notes = solution_notes
+        self._technology_notes = technology_notes
         self.prices = pricing.PriceBook(store.finops_state, store.save_finops_state, now)
         self._pipeline = pipeline
         self._today = today
@@ -784,6 +788,57 @@ class ConsumptionService:
         workbook = export_xlsx.build(exported, analysis, merged, self._today(), entries)
         audience = " - for the customer" if view == "customer" else ""
         return f"Azure consumption - {analysis['customer']['name']}{audience} - {self._today().isoformat()}.xlsx", workbook
+
+    def drill(self, customer_id: str, kind: str, name: str, accounts: list[str] | None = None) -> dict:
+        """One service, subscription, solution play or month of a customer, opened up
+        (operator, 2026-10-23: "any text can be drilled down")."""
+        customer = self._customer(customer_id)
+        merged, currency, entries = self._merged(customer, only=set(accounts) if accounts else None)
+        groups: dict[str, float] = {}
+        if kind == "subscription":
+            for entry in entries.values():
+                footprint = entry.get("footprint") or {}
+                found = (footprint.get("subscriptions") or {}).get(name) or {}
+                for group, cost in (found.get("resource_groups") or {}).items():
+                    groups[group] = groups.get(group, 0.0) + cost / (footprint.get("months") or 1)
+        found = drill.analyse(merged, kind, name, months.month_of(self._today()), self.solution_play_mapping(), groups)
+        notes = self._technology_notes
+        if kind == "service":
+            found["technology_note"] = notes.note_for(name) if notes else None
+            found["solutions"] = [{"id": pattern["id"], "name": pattern["name"], "note": pattern.get("note")}
+                                  for pattern in self._patterns()
+                                  if f"service:{name}" in {signal for group in pattern["requires"] for signal in group}
+                                  | set(pattern["supports"])]
+        if kind == "service" and name in MARKETPLACE_SERVICES:
+            found["marketplace"] = self._marketplace_behind(entries, found["recent_months"])
+        if found.get("parts_kind") == "service" and notes:
+            for row in found["parts"]:
+                row["technology_note"] = notes.note_for(row["name"])
+        if kind == "subscription":
+            row = next((row for row in self.solutions_of(customer_id)["subscriptions"] if row["subscription"] == name), None)
+            found["solutions"] = [{"id": item["id"], "name": item["name"], "note": item.get("note")}
+                                  for item in (row["solutions"] + row["also"])] if row else []
+        return {"customer": {"id": customer["id"], "name": customer["name"]}, "currency": currency, **found}
+
+    @staticmethod
+    def _marketplace_behind(entries: dict[str, dict], recent: list[str]) -> list[dict]:
+        """What "SaaS" and "Azure Applications" are (operator, 2026-10-23: "the word SaaS ... I
+        need a way to know what it is"): Cost Management bills every Marketplace SaaS offer
+        as one service; the month's Marketplace charges name each publisher, offer and plan."""
+        found: dict[tuple, dict] = {}
+        for entry in entries.values():
+            for month in recent:
+                for item in (((entry.get("months") or {}).get(month) or {}).get("marketplace") or {}).get("items") or []:
+                    key = (item["publisher"], item["offer"], item.get("plan") or "")
+                    row = found.setdefault(key, {"publisher": key[0], "offer": key[1], "plan": key[2],
+                                                 "subscriptions": set(), "cost": 0.0, "recurring": item.get("recurring")})
+                    row["cost"] += item["cost"]
+                    if item.get("subscription"):
+                        row["subscriptions"].add(item["subscription"])
+        rows = [{**{key: value for key, value in row.items() if key != "cost"},
+                 "monthly": round(row["cost"] / max(1, len(recent)), 2),
+                 "subscriptions": sorted(row["subscriptions"])} for row in found.values()]
+        return sorted(rows, key=lambda row: -row["monthly"])
 
     def consumption(self, customer_id: str, first_month: str | None, last_month: str | None,
                     group_by: str, cost_kind: str, accounts: list[str] | None = None) -> dict:

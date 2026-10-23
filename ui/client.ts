@@ -839,6 +839,36 @@ export type ExportedReport = 'growth' | 'whitespace' | 'marketplace-whitespace' 
 export const reportExportPath = (report: ExportedReport, measure?: Measure) =>
   `${BASE}/reports/${report}/export.xlsx${measure ? `?${measureQuery(measure)}` : ''}`;
 
+/** One service, subscription, solution play or month opened up (operator, 2026-10-23). */
+export type DrillKind = 'service' | 'subscription' | 'play' | 'month';
+
+export interface Drill {
+  customer: { id: string; name: string };
+  currency: string | null;
+  kind: DrillKind;
+  name: string;
+  trend?: { month: string; cost: number }[];
+  parts_kind: DrillKind;
+  parts: ({ name: string; monthly: number; last_12: number; technology_note?: string | null }
+    | { name: string; cost: number; before: number })[];
+  recent_months?: string[];
+  pairs_missing?: boolean;
+  play?: string;
+  technology_note?: string | null;
+  solutions?: { id: string; name: string; note?: string | null }[];
+  resource_groups?: { name: string; monthly: number }[];
+  /** For "SaaS" and "Azure Applications": the Marketplace products they are. */
+  marketplace?: { publisher: string; offer: string; plan: string; subscriptions: string[]; monthly: number; recurring?: boolean }[];
+  total?: number;
+  previous?: string | null;
+  subscriptions?: { name: string; cost: number }[];
+  by_play?: { name: string; cost: number }[];
+}
+
+export const fetchDrill = (id: string, kind: DrillKind, name: string, accounts: string[] | null) =>
+  apiFetch<Drill>(`${customer(id)}/drill?kind=${kind}&name=${encodeURIComponent(name)}`
+    + (accounts?.length ? `&accounts=${encodeURIComponent(accounts.join(','))}` : ''));
+
 /** What a subscription looks like it is used for (operator, 2026-10-23). */
 export interface FoundSolution {
   id: string;

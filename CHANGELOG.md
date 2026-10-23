@@ -2,6 +2,20 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.41.0] - 2026-10-23
+
+- feat: **drill-downs** (operator, 2026-10-23: "check any text can be drilled down ... every graph", "the drill down links to services"). In a customer's report, a service, subscription, solution play or month -- in a table or a chart -- opens a panel above the report (`drill=<kind>:<name>` in the URL; Back closes it):
+  - **a service:** its months, the subscriptions running it (last three closed months and twelve), its solution play, the Solution notes it belongs to, and its **Technology note** in the vault -- found by its billed name ("Foundry Models" -> Azure OpenAI Service; "Storage" -> Blob Storage);
+  - **"SaaS" and "Azure Applications"** (operator: "the word SaaS ... I need a way to know what it is"): Cost Management bills every Marketplace offer under these names; the panel lists the products behind them -- publisher, offer, plan, the subscriptions buying them and the monthly spend -- from the Marketplace charges;
+  - **a subscription:** its months, its services, its resource groups and the solutions it was placed in;
+  - **a solution play:** its months and its services;
+  - **a month:** its services against the month before, its subscriptions and its solution plays.
+  - Every name in the panel opens further, and every month in its chart opens that month.
+- **Charts:** a bar, point or axis label opens what it is: Overview (monthly consumption, plan-line mix, MoM, YoY, the year-against-year months), solution plays, Breakdown (the mix by service, play or subscription; the ranked services and subscriptions; GPU and AI), FinOps coverage.
+- **Text:** anomalies, This month's services and subscriptions, FinOps' fastest-growing, the Solutions tab's subscriptions and services; and on the all-customers pages (Growth, Hygiene, Solutions) a service or subscription opens that customer's report drilled into it.
+- Which subscriptions run a service reads the pairs kept since 0.39.0: a month synced before says so until the next Sync all fills it.
+- **Route:** `GET /customers/{id}/drill?kind=service|subscription|play|month&name=...`.
+
 ## [0.40.1] - 2026-10-23
 
 - chore: **renamed Azure Customer 360** (operator, 2026-10-23: "Azure Cost is not the right name anymore"). The name shown everywhere -- the sidebar, breadcrumbs, report landing page, Settings, the Marketplace card, a data export's file name and its messages -- is Azure Customer 360. Only the display name changed: the plugin id, its routes (`/azure-cost-manager/...`), its data folder (`Azure-Cost-Manager/`) and the `azure-cost-manager.*` services other plugins call are unchanged, so nothing moves and older exports still import.

@@ -67,7 +67,7 @@ def _add(into: dict[str, float], name: str, cost: float) -> None:
 
 
 def _empty_month() -> dict:
-    return {**{kind: {"service": {}, "subscription": {}, "account": {}} for kind in COST_KINDS},
+    return {**{kind: {"service": {}, "subscription": {}, "account": {}, "pairs": {}} for kind in COST_KINDS},
             "meters": {},
             "measured": {"usage": 0.0, "marketplace": 0.0, "marketplace_macc": 0.0, "marketplace_core42": 0.0,
                          "credits": 0.0, "credit_details": {}, "by_account": {}, "from_balance": 0}}
@@ -113,6 +113,10 @@ def merge(entries: dict[str, dict], labels: dict[str, str] | None = None,
                 total = sum((spend.get("service") or {}).values())
                 if total:
                     _add(target[kind]["account"], label, total)
+                for subscription, services in (spend.get("pairs") or {}).items():
+                    into = target[kind]["pairs"].setdefault(subscription, {})
+                    for service, cost in services.items():
+                        _add(into, service, cost)
             for key, cost in (data.get("meters") or {}).items():
                 _add(target["meters"], key, cost)
             balance = data.get("balance") or {}

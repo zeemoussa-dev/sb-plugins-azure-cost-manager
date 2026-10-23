@@ -8,6 +8,7 @@ import {
   startTagSync, type CustomerSolutions, type SolutionCatalog, type SolutionGuide, type SolutionsAcross,
   type SubscriptionSolutions,
 } from './client';
+import { DrillLink } from './Drill';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -73,7 +74,7 @@ function SubscriptionRow({ row }: { row: SubscriptionSolutions }) {
   return (
     <>
       <tr className="azure-cost-clickable" onClick={() => setOpen(!open)}>
-        <td>{row.subscription}</td>
+        <td><DrillLink kind="subscription" name={row.subscription} /></td>
         <td>{money(row.monthly)}</td>
         <td>{row.environment ?? '—'}</td>
         <td>
@@ -84,7 +85,8 @@ function SubscriptionRow({ row }: { row: SubscriptionSolutions }) {
           )) : <span className="text-muted">Not placed</span>}
           {row.also.length ? <span className="text-muted"> · also {row.also.map((found) => found.name).join(', ')}</span> : null}
         </td>
-        <td className="text-muted">{row.top_services.slice(0, 3).map((service) => service.name).join(', ')}</td>
+        <td className="text-muted">{row.top_services.slice(0, 3).map((service, index) => (
+          <span key={service.name}>{index ? ', ' : ''}<DrillLink kind="service" name={service.name} /></span>))}</td>
       </tr>
       {open ? (
         <tr>
@@ -289,8 +291,11 @@ export function SolutionsPage() {
                   {report.unclassified.slice(0, 50).map((row) => (
                     <tr key={`${row.customer_id}|${row.subscription}`}>
                       <td><Link to={reportLink('Solutions', row.customer_id)}>{row.customer}</Link></td>
-                      <td>{row.subscription}</td><td>{money(row.monthly)}</td>
-                      <td className="text-muted">{row.top_services.map((service) => service.name).join(', ')}</td>
+                      <td><DrillLink kind="subscription" name={row.subscription} customerId={row.customer_id} /></td>
+                      <td>{money(row.monthly)}</td>
+                      <td className="text-muted">{row.top_services.map((service, index) => (
+                        <span key={service.name}>{index ? ', ' : ''}
+                          <DrillLink kind="service" name={service.name} customerId={row.customer_id} /></span>))}</td>
                     </tr>
                   ))}
                 </tbody>
