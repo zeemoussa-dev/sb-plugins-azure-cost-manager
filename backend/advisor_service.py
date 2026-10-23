@@ -30,20 +30,20 @@ class Advisor:
         """`note`: the seller's answer to the question Compass asked, or what they know --
         kept with the item and handed to every explanation of it from then on (operator,
         2026-10-23: "Explain this asks me a question but I have no option to answer")."""
-        key = f"{customer_id}|{kind}|{name}"
-        notes = list((self._answers.get("explain-notes", key) or {}).get("value") or [])
+        key, about = f"{customer_id}|{kind}|{name}", f"explain: {kind} {name}"
         if note and note.strip():
             compass.require(self._llm)
-            notes.append({"said": note.strip()[:1000], "on": self._service.current_day()})
-            self._answers.put("explain-notes", key, "", notes)
+            # Into the customer's memory: the brief and every other feature hear it too.
+            self._service.memory.add(customer_id, note, about)
             write = True
         facts = advisor.explain_facts(self._service.drill(customer_id, kind, name, accounts),
-                                      self._service.current_month(), notes)
+                                      self._service.current_month(), self._service.memory.handed(customer_id))
         stamp = compass.fingerprint(facts)
         if write:
             text = compass.ask(self._llm, advisor.explain_messages(facts))
             self._answers.put("explain", key, stamp, text.strip())
-        return {**self._kept("explain", key, stamp), "notes": notes}
+        return {**self._kept("explain", key, stamp),
+                "notes": [line for line in self._service.memory.of(customer_id) if line.get("source") == about]}
 
     # -- next best actions --------------------------------------------------------
 
@@ -70,8 +70,10 @@ class Advisor:
                 pipeline[row["id"]] = {"open": len(open_items), "expected_monthly": round(sum(
                     float(item.get("expected_monthly_usd") or 0) for item in open_items))}
         growth = {row["id"]: row for row in self._service.growth_across()}
+        said = {row["id"]: self._service.memory.handed(row["id"])[-3:] for row in top
+                if self._service.memory.of(row["id"])}
         return advisor.action_facts(portfolio, growth, self._service.quota_across(), self._pitches_by_customer(),
-                                    pipeline, ACTIONS_FOR)
+                                    pipeline, ACTIONS_FOR, said)
 
     def actions(self, write: bool = False) -> dict:
         facts = self._action_facts()
@@ -107,7 +109,8 @@ class Advisor:
         customer = None
         if customer_id:
             facts = self._service.brief_facts(customer_id)
-            customer = {"name": facts["customer"], "consumption": facts["consumption"].get("monthly_run_rate_3m")}
+            customer = {"name": facts["customer"], "consumption": facts["consumption"].get("monthly_run_rate_3m"),
+                        "seller_says": facts.get("seller_says")}
         reply = compass.ask(self._llm, advisor.sizing_messages(solution, answers, customer))
         return {"solution": solution["name"], "note": solution.get("note"),
                 **advisor.check_sizing(reply, solution["sizing"])}

@@ -149,6 +149,20 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
 
     # -- the seller's Compass features (operator, 2026-10-23) --------------------------
 
+    @router.get("/customers/{customer_id}/memory")
+    def get_memory(customer_id: str) -> list[dict]:
+        return _answered(lambda: service.memory.of(service.customer(customer_id)["id"]))
+
+    @router.post("/customers/{customer_id}/memory")
+    def post_memory(customer_id: str, submitted: dict = Body(...)) -> list[dict]:
+        """Something for Compass to remember about the customer (operator, 2026-10-23)."""
+        return _answered(lambda: service.memory.add(service.customer(customer_id)["id"], str(submitted.get("said") or ""),
+                                                    str(submitted.get("source") or "you")[:80]))
+
+    @router.delete("/customers/{customer_id}/memory/{line_id}")
+    def delete_memory(customer_id: str, line_id: str) -> list[dict]:
+        return _answered(lambda: service.memory.remove(service.customer(customer_id)["id"], line_id))
+
     @router.get("/customers/{customer_id}/explain")
     def get_explain(customer_id: str, kind: str, name: str, accounts: str | None = None) -> dict:
         return _compass(lambda: advisor.explain(customer_id, kind, name, False, [a for a in (accounts or "").split(",") if a] or None))

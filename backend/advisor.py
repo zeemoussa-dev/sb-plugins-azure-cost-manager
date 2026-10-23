@@ -27,6 +27,7 @@ def _system(task: str) -> dict:
 # -- explain a move ----------------------------------------------------------------
 
 def explain_facts(drill: dict, current_month: str | None = None, seller_notes: list[dict] | None = None) -> dict:
+    """`seller_notes`: the customer's memory -- what the seller told Compass about it."""
     # The month still being billed is marked: read as a whole month, a third of one
     # looked like a fall (checked on ADNOC's Foundry Models, 2026-10-23).
     trend = [{**point, **({"partial": "billed so far, month not over"} if point["month"] == current_month else {})}
@@ -61,7 +62,7 @@ def explain_messages(facts: dict) -> list[dict]:
 # -- next best actions -------------------------------------------------------------
 
 def action_facts(portfolio: list[dict], growth: dict[str, dict], quota: dict, pitches: dict[str, list[dict]],
-                 pipeline: dict[str, dict], limit: int = 30) -> dict:
+                 pipeline: dict[str, dict], limit: int = 30, seller_says: dict[str, list[dict]] | None = None) -> dict:
     """One line per top-level customer, the largest last month first, and the seller's quota."""
     rows = []
     for row in sorted((item for item in portfolio if not item.get("parent")),
@@ -80,6 +81,7 @@ def action_facts(portfolio: list[dict], growth: dict[str, dict], quota: dict, pi
             "above_baseline_projected": round(above["above_projected"]) if above.get("above_projected") is not None else None,
             "pitches": pitches.get(row["id"]) or [],
             "open_pipeline": pipeline.get(row["id"]),
+            "seller_says": (seller_says or {}).get(row["id"]),
         }.items() if value not in (None, [], {})})
     return {"quota": {key: quota.get(key) for key in ("above_projected", "gap_to_quota", "projected_pct")},
             "customers": rows}
@@ -90,7 +92,8 @@ def action_messages(facts: dict) -> list[dict]:
         "Rank the seller's next best actions across these customers -- the ones most worth doing this week for "
         "the customer, the MACC and the seller's quota. Consider: a MACC running out before its end (renewal or "
         "top-up), a MACC heading for a shortfall (consumption to grow), sharp growth or decline, pitches with "
-        "their sizing, and thin pipeline.\n"
+        "their sizing, and thin pipeline. A customer's 'seller_says' is what the seller told you: treat it as "
+        "fact (a MACC already renewed needs no renewal action).\n"
         'Answer with a JSON array of at most 12 objects, best first: {"customer_id": <as given>, "action": <what '
         'to do, one sentence>, "why": <one sentence citing the facts>, "urgency": "now"|"this quarter"|"later", '
         '"pitch": <the pitch text it uses, exactly as given, or null>}. Nothing else.'),
@@ -126,12 +129,14 @@ def draft_facts(brief_facts: dict, pitch: dict, sizing: dict | None, solution_mo
             "sizing": sizing, "consumption": {key: brief_facts["consumption"].get(key) for key in
                                               ("last_month", "monthly_run_rate_3m", "year_on_year_pct")},
             "commitment": brief_facts.get("commitment"), "existing_pipeline": brief_facts.get("pipeline"),
+            "seller_says": brief_facts.get("seller_says"),
             "recent_conversations": (brief_facts.get("vault") or {}).get("recent")}
 
 
 def draft_messages(facts: dict) -> list[dict]:
     return [_system(
-        "Draft an opportunity and a short email to the customer from this pitch.\n"
+        "Draft an opportunity and a short email to the customer from this pitch. 'seller_says' is what the seller "
+        "told you about the customer: use it.\n"
         'Answer with one JSON object: {"title": <opportunity title, under 80 characters, naming the customer and '
         'the solution>, "summary": <two sentences: the customer need the facts show and what is proposed>, '
         '"size": "small"|"medium"|"large" <which of the sizing fits this customer\'s scale -- compare with what it '
@@ -163,7 +168,7 @@ def sizing_messages(solution: dict, answers: str, customer_facts: dict | None) -
     return [_system(
         "Size this solution for one customer from its template bill. For each building block choose the size "
         "that fits what the seller knows (small, medium or large) and a quantity factor (1 = as in the bill, e.g. 2 "
-        "for twice the users or data), with a short reason.\n"
+        "for twice the users or data), with a short reason. The customer's 'seller_says', when given, is fact.\n"
         'Answer with one JSON object: {"blocks": [{"block": <name exactly as given>, "size": "small"|"medium"|"large", '
         '"factor": <number between 0.25 and 10>, "reason": <short>}], "assumptions": [<what you assumed>], '
         '"questions": [<what to ask to firm it up>]}. Nothing else.'),

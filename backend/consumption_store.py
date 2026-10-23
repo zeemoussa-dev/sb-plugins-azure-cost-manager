@@ -44,8 +44,11 @@ PLACEMENTS_FILE = "Azure-Cost-Manager/Placements.json"
 COMPASS_ANSWERS_FILE = "Azure-Cost-Manager/Compass-Answers.json"
 # The seller's baseline (start, months), fiscal year and quota -- one for everyone.
 QUOTA_FILE = "Azure-Cost-Manager/Quota.json"
+# What the seller has told Compass about each customer (`memory`). A data file: it is
+# the seller's knowledge, and moves with an export.
+CUSTOMER_MEMORY_FILE = "Azure-Cost-Manager/Customer-Memory.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
-              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE)
+              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE, CUSTOMER_MEMORY_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -193,6 +196,14 @@ class ConsumptionStore:
             state = _read_json(self._api, PLACEMENTS_FILE, {})
             state.setdefault("placements", {}).update(found)
             _write_json(self._api, PLACEMENTS_FILE, state)
+
+    def customer_memory(self) -> dict:
+        with self._lock:
+            return dict(_read_json(self._api, CUSTOMER_MEMORY_FILE, {}))
+
+    def save_customer_memory(self, state: dict) -> None:
+        with self._lock:
+            _write_json(self._api, CUSTOMER_MEMORY_FILE, state)
 
     def compass_answers(self) -> dict:
         with self._lock:

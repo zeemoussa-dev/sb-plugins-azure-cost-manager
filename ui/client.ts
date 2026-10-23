@@ -1006,6 +1006,21 @@ export interface CustomerBrief {
   facts: unknown;
 }
 
+/** One thing the seller told Compass about a customer (operator, 2026-10-23: "Brief me has no memory"). */
+export interface MemoryLine {
+  id: string;
+  said: string;
+  on: string;
+  /** Where it was said: "you", "brief", or "explain: <kind> <name>". */
+  source: string;
+}
+
+export const fetchMemory = (id: string) => apiFetch<MemoryLine[]>(`${customer(id)}/memory`);
+export const remember = (id: string, said: string, source = 'you') =>
+  apiFetch<MemoryLine[]>(`${customer(id)}/memory`, { method: 'POST', body: JSON.stringify({ said, source }) });
+export const forget = (id: string, lineId: string) =>
+  apiFetch<MemoryLine[]>(`${customer(id)}/memory/${encodeURIComponent(lineId)}`, { method: 'DELETE' });
+
 export const fetchBrief = (id: string) => apiFetch<CustomerBrief>(`${customer(id)}/brief`);
 export const writeBrief = (id: string) => apiFetch<CustomerBrief>(`${customer(id)}/brief`, { method: 'POST' });
 

@@ -24,7 +24,7 @@ def _r(value):
 
 
 def facts(customer: dict, analysis: dict, quota: dict | None, solutions_view: dict, sizing_by_name: dict,
-          vault: dict) -> dict:
+          vault: dict, seller_says: list[dict] | None = None) -> dict:
     kpis = (analysis.get("dashboard") or {}).get("kpis") or {}
     commitment = analysis.get("commitment") or {}
     closed = [month for month in analysis.get("months") or [] if month["month"] <= (analysis.get("last_closed_month") or "")]
@@ -63,6 +63,8 @@ def facts(customer: dict, analysis: dict, quota: dict | None, solutions_view: di
         "pipeline_against_actual": {key: _r(((quota or {}).get("pipeline") or {}).get(key))
                                     for key in ("planned_to_date", "achieved_to_date", "gap", "behind")} if quota else None,
         "vault": vault,
+        # What the seller told Compass about this customer (`memory`).
+        "seller_says": seller_says or [],
     }
 
 
@@ -82,6 +84,9 @@ def messages(found: dict) -> list[dict[str, str]]:
         "- Use ONLY the facts in the JSON the user sends. Never invent a number, a date, a person, a product or an "
         "event. Quote figures as given; you may round them (e.g. $5.98M) and add or compare them, nothing more.\n"
         "- When a section has no facts, write one line saying it is not known; do not fill it.\n"
+        "- 'seller_says' is what the seller has told you about this customer, newest last: treat it as fact, let it "
+        "correct a guess from the other facts, and say where you use it with '(you said)'. A figure the seller gave "
+        "may be quoted, marked the same way; never change a report's figure because of it.\n"
         "- Money is in the given currency; write it compactly ($1.2M, $350K).\n"
         "- Say plainly what matters for the conversation; no generic advice.\n"
         "- Answer in markdown with exactly these headings, in this order, under 450 words in all:\n"

@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.47.0] - 2026-10-23
+
+- feat: **customer memory** (operator, 2026-10-23: "Brief me has no memory"). What you tell Compass about a customer is kept for that customer and handed to everything Compass writes about it -- the brief, Explain this, drafts, sizing and next best actions -- as fact: it corrects a guess from the reports (a MACC already renewed needs no renewal action), a figure you gave is quoted marked "(you said)", and a report's own figure is never changed by it.
+  - **In the brief:** "What Compass knows from you" lists every line with when and where it was said, each removable (✕); **Correct or add to it** remembers what you write and rewrites the brief with it. A changed memory marks the brief as stale.
+  - **From Explain this:** an answer given there goes into the customer's memory (replacing 0.46.2's per-item notes), so the brief hears it too.
+  - Kept in the plugin's data (`Customer-Memory.json`), so it moves with **Move to another machine**; at most the 60 latest lines are kept and the 20 latest handed to a prompt.
+  - **Routes:** `GET/POST /customers/{id}/memory`, `DELETE /customers/{id}/memory/{line}`.
+
 ## [0.46.2] - 2026-10-23
 
 - feat: **answer what Explain this asks** (operator, 2026-10-23: "Explain this asks me a question but I don't have an option to answer"). The explanation now ends with a labelled **Ask the customer:** line -- the question is for the customer, not for you -- and under it a box takes the customer's answer, or anything you know. Compass rewrites the explanation with it as fact, replacing a guessed reason, and ends with **Next:** when nothing is left to ask. What you told it is kept with that item (shown under the explanation) and handed to every explanation of it from then on.

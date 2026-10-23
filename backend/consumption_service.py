@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (brief, consumption_analysis, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
+from . import (brief, consumption_analysis, memory, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
                marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tags, this_month,
                whitespace)
@@ -65,6 +65,7 @@ class ConsumptionService:
         self._book = book
         self._llm = llm
         self._customer_context = customer_context
+        self.memory = memory.CustomerMemory(store.customer_memory, store.save_customer_memory, today)
         self._solution_notes = solution_notes
         self._technology_notes = technology_notes
         self.prices = pricing.PriceBook(store.finops_state, store.save_finops_state, now)
@@ -268,7 +269,8 @@ class ConsumptionService:
         sizing = {pattern["name"]: [pattern["sizing"]["totals"][size] for size in ("small", "medium", "large")]
                   for pattern in self._patterns() if pattern.get("sizing")}
         vault = self._customer_context.about(customer.get("entity_customer")) if self._customer_context else {}
-        return brief.facts(customer, analysis, quota_found, self.solutions_of(customer_id), sizing, vault)
+        return brief.facts(customer, analysis, quota_found, self.solutions_of(customer_id), sizing, vault,
+                           self.memory.handed(customer_id))
 
     def customer_brief(self, customer_id: str, write: bool = False) -> dict:
         """The customer's brief before a meeting (operator, 2026-10-23), written by Compass
