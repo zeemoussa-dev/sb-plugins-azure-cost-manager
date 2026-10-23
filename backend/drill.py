@@ -78,9 +78,7 @@ def analyse(merged: dict, kind: str, name: str, current_month: str, plays: dict[
         return (merged.get(month) or {}).get("actual", {}).get(axis) or {}
 
     def by_play(month: str) -> dict[str, float]:
-        data = merged.get(month) or {}
-        return solution_plays.split(spend(month, "service"), data.get("meters"), plays,
-                                    (data.get("measured") or {}).get("marketplace"))
+        return solution_plays.split_month(merged.get(month) or {}, plays)
 
     if kind == "month":
         if name not in merged:

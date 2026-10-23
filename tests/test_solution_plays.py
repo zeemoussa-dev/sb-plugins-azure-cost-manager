@@ -75,3 +75,35 @@ def test_an_ea_months_marketplace_comes_from_the_invoice():
 
     assert split[plays.MARKETPLACE] == 373_000.0 and split[plays.INFRA] == 1000.0
     assert plays.split({"SaaS": 50.0}, {}, plays.mapping(None), marketplace=0.0)[plays.MARKETPLACE] == 50.0
+
+
+def test_third_party_licenses_are_marketplace_once_and_microsofts_stay():
+    """FAB, Apr-Sep 2026: $10.44M of VM licenses, $10.2M of it Fortinet FortiFlex, which the
+    invoice's $12.68M Marketplace already holds beside $2.48M of SaaS."""
+    mapping = plays.mapping(None)
+    services = {"Virtual Machine Licenses": 10_441_886.0, "SaaS": 2_484_005.0, "Virtual Machines": 5_000_000.0}
+    meters = {"Fortinet FortiFlex Usage-based Licensing|Reservation": 10_199_127.0, "Windows Server|OnDemand": 240_000.0}
+    offers = {"Fortinet FortiFlex Usage-based Licensing-Fortinet FortiFlex (Enterprise)": 10_199_127.0,
+              "Dataiku for Enterprise AI-FAB": 366_667.0}
+
+    found = plays.split(services, meters, mapping, marketplace=12_683_606.0, offers=offers)
+
+    assert found[plays.MARKETPLACE] == 12_683_606.0
+    assert found[plays.INFRA] == round(5_000_000.0 + 10_441_886.0 - 10_199_127.0, 2)   # Windows stays Infra
+    assert sum(found.values()) == round(5_000_000.0 + 10_441_886.0 - 10_199_127.0 + 12_683_606.0, 2)
+
+
+def test_microsoft_licenses_with_no_matching_offer_stay_put():
+    mapping = plays.mapping(None)
+    found = plays.split({"Virtual Machine Licenses": 1000.0}, {"SQL Server Enterprise|OnDemand": 1000.0}, mapping,
+                        marketplace=500.0, offers={"Dataiku for Enterprise AI": 500.0})
+    assert found[plays.INFRA] == 1000.0 and found[plays.MARKETPLACE] == 500.0
+
+
+def test_plays_read_amortized_so_a_commitment_lands_where_it_is_used():
+    month = {"actual": {"service": {"Unassigned": 900.0, "Virtual Machines": 100.0}},
+             "amortized": {"service": {"Virtual Machines": 400.0, "Foundry Models": 600.0}},
+             "measured": {"marketplace": 0.0}}
+    found = plays.split_month(month, plays.mapping(None))
+    assert plays.UNASSIGNED not in found and found[plays.INFRA] == 400.0 and found[plays.AI] == 600.0
+

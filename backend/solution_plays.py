@@ -25,6 +25,12 @@ PLAYS = [AI, DATA, INFRA, SECURITY, APPS, MARKETPLACE, UNASSIGNED]
 
 # The service whose GPU meters are AI & ML rather than Infra.
 GPU_HOST_SERVICE = "Virtual Machines"
+# Software licenses for VMs: Microsoft's own (Windows Server, SQL Server, RHEL) and
+# third-party Marketplace software billed the same way (FAB's Fortinet FortiFlex, $10.2M
+# in six months, operator's check 2026-10-23).
+LICENSE_SERVICES = ("Virtual Machine Licenses", "Virtual Machines Licenses")
+# A meter subcategory shorter than this is too generic to match an offer's name.
+SHORTEST_MATCH = 8
 
 _DEFAULTS = {
     AI: ["Foundry Models", "Foundry Tools", "Cognitive Services", "Azure OpenAI", "Specialized Compute",
@@ -76,26 +82,65 @@ def gpu_cost(meters: dict[str, float]) -> float:
     return sum(item["cost"] for item in categories.detail(meters or {}) if item["category"].startswith("GPU"))
 
 
+def third_party_licenses(services: dict[str, float], meters: dict[str, float] | None,
+                         offers: dict[str, float] | None, unseen_marketplace: float) -> float:
+    """The part of a month's VM licenses that is Marketplace software: no more than the
+    licenses, than the meters named like an invoiced Marketplace offer, or than the
+    invoiced Marketplace Cost Management did not already show as SaaS."""
+    licenses = sum(services.get(name, 0.0) for name in LICENSE_SERVICES)
+    if licenses <= 0 or unseen_marketplace <= 0 or not offers:
+        return 0.0
+    names = [offer.lower() for offer in offers if offer]
+    matched = 0.0
+    for key, cost in (meters or {}).items():
+        subcategory = key.split("|")[0].strip().lower()
+        if len(subcategory) >= SHORTEST_MATCH and any(name.startswith(subcategory) for name in names):
+            matched += cost
+    return max(0.0, min(licenses, matched, unseen_marketplace))
+
+
 def split(services: dict[str, float], meters: dict[str, float] | None, plays: dict[str, str],
-          marketplace: float | None = None) -> dict[str, float]:
+          marketplace: float | None = None, offers: dict[str, float] | None = None) -> dict[str, float]:
     """One month's spend by service as spend by play. GPU virtual machines move from
     the VM service's play to AI & ML -- never more than that service cost.
 
     `marketplace`: the month's invoiced Marketplace, when there is one. On an EA
     enrollment Cost Management leaves Marketplace out (ADNOC, 2026-10: $28 against
-    $373K invoiced), so the invoice's figure stands for the play instead."""
+    $373K invoiced), so the invoice's figure stands for the play instead.
+
+    `offers`: the invoice's Marketplace offers by name. Third-party software billed as
+    "Virtual Machine Licenses" is in the invoice too; it leaves the licenses' play so it
+    is counted once, as Marketplace (FAB's Fortinet was counted twice)."""
     by_play: dict[str, float] = {}
     for service, cost in services.items():
         play = play_of(service, plays)
         by_play[play] = by_play.get(play, 0.0) + cost
-    if marketplace and marketplace > by_play.get(MARKETPLACE, 0.0):
+    shown = by_play.get(MARKETPLACE, 0.0)
+    moved = third_party_licenses(services, meters, offers, (marketplace or 0.0) - shown)
+    if moved:
+        license_play = play_of(LICENSE_SERVICES[0], plays)
+        by_play[license_play] = by_play.get(license_play, 0.0) - moved
+    if marketplace and marketplace > shown:
         by_play[MARKETPLACE] = marketplace
+    elif moved:
+        by_play[MARKETPLACE] = shown + moved
     host_play = play_of(GPU_HOST_SERVICE, plays)
     gpu = min(gpu_cost(meters or {}), max(services.get(GPU_HOST_SERVICE, 0.0), 0.0))
     if gpu and host_play != AI:
         by_play[host_play] = by_play.get(host_play, 0.0) - gpu
         by_play[AI] = by_play.get(AI, 0.0) + gpu
     return {play: round(cost, 2) for play, cost in by_play.items() if round(cost, 2) != 0}
+
+
+def split_month(month: dict, plays: dict[str, str], cost_kind: str = "amortized") -> dict[str, float]:
+    """A merged month by play. Amortized by default (operator, 2026-10-23): a reservation or
+    savings plan bought that month is otherwise a lump under "Unassigned" -- $1.41M in six
+    months, gone when amortized -- instead of in the plays whose usage it pays for."""
+    spend = (month.get(cost_kind) or {}).get("service") or {}
+    if cost_kind == "amortized" and not spend:
+        spend = (month.get("actual") or {}).get("service") or {}
+    meters = (month.get("meters_amortized") if cost_kind == "amortized" else None) or month.get("meters")
+    return split(spend, meters, plays, (month.get("measured") or {}).get("marketplace"), month.get("marketplace_offers"))
 
 
 def settings_view(overrides: dict[str, str] | None, seen: dict[str, float]) -> dict:

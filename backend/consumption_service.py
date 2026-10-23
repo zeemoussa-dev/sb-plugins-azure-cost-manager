@@ -540,12 +540,10 @@ class ConsumptionService:
         return found
 
     def _plays_by_month(self, merged: dict) -> list[dict]:
-        """Actual cost by solution play per month (Cost Management's figures, so
-        Marketplace in and credits not subtracted, as in Breakdown)."""
+        """Amortized cost by solution play per month: a commitment bought lands in the
+        plays it pays for (operator, 2026-10-23). Marketplace in, credits not subtracted."""
         plays = self.solution_play_mapping()
-        return [{"month": month, "by_play": solution_plays.split(
-                    merged[month]["actual"]["service"], merged[month].get("meters"), plays,
-                    (merged[month].get("measured") or {}).get("marketplace"))}
+        return [{"month": month, "by_play": solution_plays.split_month(merged[month], plays)}
                 for month in sorted(merged)]
 
     def _analysis(self, customer_id: str, measure: dict | None = None, accounts: list[str] | None = None) -> dict:
@@ -1048,8 +1046,7 @@ class ConsumptionService:
         for month in sorted(merged):
             if (first_month and month < first_month) or (last_month and month > last_month):
                 continue
-            spend = (solution_plays.split(merged[month][cost_kind]["service"], merged[month].get("meters"), plays,
-                                          (merged[month].get("measured") or {}).get("marketplace"))
+            spend = (solution_plays.split_month(merged[month], plays, cost_kind)
                      if group_by == "play" else merged[month][cost_kind][group_by])
             rows.extend({"month": month, "name": name, "cost": round(cost, 2)}
                         for name, cost in sorted(spend.items(), key=lambda item: -item[1]))

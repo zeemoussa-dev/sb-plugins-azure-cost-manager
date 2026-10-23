@@ -68,7 +68,7 @@ def _add(into: dict[str, float], name: str, cost: float) -> None:
 
 def _empty_month() -> dict:
     return {**{kind: {"service": {}, "subscription": {}, "account": {}, "pairs": {}} for kind in COST_KINDS},
-            "meters": {},
+            "meters": {}, "meters_amortized": {}, "marketplace_offers": {},
             "measured": {"usage": 0.0, "marketplace": 0.0, "marketplace_macc": 0.0, "marketplace_core42": 0.0,
                          "credits": 0.0, "credit_details": {}, "by_account": {}, "from_balance": 0}}
 
@@ -119,6 +119,12 @@ def merge(entries: dict[str, dict], labels: dict[str, str] | None = None,
                         _add(into, service, cost)
             for key, cost in (data.get("meters") or {}).items():
                 _add(target["meters"], key, cost)
+            for key, cost in ((data.get("meters_amortized") or {}).get("by") or {}).items():
+                _add(target["meters_amortized"], key, cost)
+            # The month's invoiced Marketplace offers, by name: what tells a third-party
+            # license billed as "Virtual Machine Licenses" from Microsoft's own.
+            for item in (data.get("marketplace") or {}).get("items") or []:
+                _add(target["marketplace_offers"], item.get("offer") or "", item.get("cost") or 0.0)
             balance = data.get("balance") or {}
             if balance and not balance.get("missing"):
                 marketplace = balance.get("marketplace", 0.0)

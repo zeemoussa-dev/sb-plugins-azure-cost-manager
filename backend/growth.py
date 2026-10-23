@@ -76,9 +76,7 @@ def analyse(trend: list[dict], merged: dict, plays: dict[str, str]) -> dict:
     def plays_of(rows: list[dict]) -> dict[str, float]:
         totals: dict[str, float] = {}
         for row in rows:
-            month = merged.get(row["month"]) or {}
-            for play, cost in solution_plays.split(services_of(row["month"]), month.get("meters"), plays,
-                                                   (month.get("measured") or {}).get("marketplace")).items():
+            for play, cost in solution_plays.split_month(merged.get(row["month"]) or {}, plays).items():
                 totals[play] = totals.get(play, 0.0) + cost / len(rows)
         return totals
 

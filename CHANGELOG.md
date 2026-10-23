@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.49.0] - 2026-10-23
+
+- fix: **third-party VM licenses are Marketplace, counted once** (operator, 2026-10-23: "Virtual Machine Licenses is also Marketplace -- validate"). Validated on the data: "Virtual Machine Licenses" holds both Microsoft's own licenses (Windows Server, SQL Server, RHEL -- Azure spend) and third-party software billed the same way. FAB's $10.44M of licenses (Apr-Sep 2026) is $10.2M Fortinet FortiFlex, line for line in its invoice's Marketplace charges -- so it was counted twice: once in Infra, once in Marketplace (FAB's plays came to $42.1M against $31.9M invoiced). The part of the licenses matching an invoiced Marketplace offer by name, and not already shown as SaaS, now leaves the licenses' play: FAB's plays come to $31.7M. Microsoft's licenses stay where they were.
+- feat: **solution plays read amortized cost** (operator: "Unassigned should be under Marketplace" -- validated as not: its $1.41M in six months is reservation and savings-plan purchases, $0 amortized; Microsoft: "Purchases and Marketplace usage will show as No service name or unassigned"). A commitment now lands in the plays its usage belongs to -- Mubadala's $359K savings plan in VMs, App Service and SQL -- and a prepaid plan counts as it is used (Mubadala's Copilot credits: $739K bought, $127K used in the period). Over a period with fresh commitments the plays add up to less than the invoice: the rest is prepaid for later months. Plays everywhere (Overview, Breakdown's mix by play, drill-downs, Growth) read the same way; Breakdown's play mix still follows its actual/amortized choice.
+
 ## [0.48.2] - 2026-10-23
 
 - fix: **a subscription billed under two of a customer's enrollments is one subscription** (operator, 2026-10-23, on Mubadala: "half of the subscriptions did, the other half didn't"). Mubadala has many subscriptions that moved between its enrollments; the Solutions view listed each twice, the second named `NAME(id) (67)` -- so its spend was split across two rows, its name could not be shown above its id, and a drill on it found nothing. Its monthly costs are now added into one row under its real name, and the pitches read the estate the same way.
