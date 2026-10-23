@@ -126,6 +126,29 @@ class ConsumptionStore:
         with self._lock:
             _write_json(self._api, FINOPS_FILE, state)
 
+    def read_files(self) -> dict[str, str | None]:
+        """Every data file as it is on disk, for an export; the cache as last written."""
+        self.flush()
+        with self._lock:
+            found = {}
+            for path in DATA_FILES:
+                try:
+                    found[path] = self._api.data.read_text(path)
+                except Exception:
+                    found[path] = None
+            return found
+
+    def replace_files(self, files: dict[str, str]) -> None:
+        """An import: these files replace the ones here, and the cache is read afresh."""
+        with self._lock:
+            for path, text in files.items():
+                if path not in DATA_FILES:
+                    raise ValueError(f"not a data file of this plugin: {path}")
+                self._api.data.write_text(path, text)
+            self._cache = None
+            self._unwritten = False
+            self._written_at = None
+
     def quota_state(self) -> dict:
         with self._lock:
             return dict(_read_json(self._api, QUOTA_FILE, {}))

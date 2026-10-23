@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, Body, HTTPException, Response
+from fastapi import APIRouter, Body, File, HTTPException, Response, UploadFile
 
 from .azure_token import AzureCliToken, AzureSignInError
 from .billing_client import AzureApiError, AzureThrottled
@@ -100,6 +100,22 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return _answered(lambda: service.set_macc_eligible((change.get("publisher") or "").strip(),
                                                            (change.get("offer") or "").strip(),
                                                            bool(change.get("eligible", True))))
+
+    @router.get("/data/export.zip")
+    def get_data_export() -> Response:
+        """Every data file, for another machine: no sync needed there."""
+        name, archive = _answered(service.export_data)
+        return Response(archive, media_type="application/zip",
+                        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
+
+    @router.post("/data/import")
+    async def post_data_import(file: UploadFile = File(...)) -> dict:
+        """Replaces this machine's data with an export's. Refused while a sync runs:
+        it would write its own cache back over the import."""
+        if sync.status()["running"]:
+            raise HTTPException(status_code=409, detail="A sync is running; import once it has finished.")
+        content = await file.read()
+        return _answered(lambda: service.import_data(content))
 
     @router.get("/quota/settings")
     def get_quota_settings() -> dict:

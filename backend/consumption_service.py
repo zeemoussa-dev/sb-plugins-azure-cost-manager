@@ -6,7 +6,8 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (consumption_analysis, export_reports, export_xlsx, finops, forecasting, growth, hygiene, marketplace,
+from . import (consumption_analysis, data_transfer, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
+               marketplace,
                marketplace_whitespace, months, pricing, quota, renewals, solution_plays, tags, this_month, whitespace)
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
@@ -132,6 +133,20 @@ class ConsumptionService:
             current.append({"publisher": publisher, "offer": offer})
         self._store.save_not_macc_eligible(current)
         return current
+
+    # -- moving to another machine ----------------------------------------------
+
+    def export_data(self) -> tuple[str, bytes]:
+        """Every data file, zipped, for another machine (operator, 2026-10-23)."""
+        archive = data_transfer.build(self._store.read_files(), self._now())
+        return f"Azure Cost Manager data - {self._today().isoformat()}.zip", archive
+
+    def import_data(self, content: bytes) -> dict:
+        """Replaces this machine's data with an export's; says what came in."""
+        from .consumption_store import CONSUMPTION_CACHE_FILE, CUSTOMERS_FILE, DATA_FILES
+        files = data_transfer.read(content, DATA_FILES)
+        self._store.replace_files(files)
+        return data_transfer.summary(files, CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE)
 
     # -- baseline and quota ------------------------------------------------------
 

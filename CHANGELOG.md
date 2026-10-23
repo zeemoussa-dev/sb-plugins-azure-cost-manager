@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.37.0] - 2026-10-23
+
+- feat: **Move to another machine** (operator, 2026-10-23: "when I move this into another machine I would not need to sync everything again"). Settings has a new section:
+  - **Export data** downloads one `.zip`: a manifest and every data file (customers and enrollments, the synced cache, FinOps prices, solution plays, Marketplace exclusions, the baseline and quota). The sync log stays behind; it records this machine's runs.
+  - **Import** takes such a file and, after you tick that it replaces this machine's data, writes it in and reloads it without a restart. The next sync fetches only the delta since the export. A damaged, foreign or newer-format file imports nothing, and an import is refused while a sync runs.
+  - MACCs kept on Customer notes move with the vault, not this file.
+  - **Routes:** `GET /data/export.zip`, `POST /data/import`.
+
 ## [0.36.1] - 2026-10-22
 
 - feat: **a quota period** (operator, 2026-10-22: "this year the quota was set for H2 only, July to December"). The quota is counted over a period you set (from and to month, up to 24 months) instead of always the fiscal year. It is named H1, H2, Q1–Q4 or CY when it is one (H2 2026), otherwise by its months. **Use the fiscal year** puts it back. The default baseline follows: the months before the period.

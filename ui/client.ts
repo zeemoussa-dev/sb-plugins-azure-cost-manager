@@ -902,6 +902,17 @@ export const saveQuotaSettings = (changes: Partial<{ quota: number | null; basel
   baseline_months: number; fy_start_month: number; period_first: string | null; period_last: string | null }>) =>
   apiFetch<QuotaSettings>(`${BASE}/quota/settings`, { method: 'PUT', body: JSON.stringify(changes) });
 
+/** Every data file, zipped, to carry this plugin's data to another machine. */
+export const dataExportPath = () => `${BASE}/data/export.zip`;
+
+/** Replaces this machine's data with an export's. */
+export const importData = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return apiFetch<{ files: number; customers: number; enrollments: number }>(`${BASE}/data/import`,
+    { method: 'POST', body: form });
+};
+
 export const fetchWhitespace = () => apiFetch<WhitespaceRow[]>(`${BASE}/whitespace`);
 
 export const fetchGrowth = () => apiFetch<GrowthRow[]>(`${BASE}/growth`);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { apiUrl } from '../../pluginHost/api';
 import {
-  deleteCustomer, fetchBillingAccounts, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, fetchUnassigned,
+  dataExportPath, deleteCustomer, fetchBillingAccounts, importData, fetchCommitmentTypes, fetchCustomers, fetchEntityCustomers, fetchUnassigned,
   findHub, saveCustomer, type BillingAccount, type Commitment, type Customer, type EntityCustomer, type UnassignedGroup,
 } from './client';
 import { agreementLabel, errorText, formatMoney, formatMonth, grouped } from './format';
@@ -17,14 +17,60 @@ const SHOWN_WHILE_SEARCHING = 60;
 
 // One section at a time, picked in a side panel as on the Vault's settings
 // (operator, 2026-10-21: "the Settings page grew too much").
-const SECTIONS = ['customers', 'unassigned', 'plays', 'sync'] as const;
+const SECTIONS = ['customers', 'unassigned', 'plays', 'sync', 'data'] as const;
 type Section = typeof SECTIONS[number];
 const SECTION_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'customers', label: 'Customers', icon: 'groups' },
   { id: 'unassigned', label: 'Enrollments in no customer', icon: 'inventory_2' },
   { id: 'plays', label: 'Solution plays', icon: 'category' },
   { id: 'sync', label: 'Sync', icon: 'sync' },
+  { id: 'data', label: 'Move to another machine', icon: 'swap_horiz' },
 ];
+
+/** Export this plugin's data, or bring in another machine's, so a new machine needs
+ *  no sync from scratch (operator, 2026-10-23). */
+function DataTransfer({ onImported }: { onImported: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [state, setState] = useState<'idle' | 'importing'>('idle');
+  const [result, setResult] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  function bringIn() {
+    if (!file) return;
+    setState('importing'); setProblem(null); setResult(null);
+    importData(file).then((found) => {
+      setResult(`Imported ${found.customers} customer(s) and ${found.enrollments} enrollment(s)' synced data `
+        + `(${found.files} file(s)).`);
+      setFile(null); setConfirmed(false); onImported();
+    }, (failure) => setProblem(errorText(failure))).finally(() => setState('idle'));
+  }
+  return (
+    <section className="card azure-cost-card">
+      <h3>Move to another machine</h3>
+      <p className="text-muted azure-cost-note">
+        The export holds this plugin's data: customers and their enrollments, every synced month, FinOps prices,
+        solution plays, Marketplace exclusions and the baseline and quota. Import it on the other machine and it needs
+        no sync from scratch -- only the delta since the export. MACCs kept on Customer notes move with the vault.
+      </p>
+      <div className="azure-cost-toolbar">
+        <a className="btn" href={apiUrl(dataExportPath())}>Export data</a>
+      </div>
+      <h4>Import</h4>
+      <div className="azure-cost-toolbar">
+        <input type="file" accept=".zip" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setResult(null); }} />
+        <label className="azure-cost-check">
+          <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+          Replace this machine's Azure Cost data with the export
+        </label>
+        <button type="button" className="btn" disabled={!file || !confirmed || state === 'importing'} onClick={bringIn}>
+          {state === 'importing' ? 'Importing…' : 'Import'}
+        </button>
+      </div>
+      {problem ? <div className="azure-cost-error">{problem}</div> : null}
+      {result ? <p className="azure-cost-note">{result}</p> : null}
+    </section>
+  );
+}
 const ACCOUNT_RETRY_SECONDS = [3, 10, 30, 60];
 
 interface Draft {
@@ -461,6 +507,8 @@ export function SettingsPage() {
       ) : null}
 
       {shown === 'plays' ? <SolutionPlaysSettingsCard /> : null}
+
+      {shown === 'data' ? <DataTransfer onImported={load} /> : null}
 
       {shown === 'sync' ? (
       <section className="card azure-cost-card">
