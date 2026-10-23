@@ -8,7 +8,8 @@ from typing import Callable
 
 from . import (consumption_analysis, data_transfer, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
-               marketplace_whitespace, months, pricing, quota, renewals, solution_plays, tags, this_month, whitespace)
+               marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tags, this_month,
+               whitespace)
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
 from .pipeline import Pipeline, PipelineUnavailable, by_month
@@ -204,6 +205,38 @@ class ConsumptionService:
                 "with_pipeline_pct": share(totals["above_with_pipeline"]),
                 "gap_to_quota": round(target - totals["above_projected"], 2) if target else None}
 
+    # -- solutions: what each subscription is used for --------------------------
+
+    def solution_catalog(self) -> dict:
+        own = self._store.solution_patterns()
+        return {"patterns": solutions.patterns(own), "customised": bool(own), "plays": solution_plays.PLAYS[:-2]}
+
+    def save_solution_catalog(self, patterns: list[dict] | None) -> dict:
+        """The operator's catalog replaces the defaults whole; None goes back to them."""
+        self._store.save_solution_patterns(solutions.validated(patterns) if patterns else None)
+        return self.solution_catalog()
+
+    def _solutions_view(self, members: list[dict], catalog: list[dict]) -> dict:
+        entries = {account["name"]: self._store.account(account["name"])
+                   for member in members for account in member["accounts"]}
+        return solutions.customer_view(entries, catalog)
+
+    def solutions_of(self, customer_id: str) -> dict:
+        """Each of the customer's subscriptions (a group's: with its affiliates'), the
+        solution it looks like, and what to pitch (operator, 2026-10-23)."""
+        customer = self._customer(customer_id)
+        catalog = solutions.patterns(self._store.solution_patterns())
+        return {"customer": {"id": customer["id"], "name": customer["name"]},
+                **self._solutions_view(self._group(customer), catalog)}
+
+    def solutions_across(self) -> dict:
+        everyone = self._book.list()
+        catalog = solutions.patterns(self._store.solution_patterns())
+        views = [(customer, self._solutions_view(
+            [customer] + [listed for listed in everyone if listed.get("parent") == customer["id"]], catalog))
+            for customer in everyone if not customer.get("parent")]
+        return solutions.across(views)
+
     def export_report(self, report: str, measure: dict | None = None) -> tuple[str, bytes]:
         """`(file name, .xlsx bytes)` for one of the cross-customer reports, on the
         plugin's workbook template (operator, 2026-10-21)."""
@@ -216,6 +249,7 @@ class ConsumptionService:
             "hygiene": ("Subscription and tag hygiene", lambda: export_reports.build_hygiene(self.hygiene_across(), today)),
             "renewals": ("Marketplace renewals", lambda: export_reports.build_renewals(self.renewals(), today)),
             "quota": ("Baseline and quota", lambda: export_reports.build_quota(self.quota_across(measure), today)),
+            "solutions": ("Solutions", lambda: export_reports.build_solutions(self.solutions_across(), today)),
         }
         if report not in builders:
             raise ValueError(f"report is one of {', '.join(builders)}")

@@ -6,7 +6,7 @@ import { errorText } from './format';
 
 export const REPORT_PATH = '/azure-cost-manager/report';
 
-export const REPORTS = ['Overview', 'This month', 'Forecast', 'Quota', 'Pipeline', 'Marketplace', 'FinOps', 'Tags', 'Breakdown'] as const;
+export const REPORTS = ['Overview', 'This month', 'Forecast', 'Quota', 'Pipeline', 'Solutions', 'Marketplace', 'FinOps', 'Tags', 'Breakdown'] as const;
 export type Report = typeof REPORTS[number];
 
 const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
@@ -17,6 +17,7 @@ const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
   Pipeline: { title: 'Pipeline', summary: 'The customer\'s Opportunities and their effect on consumption.' },
   Marketplace: { title: 'Marketplace', summary: 'The partner solutions one customer bought, and how much of its MACC they consumed.' },
   FinOps: { title: 'FinOps', summary: 'Commitment coverage, steady on-demand spend to commit, purchases, growth and the budget.' },
+  Solutions: { title: 'Solutions', summary: 'What each subscription looks like it is used for -- a data platform, a GenAI app, a SOC -- and what to pitch: the piece the customer runs nowhere.' },
   Tags: { title: 'Tags', summary: 'Cost by environment, project, application, business unit, owner and cost centre tags.' },
   Breakdown: { title: 'Breakdown', summary: 'Consumption by service, subscription and resource group.' },
 };
@@ -37,7 +38,9 @@ const THEMES: { title: string; items: ThemeItem[] }[] = [
       summary: 'Every customer above its baseline and your quota\'s attainment — to date, projected and with the pipeline — and the opportunities that missed their forecast.' },
   ] },
   { title: 'Opportunities', items: [
-    { report: 'Pipeline' },
+    { report: 'Pipeline' }, { report: 'Solutions' },
+    { to: '/azure-cost-manager/solutions', title: 'Solutions, all customers',
+      summary: 'Who runs which solution across every customer, by solution play, and every pitch -- for the Solution Sellers.' },
     { to: '/azure-cost-manager/whitespace', title: 'Service whitespace',
       summary: 'The services most other customers use and this one does not, by solution play — each one an opportunity to create.' },
     { to: '/azure-cost-manager/marketplace-whitespace', title: 'Marketplace whitespace',

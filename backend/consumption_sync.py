@@ -35,6 +35,13 @@ FINOPS_MONTHS = 13
 # a query on the throttling budget, so it reaches no further back than its reports read.
 TAG_MONTHS = 6
 TAG_KEYS_FRESH_FOR = timedelta(days=7)
+# What each subscription is used for (solution patterns) is read from the last
+# closed months by service, meter and resource group, fetched with the tags and
+# again only when another month closes. Each subscription keeps its largest few.
+FOOTPRINT_MONTHS = 3
+FOOTPRINT_DIMENSIONS = {"services": "ServiceName", "meters": "MeterSubCategory",
+                        "resource_groups": "ResourceGroupName"}
+FOOTPRINT_KEEP = 40
 THIS_MONTH_TAG_DIMENSIONS = ("Project", "Owner", "Environment")
 # A sync cut off by a backend restart starts again this long after the plugin loads --
 # once the restart has settled -- unless that many runs of it in a row were cut off
@@ -334,14 +341,54 @@ class ConsumptionSync:
         client = self._client_factory()
         wanted = months.span(months.shift(months.month_of(self._today()), -TAG_MONTHS), months.month_of(self._today()))
         tags_synced = {account: (self._store.account(account).get("tags") or {}).get("synced_at") for account in accounts}
+        tags_due = {account for account in accounts if customer_id or not self._recent(tags_synced[account])}
+        footprint_due = {account for account in accounts if customer_id or self._footprint_stale(account)}
         due = [account for account in sorted(accounts, key=lambda name: (tags_synced[name] or "", name))
-               if customer_id or not self._recent(tags_synced[account])]
-        self._note_skipped(len(accounts) - len(due), "tags")
+               if account in tags_due or account in footprint_due]
+        self._note_skipped(len(accounts) - len(due), "tags and solutions")
         self._set(accounts_done=0, accounts_total=len(due))
         for done, account in enumerate(due, start=1):
-            self._one_enrollment(account, lambda: self._sync_account_tags(client, account, wanted))
+            if account in tags_due:
+                self._one_enrollment(account, lambda: self._sync_account_tags(client, account, wanted))
+            if account in footprint_due:
+                self._one_enrollment(account, lambda: self._sync_footprint(client, account))
             self._store.flush()
             self._set(accounts_done=done)
+
+    def _footprint_window(self) -> tuple[str, str]:
+        last = months.shift(months.month_of(self._today()), -1)
+        return months.shift(last, -(FOOTPRINT_MONTHS - 1)), last
+
+    def _footprint_stale(self, account: str) -> bool:
+        return (self._store.account(account).get("footprint") or {}).get("last_month") != self._footprint_window()[1]
+
+    def _sync_footprint(self, client: BillingClient, account: str) -> None:
+        """Each subscription's last closed months by service, meter and resource group:
+        what solution patterns read (operator, 2026-10-23)."""
+        first, last = self._footprint_window()
+        self._set(current={**self._named(account), "footprint": True, "first_month": first, "last_month": last})
+        subscriptions: dict[str, dict[str, dict[str, float]]] = {}
+        for key, dimension in FOOTPRINT_DIMENSIONS.items():
+            try:
+                rows = self._query(lambda dimension=dimension: client.query_by_subscription(
+                    account, first, last, dimension), account)
+            except AzureApiError as exc:
+                self._record_error(account, f"solutions ({key}): {exc}")
+                return
+            for row in rows:
+                found = subscriptions.setdefault(row.get("subscription") or "Unassigned",
+                                                 {name: {} for name in FOOTPRINT_DIMENSIONS})[key]
+                name = row.get("name") or "Unassigned"
+                found[name] = found.get(name, 0.0) + row["cost"]
+        for found in subscriptions.values():
+            for key, costs in found.items():
+                kept = sorted(((name, round(cost, 2)) for name, cost in costs.items() if round(cost, 2) != 0),
+                              key=lambda item: -item[1])[:FOOTPRINT_KEEP]
+                found[key] = dict(kept)
+        entry = self._store.account(account)
+        entry["footprint"] = {"first_month": first, "last_month": last, "months": FOOTPRINT_MONTHS,
+                              "fetched_at": self._now().isoformat(), "subscriptions": subscriptions}
+        self._store.save_account(account, entry)
 
     def _sync_account_tags(self, client: BillingClient, account: str, wanted: list[str]) -> None:
         entry = self._store.account(account)

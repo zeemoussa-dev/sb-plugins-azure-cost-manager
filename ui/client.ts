@@ -833,10 +833,84 @@ export interface RenewalRow {
 export const fetchRenewals = () => apiFetch<RenewalRow[]>(`${BASE}/marketplace/renewals`);
 
 /** The cross-customer reports that export to Excel. */
-export type ExportedReport = 'growth' | 'whitespace' | 'marketplace-whitespace' | 'hygiene' | 'renewals' | 'quota';
+export type ExportedReport = 'growth' | 'whitespace' | 'marketplace-whitespace' | 'hygiene' | 'renewals' | 'quota'
+  | 'solutions';
 /** `measure`: for a report counted under the Marketplace and credits filters (quota). */
 export const reportExportPath = (report: ExportedReport, measure?: Measure) =>
   `${BASE}/reports/${report}/export.xlsx${measure ? `?${measureQuery(measure)}` : ''}`;
+
+/** What a subscription looks like it is used for (operator, 2026-10-23). */
+export interface FoundSolution {
+  id: string;
+  name: string;
+  play: string;
+  confidence: 'strong' | 'likely';
+  evidence: { name: string; monthly: number | null }[];
+  named: string[];
+}
+
+export interface SubscriptionSolutions {
+  subscription: string;
+  monthly: number;
+  environment: string | null;
+  solutions: FoundSolution[];
+  top_services: { name: string; monthly: number }[];
+  resource_groups: string[];
+}
+
+export interface SolutionSummary {
+  id: string;
+  name: string;
+  play: string;
+  subscriptions: number;
+  monthly: number;
+}
+
+export interface SolutionPitch {
+  solution: string;
+  play: string;
+  pitch: string;
+  subscriptions: string[];
+}
+
+export interface FootprintWindow {
+  first_month: string | null;
+  last_month: string | null;
+  months: number;
+  fetched_at: string | null;
+}
+
+export interface CustomerSolutions {
+  customer: { id: string; name: string };
+  window: FootprintWindow | null;
+  synced: boolean;
+  subscriptions: SubscriptionSolutions[];
+  solutions: SolutionSummary[];
+  pitches: SolutionPitch[];
+  unclassified: { count: number; monthly: number };
+}
+
+export interface SolutionsAcross {
+  window: FootprintWindow | null;
+  by_solution: (Omit<SolutionSummary, 'subscriptions'> & { customers: string[]; subscriptions: number })[];
+  customers: { id: string; name: string; monthly: number; subscriptions: number; solutions: string[]; pitches: number }[];
+  pitches: (SolutionPitch & { customer: string; customer_id: string })[];
+  subscriptions: (SubscriptionSolutions & { customer: string; customer_id: string })[];
+  unclassified: (SubscriptionSolutions & { customer: string; customer_id: string })[];
+}
+
+export interface SolutionCatalog {
+  patterns: unknown[];
+  customised: boolean;
+  plays: string[];
+}
+
+export const fetchCustomerSolutions = (id: string) => apiFetch<CustomerSolutions>(`${customer(id)}/solutions`);
+export const fetchSolutionsAcross = () => apiFetch<SolutionsAcross>(`${BASE}/solutions`);
+export const fetchSolutionCatalog = () => apiFetch<SolutionCatalog>(`${BASE}/solutions/catalog`);
+/** `null` goes back to the shipped patterns. */
+export const saveSolutionCatalog = (patterns: unknown[] | null) =>
+  apiFetch<SolutionCatalog>(`${BASE}/solutions/catalog`, { method: 'PUT', body: JSON.stringify({ patterns }) });
 
 /** One baseline for every customer, the fiscal year, and the seller's quota. */
 export interface QuotaSettings {

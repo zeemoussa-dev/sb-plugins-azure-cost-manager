@@ -33,10 +33,12 @@ LEGACY_TRACKED_ACCOUNTS_FILE = "Azure-Cost-Manager/Tracked-Accounts.json"
 FINOPS_FILE = "Azure-Cost-Manager/FinOps.json"
 # The operator's own service -> solution play choices, over `solution_plays`' defaults.
 SOLUTION_PLAYS_FILE = "Azure-Cost-Manager/Solution-Plays.json"
+# The operator's own solution pattern catalog, replacing `solutions`' defaults whole.
+SOLUTION_PATTERNS_FILE = "Azure-Cost-Manager/Solution-Patterns.json"
 # The seller's baseline (start, months), fiscal year and quota -- one for everyone.
 QUOTA_FILE = "Azure-Cost-Manager/Quota.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
-              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE)
+              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE, SOLUTION_PATTERNS_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -164,6 +166,14 @@ class ConsumptionStore:
     def save_solution_play_overrides(self, overrides: dict[str, str]) -> None:
         with self._lock:
             _write_json(self._api, SOLUTION_PLAYS_FILE, {"services": overrides})
+
+    def solution_patterns(self) -> list[dict] | None:
+        with self._lock:
+            return _read_json(self._api, SOLUTION_PATTERNS_FILE, {}).get("patterns") or None
+
+    def save_solution_patterns(self, patterns: list[dict] | None) -> None:
+        with self._lock:
+            _write_json(self._api, SOLUTION_PATTERNS_FILE, {"patterns": patterns} if patterns else {})
 
     def customer(self, customer_id: str) -> dict | None:
         return next((customer for customer in self.customers() if customer["id"] == customer_id), None)

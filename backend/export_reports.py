@@ -297,3 +297,61 @@ def build_quota(report: dict, today: date) -> bytes:
            {4: MONTH, 5: MONEY, 6: MONEY})
     missed.freeze_panes = "B5"
     return _saved(workbook)
+
+
+# -- solutions -----------------------------------------------------------------------
+
+def build_solutions(report: dict, today: date) -> bytes:
+    """What each subscription looks like it is used for, and what to pitch (operator, 2026-10-23)."""
+    workbook = _workbook()
+    window = report.get("window") or {}
+    period = f"{window.get('first_month')} to {window.get('last_month')}" if window else "not synced yet"
+    sheet = _summary(workbook, "Solutions", "Solutions – all customers",
+                     f"Monthly averages over {period}; read from each subscription's services, meters and names",
+                     today)
+    _widths(sheet, {"A": 40, "B": 18, "C": 12, "D": 14, "E": 16, "F": 70})
+    _tiles(sheet, 3, [("Customers", len(report["customers"]), "0"),
+                      ("Subscriptions", len(report["subscriptions"]), "0"),
+                      ("Pitches", len(report["pitches"]), "0"),
+                      ("Not placed", len(report["unclassified"]), "0")])
+    row = 7
+    _section(sheet, row, "Each solution: who runs it, the largest first", last_column=6)
+    header = row + 1
+    last = _table(sheet, header, ["Solution", "Solution play", "Customers", "Subscriptions", "Monthly",
+                                  "Customers running it"],
+                  [[item["name"], item["play"], len(item["customers"]), item["subscriptions"], item["monthly"],
+                    ", ".join(item["customers"])] for item in report["by_solution"]],
+                  {4: MONEY}, bold_first=True)
+    sheet.freeze_panes = sheet.cell(header + 1, 2)
+    _chart_beside(sheet, "Monthly by Solution", header, last, 5, row)
+
+    placed = _new_sheet(workbook, "Subscriptions", "Every subscription and the solution it looks like",
+                        "Strong: required services plus supporting ones or a telling name; likely: required services only.")
+    _widths(placed, {"A": 36, "B": 44, "C": 14, "D": 14, "E": 44, "F": 12, "G": 70})
+    _table(placed, 4, ["Customer", "Subscription", "Monthly", "Environment", "Solutions", "Confidence",
+                       "Largest services"],
+           [[item["customer"], item["subscription"], item["monthly"], item.get("environment"),
+             ", ".join(found["name"] for found in item["solutions"]) or "Not placed",
+             ", ".join(sorted({found["confidence"] for found in item["solutions"]})) or None,
+             ", ".join(service["name"] for service in item["top_services"])] for item in report["subscriptions"]],
+           {2: MONEY})
+    placed.freeze_panes = "C5"
+
+    pitched = _new_sheet(workbook, "Pitches", "What to pitch, by customer",
+                         "A pitch is the piece a solution usually has that the customer runs nowhere in its estate.")
+    _widths(pitched, {"A": 36, "B": 34, "C": 18, "D": 70, "E": 60})
+    _table(pitched, 4, ["Customer", "Solution", "Solution play", "Pitch", "Subscriptions"],
+           [[item["customer"], item["solution"], item["play"], item["pitch"], ", ".join(item["subscriptions"])]
+            for item in report["pitches"]])
+    pitched.freeze_panes = "B5"
+
+    unplaced = _new_sheet(workbook, "Not Placed", "Subscriptions no pattern fits, the largest first",
+                          "Candidates for a new pattern in Settings, or for Compass to read.")
+    _widths(unplaced, {"A": 36, "B": 44, "C": 14, "D": 70})
+    _table(unplaced, 4, ["Customer", "Subscription", "Monthly", "Largest services"],
+           [[item["customer"], item["subscription"], item["monthly"],
+             ", ".join(service["name"] for service in item["top_services"])] for item in report["unclassified"]],
+           {2: MONEY})
+    unplaced.freeze_panes = "C5"
+    return _saved(workbook)
+

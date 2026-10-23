@@ -101,6 +101,23 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                                                            (change.get("offer") or "").strip(),
                                                            bool(change.get("eligible", True))))
 
+    @router.get("/solutions/catalog")
+    def get_solution_catalog() -> dict:
+        return _answered(service.solution_catalog)
+
+    @router.put("/solutions/catalog")
+    def put_solution_catalog(submitted: dict = Body(...)) -> dict:
+        """`{"patterns": [...]}` replaces the catalog; `{"patterns": null}` restores the defaults."""
+        return _answered(lambda: service.save_solution_catalog(submitted.get("patterns")))
+
+    @router.get("/solutions")
+    def get_solutions_across() -> dict:
+        return _answered(service.solutions_across)
+
+    @router.get("/customers/{customer_id}/solutions")
+    def get_customer_solutions(customer_id: str) -> dict:
+        return _answered(lambda: service.solutions_of(customer_id))
+
     @router.get("/data/export.zip")
     def get_data_export() -> Response:
         """Every data file, for another machine: no sync needed there."""

@@ -229,6 +229,14 @@ class BillingClient:
         return self._grouped_monthly(account_name, cost_type, first_month, last_month,
                                      {"meter_subcategory": "MeterSubCategory", "pricing_model": "PricingModel"})
 
+    def query_by_subscription(self, account_name: str, first_month: str, last_month: str,
+                              dimension: str) -> list[dict]:
+        """`[{month, subscription, name, cost, currency}]`: actual cost by subscription
+        and one other dimension (ServiceName, MeterSubCategory, ResourceGroupName) --
+        what a subscription is used for."""
+        return self._grouped_monthly(account_name, "ActualCost", first_month, last_month,
+                                     {"subscription": "SubscriptionName", "name": dimension})
+
     def query_daily(self, account_name: str, first_day: str, last_day: str,
                     dimensions: dict[str, str]) -> list[dict]:
         """`[{day: "YYYY-MM-DD", cost, <key>: name ...}]`: actual cost per day by up to

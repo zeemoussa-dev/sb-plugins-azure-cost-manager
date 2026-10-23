@@ -2,6 +2,7 @@ import type { PluginUi } from '../../pluginHost/types';
 import { AzureCostPage } from './AzureCostPage';
 import { FinOpsPage } from './FinOpsPage';
 import { GrowthPage } from './GrowthPage';
+import { SolutionsPage } from './Solutions';
 import { WhitespacePage } from './WhitespacePage';
 import { MarketplaceWhitespacePage } from './MarketplaceWhitespacePage';
 import { HygienePage } from './HygienePage';
@@ -21,6 +22,7 @@ const ui: PluginUi = {
     { path: '/azure-cost-manager/finops', component: FinOpsPage },
     { path: '/azure-cost-manager/tags', component: TagCoveragePage },
     { path: '/azure-cost-manager/growth', component: GrowthPage },
+    { path: '/azure-cost-manager/solutions', component: SolutionsPage },
     { path: '/azure-cost-manager/whitespace', component: WhitespacePage },
     { path: '/azure-cost-manager/marketplace-whitespace', component: MarketplaceWhitespacePage },
     { path: '/azure-cost-manager/hygiene', component: HygienePage },

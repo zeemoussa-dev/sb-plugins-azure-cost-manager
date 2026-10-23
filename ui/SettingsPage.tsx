@@ -11,18 +11,20 @@ import { useUrlState } from '../../pluginHost/state';
 import { PLUGIN_ID } from './ReportsHome';
 import { HubOptions } from './PipelineTab';
 import { SolutionPlaysSettingsCard } from './SolutionPlays';
+import { SolutionCatalogCard } from './Solutions';
 import { SyncControl } from './SyncControl';
 
 const SHOWN_WHILE_SEARCHING = 60;
 
 // One section at a time, picked in a side panel as on the Vault's settings
 // (operator, 2026-10-21: "the Settings page grew too much").
-const SECTIONS = ['customers', 'unassigned', 'plays', 'sync', 'data'] as const;
+const SECTIONS = ['customers', 'unassigned', 'plays', 'patterns', 'sync', 'data'] as const;
 type Section = typeof SECTIONS[number];
 const SECTION_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'customers', label: 'Customers', icon: 'groups' },
   { id: 'unassigned', label: 'Enrollments in no customer', icon: 'inventory_2' },
   { id: 'plays', label: 'Solution plays', icon: 'category' },
+  { id: 'patterns', label: 'Solution patterns', icon: 'lightbulb' },
   { id: 'sync', label: 'Sync', icon: 'sync' },
   { id: 'data', label: 'Move to another machine', icon: 'swap_horiz' },
 ];
@@ -507,6 +509,8 @@ export function SettingsPage() {
       ) : null}
 
       {shown === 'plays' ? <SolutionPlaysSettingsCard /> : null}
+
+      {shown === 'patterns' ? <SolutionCatalogCard /> : null}
 
       {shown === 'data' ? <DataTransfer onImported={load} /> : null}
 

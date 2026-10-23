@@ -18,6 +18,7 @@ import { errorText } from './format';
 import { OverviewTab } from './OverviewTab';
 import { PipelineTab } from './PipelineTab';
 import { QuotaTab } from './Quota';
+import { SolutionsTab } from './Solutions';
 import { REPORTS, reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 import { SyncControl } from './SyncControl';
 
@@ -122,6 +123,7 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
           : report === 'Marketplace' ? <MarketplaceTab customerId={customerId} currency={analysis.currency} syncedVersion={syncedVersion} />
           : report === 'FinOps' ? <FinOpsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
           : report === 'Tags' ? <TagsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
+          : report === 'Solutions' && view === 'account' ? <SolutionsTab customerId={customerId} syncedVersion={syncedVersion} />
           : report === 'This month' ? <ThisMonthTab customerId={customerId} view={view} />
           : report === 'Quota' && view === 'account' ? <QuotaTab customerId={customerId} measure={measure} />
           : nothingBilled ? <p className="empty-state">Nothing was billed on these enrollments in the synced period.</p>
@@ -216,7 +218,7 @@ export function AzureCostPage() {
               <div className="azure-cost-toolbar azure-cost-tabs-row">
                 <div className="azure-cost-segmented" role="tablist">
                   {/* The quota is the seller's: never in what the customer sees. */}
-                  {REPORTS.filter((name) => view === 'account' || name !== 'Quota').map((name) => (
+                  {REPORTS.filter((name) => view === 'account' || (name !== 'Quota' && name !== 'Solutions')).map((name) => (
                     <button key={name} type="button" role="tab" aria-selected={report === name}
                             className={report === name ? 'active' : undefined} onClick={() => setReport(name)}>{name}</button>
                   ))}

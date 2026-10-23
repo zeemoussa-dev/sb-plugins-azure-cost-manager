@@ -122,7 +122,7 @@ export function SyncControl({ customerId, syncedAt, onSynced, profiles = 'none',
         {profiles === 'only' ? null : (
           <>
             <button type="button" className="btn" onClick={() => start('tags')} disabled={running}
-                    title="Cost by tag (Project, Owner, Environment...) only, without a full sync">
+                    title="Cost by tag (Project, Owner, Environment...) and what each subscription is used for, without a full sync">
               Sync tags
             </button>
             <button type="button" className="btn" onClick={() => start('daily')} disabled={running}

@@ -2,6 +2,17 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.38.0] - 2026-10-23
+
+- feat: **Solutions**, for the Solution Sellers (operator, 2026-10-23: "Azure services don't map into solutions ... if the customer has this service, this means they might be building a data warehouse"). Rules first; Compass to come for what they cannot place.
+  - **The footprint:** Sync tags now also reads, for the last three closed months, each subscription's cost by service, by meter subcategory and by resource group (three queries per enrollment, again only when another month closes).
+  - **Patterns:** 24 shipped -- data lakehouse, data integration, streaming, operational databases, energy data (OSDU), GenAI application, Copilot Studio agents, ML platform, GPU, AI services, cloud-native, web apps, integration, DevOps, IoT, SAP, VMware (AVS), virtual desktop, network hub, backup and DR, SOC, security posture, and plain VMs when nothing else fits. Each requires services, meters or words in the subscription's and resource groups' names; supporting evidence or a telling name makes it *strong*, otherwise *likely*. Residue under $25 a month is ignored.
+  - **Pitches:** each pattern names what to sell when the customer runs none of its missing piece anywhere (e.g. GenAI without AI Search: retrieval; with no Compass: sovereign inference on Compass by Core42).
+  - **Per customer:** a **Solutions** tab (not in Customer view): solutions, what to pitch, and each subscription with its environment (from its names) and the evidence.
+  - **All customers:** **Solutions, all customers** under Opportunities: by solution with the customers running it, every pitch, the largest subscriptions not placed; filter by solution play; **Export to Excel** (Solutions, Subscriptions, Pitches, Not Placed).
+  - **Settings > Solution patterns:** the catalog as JSON, checked on save; it replaces the shipped one whole, and goes back with one click. It travels in the data export.
+  - **Routes:** `GET /solutions`, `GET /customers/{id}/solutions`, `GET/PUT /solutions/catalog`, `GET /reports/solutions/export.xlsx`.
+
 ## [0.37.0] - 2026-10-23
 
 - feat: **Move to another machine** (operator, 2026-10-23: "when I move this into another machine I would not need to sync everything again"). Settings has a new section:
