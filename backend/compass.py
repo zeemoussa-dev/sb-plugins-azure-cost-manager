@@ -25,12 +25,17 @@ class CompassAnswerError(ValueError):
     """Compass answered, but not with what was asked for."""
 
 
-def ask(llm, messages: list[dict[str, str]], timeout: float = 180.0) -> str:
+def require(llm) -> None:
+    """Says why Compass cannot be asked, before anything that depends on it is done."""
     if llm is None:
         raise CompassUnavailable("This needs a framework that offers Compass to plugins (api.llm, ADR-063): "
                                  "update Second Brain")
     if not llm.available():
         raise CompassUnavailable("Compass is not configured on this install: Settings > System > Compass")
+
+
+def ask(llm, messages: list[dict[str, str]], timeout: float = 180.0) -> str:
+    require(llm)
     return llm.complete(messages, timeout=timeout)
 
 

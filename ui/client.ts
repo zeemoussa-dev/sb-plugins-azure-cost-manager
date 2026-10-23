@@ -926,9 +926,19 @@ export interface MarketplaceClasses {
 const explainQuery = (kind: DrillKind, name: string, accounts: string[] | null) =>
   `kind=${kind}&name=${encodeURIComponent(name)}${accounts?.length ? `&accounts=${encodeURIComponent(accounts.join(','))}` : ''}`;
 export const fetchExplain = (id: string, kind: DrillKind, name: string, accounts: string[] | null) =>
-  apiFetch<Kept<string>>(`${customer(id)}/explain?${explainQuery(kind, name, accounts)}`);
-export const writeExplain = (id: string, kind: DrillKind, name: string, accounts: string[] | null) =>
-  apiFetch<Kept<string>>(`${customer(id)}/explain?${explainQuery(kind, name, accounts)}`, { method: 'POST' });
+  apiFetch<Explanation>(`${customer(id)}/explain?${explainQuery(kind, name, accounts)}`);
+/** What the seller told Compass about an item, kept with it. */
+export interface ExplainNote {
+  said: string;
+  on: string;
+}
+
+export type Explanation = Kept<string> & { notes: ExplainNote[] };
+
+/** `note`: the seller's answer to Compass's question, or what they know -- kept, and used from then on. */
+export const writeExplain = (id: string, kind: DrillKind, name: string, accounts: string[] | null, note?: string) =>
+  apiFetch<Explanation>(`${customer(id)}/explain?${explainQuery(kind, name, accounts)}`,
+    { method: 'POST', body: JSON.stringify({ note: note ?? null }) });
 export const fetchActions = () => apiFetch<Kept<NextAction[]>>(`${BASE}/advisor/actions`);
 export const writeActions = () => apiFetch<Kept<NextAction[]>>(`${BASE}/advisor/actions`, { method: 'POST' });
 export const draftFromPitch = (id: string, pitch: string) =>

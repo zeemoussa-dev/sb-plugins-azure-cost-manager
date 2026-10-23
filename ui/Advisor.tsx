@@ -5,7 +5,7 @@ import { NoteText } from '../../pluginHost/noteText';
 import {
   askData, classifyMarketplace, createOpportunity, draftFromPitch, fetchActions, fetchExplain, fetchMarketplaceClasses,
   sizeSolution, writeActions, writeExplain,
-  type Answer, type DraftOpportunity, type DrillKind, type Kept, type MarketplaceClasses, type NextAction, type SizedSolution,
+  type Answer, type DraftOpportunity, type DrillKind, type Explanation, type Kept, type MarketplaceClasses, type NextAction, type SizedSolution,
 } from './client';
 import { errorText, formatMoney } from './format';
 import { Loading } from './Loading';
@@ -25,17 +25,18 @@ function copy(text: string, done: () => void) {
 export function ExplainBox({ customerId, kind, name, accounts }: {
   customerId: string; kind: DrillKind; name: string; accounts: string[] | null;
 }) {
-  const [found, setFound] = useState<Kept<string> | null>(null);
+  const [found, setFound] = useState<Explanation | null>(null);
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reply, setReply] = useState('');
   useEffect(() => {
-    setFound(null); setError(null);
+    setFound(null); setError(null); setReply('');
     fetchExplain(customerId, kind, name, accounts).then(setFound, (failure) => setError(errorText(failure)));
   }, [customerId, kind, name, accounts?.join(',')]);
-  const write = () => {
+  const write = (note?: string) => {
     setWriting(true); setError(null);
-    writeExplain(customerId, kind, name, accounts).then(setFound, (failure) => setError(errorText(failure)))
-      .finally(() => setWriting(false));
+    writeExplain(customerId, kind, name, accounts, note).then((done) => { setFound(done); setReply(''); },
+      (failure) => setError(errorText(failure))).finally(() => setWriting(false));
   };
   if (!found) return null;
   return (
@@ -44,10 +45,23 @@ export function ExplainBox({ customerId, kind, name, accounts }: {
         <>
           <NoteText text={found.value} />
           {found.stale ? <p className="azure-cost-warning">Its data has changed since this was written.</p> : null}
+          {found.notes.length ? (
+            <div className="azure-cost-note">
+              <span className="azure-cost-kpi-label">What you told Compass</span>
+              <ul>{found.notes.map((note, index) => <li key={index}>{note.said} <span className="text-muted">({note.on})</span></li>)}</ul>
+            </div>
+          ) : null}
+          <form className="azure-cost-explain-reply" onSubmit={(event) => { event.preventDefault(); if (reply.trim()) write(reply); }}>
+            <label className="field-labeled">The customer's answer, or what you know
+              <textarea rows={2} value={reply} onChange={(event) => setReply(event.target.value)}
+                        placeholder="e.g. They are moving the SAP estate from on-premises this quarter" />
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={!reply.trim() || !found.available}>Update the explanation</button>
+          </form>
         </>
       ) : null}
       {!writing ? (
-        <button type="button" className="btn" disabled={!found.available} onClick={write}
+        <button type="button" className="btn" disabled={!found.available} onClick={() => write()}
                 title={found.available ? 'Compass explains what moved, where and why, from the figures below' : 'Compass is not available to plugins on this install'}>
           {found.value ? 'Explain again' : 'Explain this'}</button>
       ) : null}

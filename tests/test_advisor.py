@@ -132,3 +132,16 @@ def test_the_month_still_being_billed_is_marked_partial():
     facts = advisor.explain_facts(drill, "2026-10")
     assert "partial" not in facts["by_month"][0] and facts["by_month"][1]["partial"]
 
+
+
+def test_the_sellers_answer_is_kept_and_handed_to_every_explanation(fake_api):
+    found, llm, customer_id = advisor_with(fake_api, ["Guess. **Ask the customer:** why?",
+                                                      "A migration from on-premises. **Next:** size the target."])
+    found.explain(customer_id, "service", "VM", write=True)
+
+    answered = found.explain(customer_id, "service", "VM", note="They are migrating the SAP estate this quarter")
+
+    told = llm.asked[1][1]["content"]
+    assert "migrating the SAP estate" in told and answered["value"].startswith("A migration")
+    assert [note["said"] for note in answered["notes"]] == ["They are migrating the SAP estate this quarter"]
+    assert found.explain(customer_id, "service", "VM")["notes"] == answered["notes"]   # kept with the item

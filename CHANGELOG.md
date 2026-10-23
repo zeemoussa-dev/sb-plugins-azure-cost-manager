@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.46.2] - 2026-10-23
+
+- feat: **answer what Explain this asks** (operator, 2026-10-23: "Explain this asks me a question but I don't have an option to answer"). The explanation now ends with a labelled **Ask the customer:** line -- the question is for the customer, not for you -- and under it a box takes the customer's answer, or anything you know. Compass rewrites the explanation with it as fact, replacing a guessed reason, and ends with **Next:** when nothing is left to ask. What you told it is kept with that item (shown under the explanation) and handed to every explanation of it from then on.
+- **Route:** `POST /customers/{id}/explain` takes `{"note": ...}`.
+
 ## [0.46.1] - 2026-10-23
 
 - fix: **Explain this no longer reads the month being billed as a fall.** The current month is marked partial in what Compass is handed, and it is told never to read it as a decline (checked on ADNOC's Foundry Models, where 23 days of October read as a "scale-back").

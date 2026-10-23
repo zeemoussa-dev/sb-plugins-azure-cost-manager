@@ -154,8 +154,12 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return _compass(lambda: advisor.explain(customer_id, kind, name, False, [a for a in (accounts or "").split(",") if a] or None))
 
     @router.post("/customers/{customer_id}/explain")
-    def post_explain(customer_id: str, kind: str, name: str, accounts: str | None = None) -> dict:
-        return _compass(lambda: advisor.explain(customer_id, kind, name, True, [a for a in (accounts or "").split(",") if a] or None))
+    def post_explain(customer_id: str, kind: str, name: str, accounts: str | None = None,
+                     submitted: dict | None = Body(None)) -> dict:
+        """Explains it again; `{"note": ...}` adds what the seller learned first."""
+        return _compass(lambda: advisor.explain(customer_id, kind, name, True,
+                                                [a for a in (accounts or "").split(",") if a] or None,
+                                                (submitted or {}).get("note")))
 
     @router.get("/advisor/actions")
     def get_actions() -> dict:

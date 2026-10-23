@@ -76,6 +76,9 @@ class ConsumptionService:
         """The month still being billed."""
         return months.month_of(self._today())
 
+    def current_day(self) -> str:
+        return self._today().isoformat()
+
     def customer(self, customer_id: str) -> dict:
         return self._customer(customer_id)
 

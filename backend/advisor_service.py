@@ -26,13 +26,24 @@ class Advisor:
     # -- explain a move -------------------------------------------------------------
 
     def explain(self, customer_id: str, kind: str, name: str, write: bool = False,
-                accounts: list[str] | None = None) -> dict:
-        facts = advisor.explain_facts(self._service.drill(customer_id, kind, name, accounts), self._service.current_month())
-        stamp, key = compass.fingerprint(facts), f"{customer_id}|{kind}|{name}"
+                accounts: list[str] | None = None, note: str | None = None) -> dict:
+        """`note`: the seller's answer to the question Compass asked, or what they know --
+        kept with the item and handed to every explanation of it from then on (operator,
+        2026-10-23: "Explain this asks me a question but I have no option to answer")."""
+        key = f"{customer_id}|{kind}|{name}"
+        notes = list((self._answers.get("explain-notes", key) or {}).get("value") or [])
+        if note and note.strip():
+            compass.require(self._llm)
+            notes.append({"said": note.strip()[:1000], "on": self._service.current_day()})
+            self._answers.put("explain-notes", key, "", notes)
+            write = True
+        facts = advisor.explain_facts(self._service.drill(customer_id, kind, name, accounts),
+                                      self._service.current_month(), notes)
+        stamp = compass.fingerprint(facts)
         if write:
             text = compass.ask(self._llm, advisor.explain_messages(facts))
             self._answers.put("explain", key, stamp, text.strip())
-        return self._kept("explain", key, stamp)
+        return {**self._kept("explain", key, stamp), "notes": notes}
 
     # -- next best actions --------------------------------------------------------
 

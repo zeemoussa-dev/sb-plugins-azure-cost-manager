@@ -26,7 +26,7 @@ def _system(task: str) -> dict:
 
 # -- explain a move ----------------------------------------------------------------
 
-def explain_facts(drill: dict, current_month: str | None = None) -> dict:
+def explain_facts(drill: dict, current_month: str | None = None, seller_notes: list[dict] | None = None) -> dict:
     # The month still being billed is marked: read as a whole month, a third of one
     # looked like a fall (checked on ADNOC's Foundry Models, 2026-10-23).
     trend = [{**point, **({"partial": "billed so far, month not over"} if point["month"] == current_month else {})}
@@ -39,6 +39,8 @@ def explain_facts(drill: dict, current_month: str | None = None) -> dict:
         "solutions": [item.get("name") for item in drill.get("solutions") or []],
         "subscriptions_that_month": (drill.get("subscriptions") or [])[:12], "by_play": drill.get("by_play"),
         "previous_month": drill.get("previous"), "total": drill.get("total"),
+        # What the seller has told us about this item -- the customer's answers, or their own knowledge.
+        "seller_says": seller_notes,
     }.items() if value not in (None, [], {})}
 
 
@@ -48,8 +50,11 @@ def explain_messages(facts: dict) -> list[dict]:
         "moved (which of the parts it is made of), the most likely reason the facts support, and the one question "
         "to ask the customer. Monthly figures are monthly averages of the last closed months unless a month is "
         "named; 'last_12' is a twelve-month total. A month marked partial is still being billed: never read it as "
-        "a fall. Markdown, at most 120 words, no headings: two or three short "
-        "paragraphs, the question in bold at the end."),
+        "a fall. 'seller_says' is what the seller has learned (often the customer's answer to an earlier "
+        "question): treat it as fact, let it replace a guessed reason, and do not ask again what it already "
+        "answers. Markdown, at most 140 words, no headings: two or three short paragraphs, then a last line "
+        "starting exactly '**Ask the customer:**' with the one question still worth asking -- or, when "
+        "seller_says leaves nothing to ask, '**Next:**' with what the seller should do."),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
 
 

@@ -923,3 +923,18 @@ tr.azure-cost-affiliate td:first-child {
   min-width: 0;
 }
 
+.azure-cost-explain-reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  margin: var(--space-3, 12px) 0;
+}
+
+.azure-cost-explain-reply textarea {
+  width: 100%;
+}
+
+.azure-cost-explain-reply .btn {
+  align-self: flex-start;
+}
+
