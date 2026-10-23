@@ -7,6 +7,7 @@ import { fetchMarketplaceAcross, marketplaceExportPath, type MarketplaceAcross }
 import { errorText, formatMoney, formatMonth } from './format';
 import { MaccSwitch, PERIODS, PeriodPicker, periodRange, periodText, type Period } from './MarketplaceTab';
 import { SyncControl } from './SyncControl';
+import { Loading } from './Loading';
 
 /** Every partner solution across every customer: who bought what, what it is
  *  worth, and how much of it burns the customers' MACCs. */
@@ -52,7 +53,7 @@ export function MarketplacePage() {
         <a className="btn" href={apiUrl(marketplaceExportPath(range.first, range.last))}>Export to Excel</a>
       </div>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!report ? <p className="text-muted">Loading…</p> : (
+      {!report ? <Loading /> : (
         <>
           <div className="azure-cost-kpis">
             <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Marketplace, all customers</span>

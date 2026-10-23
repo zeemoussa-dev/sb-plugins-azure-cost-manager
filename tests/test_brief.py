@@ -107,3 +107,24 @@ def test_the_fingerprint_ignores_the_day_it_was_asked():
     one = {"customer": "Contoso", "as_of": "2026-10-23", "x": 1}
     assert brief.fingerprint(one) == brief.fingerprint({**one, "as_of": "2026-10-24"})
     assert brief.fingerprint(one) != brief.fingerprint({**one, "x": 2})
+
+
+def test_a_thread_without_a_summary_speaks_through_its_latest_messages():
+    notes = {
+        "Contoso": ({"type": "Customer"}, [], "", "Oil and gas."),
+        "Skilling": ({"type": "Thread", "date": "2026-10-20"}, ["Contoso"], "## Summary", ""),
+        "m1": ({"type": "RawMessage", "sender": "Sally", "received": "2026-10-19 10:00"}, ["Skilling"],
+               "[CAUTION-EXTERNAL] Be careful.\nFirst ask.", ""),
+        "m2": ({"type": "RawMessage", "sender": "Karim", "received": "2026-10-20 09:00"}, ["Skilling"], "Budget approved.", ""),
+        "Columbus": ({"type": "Partner"}, ["Contoso"], "", "A partner hub."),
+    }
+    vault = SimpleNamespace(
+        entries=lambda: [{"stem": stem, "path": stem, "frontmatter": front, "outgoing_wikilinks": links}
+                         for stem, (front, links, _, _) in notes.items()],
+        read_section=lambda path, header: notes[path][3],
+        read_note=lambda path: (notes[path][0], notes[path][2]))
+
+    found = CustomerContext(SimpleNamespace(vault=vault)).about("Contoso")
+
+    assert [note["note"] for note in found["recent"]] == ["Skilling"]                 # no partner hub
+    assert found["recent"][0]["summary"] == "Karim (2026-10-20): Budget approved. | Sally (2026-10-19): First ask."

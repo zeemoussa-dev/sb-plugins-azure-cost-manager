@@ -6,6 +6,7 @@ import { createOpportunity, fetchWhitespace, type WhitespaceRow, reportExportPat
 import { PopupRow } from './Popup';
 import { errorText, formatMoney } from './format';
 import { reportLink } from './ReportsHome';
+import { Loading } from './Loading';
 
 const PREVIEWED = 3;
 
@@ -56,7 +57,7 @@ export function WhitespacePage() {
         affiliates; Marketplace and Unassigned spend are left out.
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!rows ? <p className="text-muted">Loading…</p> : (
+      {!rows ? <Loading /> : (
         <section className="card azure-cost-card">
           <div className="azure-cost-chips" role="group" aria-label="Solution play">
             {plays.map((name) => (

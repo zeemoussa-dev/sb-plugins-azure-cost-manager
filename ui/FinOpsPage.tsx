@@ -4,6 +4,7 @@ import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { fetchFinOpsAcross, refreshPrices, type FinOpsAcrossRow } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
+import { Loading } from './Loading';
 
 const BUDGET_STATUS = { over: 'Over last month', 'forecast-over': 'Forecast over', within: 'Within' } as const;
 
@@ -44,7 +45,7 @@ export function FinOpsPage() {
         lightly have no meter detail.
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!rows ? <p className="text-muted">Loading…</p> : (
+      {!rows ? <Loading /> : (
         <>
           <div className="azure-cost-kpis">
             <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Steady on demand</span>

@@ -8,6 +8,7 @@ import {
 import { DrillLink } from './Drill';
 import type { DrillKind } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
+import { Loading } from './Loading';
 
 const POLL_MS = 4000;
 // Long lists -- one customer had 51 new resource groups -- show this many, then "Show all".
@@ -114,7 +115,7 @@ export function ThisMonthTab({ customerId, view }: { customerId: string; view: V
   }
 
   if (error) return <div className="azure-cost-error">{error}</div>;
-  if (!found) return <p className="text-muted">Loading…</p>;
+  if (!found) return <Loading />;
 
   const refreshButton = view === 'account' ? (
     <button type="button" className="btn" onClick={refresh} disabled={Boolean(refreshing && !refreshing.startsWith('Done'))}>

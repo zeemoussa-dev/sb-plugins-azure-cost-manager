@@ -4,6 +4,7 @@ import { useUrlState } from '../../pluginHost/state';
 import { SeriesChart, type Series } from './charts';
 import { fetchCustomerMarketplace, setMaccEligible, type MarketplaceReport, type MarketplaceSolution } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
+import { Loading } from './Loading';
 
 export const PERIODS = ['12m', 'ytd', 'start'] as const;
 export type Period = typeof PERIODS[number];
@@ -124,7 +125,7 @@ export function MarketplaceTab({ customerId, currency, syncedVersion }: {
   }, [customerId, period, syncedVersion, reloads]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
-  if (!report) return <p className="text-muted">Loading…</p>;
+  if (!report) return <Loading />;
 
   const publishers = report.publishers.map((publisher) => publisher.publisher);
   return (

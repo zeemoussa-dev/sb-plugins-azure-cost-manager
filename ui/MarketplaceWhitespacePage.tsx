@@ -4,6 +4,7 @@ import { apiUrl } from '../../pluginHost/api';
 import { fetchMarketplaceWhitespace, type MarketplaceWhitespace, reportExportPath } from './client';
 import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
+import { Loading } from './Loading';
 
 /** What customers buy on the Marketplace from publishers other than Core42
  *  (operator, 2026-10-21): by category, with the leading offers, and by customer
@@ -31,7 +32,7 @@ export function MarketplaceWhitespacePage() {
         offer's names. Spend that counts toward a MACC is spend a Core42 offer could take instead.
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!report ? <p className="text-muted">Loading…</p> : (
+      {!report ? <Loading /> : (
         <>
           <div className="azure-cost-kpis">
             <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Other publishers</span>

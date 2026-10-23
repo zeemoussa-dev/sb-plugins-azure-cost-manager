@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { useRememberedState, useUrlFilters } from '../../pluginHost/state';
 import { fetchPortfolio, type PortfolioRow, type PortfolioStatus } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
+import { Loading } from './Loading';
 import { reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 
 const STATUS_LABELS: Record<PortfolioStatus, string> = {
@@ -129,7 +130,7 @@ export function CustomerPortfolio({ report }: { report: Report }) {
   }, [rows, needle, show, sort, descending, narrowing]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
-  if (!rows) return <p className="text-muted">Loading customers…</p>;
+  if (!rows) return <Loading label="Loading customers…" />;
   if (rows.length === 0) {
     return <p className="empty-state">No customers yet. <Link to={settingsLink({ location, label: reportTitle(report) })}>Add a customer</Link> and pick its enrollments.</p>;
   }

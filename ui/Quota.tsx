@@ -11,6 +11,7 @@ import {
 import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
+import { Loading } from './Loading';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
   'November', 'December'];
@@ -75,7 +76,7 @@ export function QuotaTab({ customerId, measure }: { customerId: string; measure:
   }, [customerId, measure]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
-  if (!found) return <p className="text-muted">Loading…</p>;
+  if (!found) return <Loading />;
   const currency = found.currency;
   const rows = found.months;
   const against = found.pipeline;

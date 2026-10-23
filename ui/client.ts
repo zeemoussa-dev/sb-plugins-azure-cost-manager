@@ -867,6 +867,47 @@ export interface Drill {
   by_play?: { name: string; cost: number }[];
 }
 
+/** A new solution Compass proposed for subscriptions the rules could not place. */
+export interface ProposedSolution {
+  id: string;
+  name: string;
+  play: string | null;
+  description: string;
+  valid: boolean;
+  problem: string | null;
+  subscriptions: { key: string; subscription: string; customer: string }[];
+  customers: string[];
+  monthly: number;
+}
+
+export interface Placement {
+  solution_id: string | null;
+  solution: string | null;
+  confidence: 'high' | 'medium' | 'low';
+  reason: string;
+  proposal: ProposedSolution | null;
+  customer: string;
+  subscription: string;
+  monthly: number;
+}
+
+export interface Placements {
+  available: boolean;
+  /** `<customer id>|<subscription>` -> what Compass said. */
+  suggestions: Record<string, Placement>;
+  unplaced: number;
+  pending: string[];
+  proposals: ProposedSolution[];
+}
+
+const placementsQuery = (customerId?: string) => (customerId ? `?customer=${encodeURIComponent(customerId)}` : '');
+export const fetchPlacements = (customerId?: string) => apiFetch<Placements>(`${BASE}/solutions/placements${placementsQuery(customerId)}`);
+export const askPlacements = (customerId: string | undefined, limit: number) =>
+  apiFetch<Placements>(`${BASE}/solutions/placements${placementsQuery(customerId)}${customerId ? '&' : '?'}limit=${limit}`,
+    { method: 'POST' });
+export const fetchProposalNote = (name: string) =>
+  apiFetch<{ name: string; file: string; markdown: string }>(`${BASE}/solutions/proposals/note?name=${encodeURIComponent(name)}`);
+
 /** The brief before a meeting, written by Compass (operator, 2026-10-23). */
 export interface CustomerBrief {
   markdown?: string;

@@ -396,6 +396,8 @@ def customer_view(entries: dict[str, dict], catalog: list[dict]) -> dict:
                      "solutions": [found for found in fitted if found["primary"]],
                      "also": [found for found in fitted if not found["primary"]],
                      "top_services": [{"name": service, "monthly": round(cost / months, 2)} for service, cost in top],
+                     "top_meters": [{"name": meter, "monthly": round(cost / months, 2)} for meter, cost in
+                                    sorted((found.get("meters") or {}).items(), key=lambda item: -item[1])[:8]],
                      "resource_groups": [group for group, _ in sorted((found.get("resource_groups") or {}).items(),
                                                                       key=lambda item: -item[1])[:5]]})
     rows.sort(key=lambda row: -row["monthly"])

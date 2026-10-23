@@ -9,9 +9,11 @@ import {
   type SubscriptionSolutions,
 } from './client';
 import { DrillLink } from './Drill';
+import { PlacementsCard } from './Placements';
 import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
+import { Loading } from './Loading';
 
 const ALL_PLAYS = 'All plays';
 // The footprint is Cost Management's actual cost, billed in USD for these agreements.
@@ -123,7 +125,7 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
   }, [customerId, syncedVersion]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
-  if (!view) return <p className="text-muted">Loading…</p>;
+  if (!view) return <Loading />;
 
   const sync = (
     <button type="button" className="btn" onClick={() => startTagSync(customerId).then(
@@ -198,6 +200,7 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
           <tbody>{rows.map((row) => <SubscriptionRow key={row.subscription} row={row} />)}</tbody>
         </table>
       </section>
+      {view.unclassified.count ? <PlacementsCard customerId={view.customer.id} /> : null}
       <div className="azure-cost-toolbar">{sync}</div>
       {notice ? <p className="text-muted azure-cost-note">{notice}</p> : null}
     </>
@@ -234,7 +237,7 @@ export function SolutionsPage() {
         run more than one solution, so the monthly figures overlap.
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!report ? <p className="text-muted">Loading…</p> : !report.window ? (
+      {!report ? <Loading /> : !report.window ? (
         <p className="empty-state">Nothing synced yet. Sync tags (Settings &gt; Sync) to read what each subscription is used for.</p>
       ) : (
         <>
@@ -303,6 +306,7 @@ export function SolutionsPage() {
               </table>
             </section>
           ) : null}
+          {play === ALL_PLAYS && report.unclassified.length ? <PlacementsCard /> : null}
         </>
       )}
     </div>
@@ -326,7 +330,7 @@ export function SolutionCatalogCard() {
         within a minute. A note whose Pattern does not read is left out and named below.
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!catalog ? <p className="text-muted">Loading…</p> : (
+      {!catalog ? <Loading /> : (
         <>
           <p className="azure-cost-note">
             {catalog.source === 'vault'

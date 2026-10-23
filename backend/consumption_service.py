@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (brief, consumption_analysis, data_transfer, drill, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
+from . import (brief, consumption_analysis, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
                marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tags, this_month,
                whitespace)
@@ -279,6 +279,57 @@ class ConsumptionService:
                    "generated_at": self._now().isoformat(), "fingerprint": stamp}
         self._store.save_brief(customer_id, written)
         return {**written, "kept": True, "stale": False, "available": available, "facts": found}
+
+    def _unplaced(self, customer_id: str | None) -> list[dict]:
+        """What Compass would be shown: every subscription the rules did not place, the
+        largest first -- one customer's, or every customer's."""
+        if customer_id:
+            view = self.solutions_of(customer_id)
+            rows = [(view["customer"], row) for row in view["subscriptions"] if not row["solutions"]]
+        else:
+            rows = [({"id": row["customer_id"], "name": row["customer"]}, row)
+                    for row in self.solutions_across()["unclassified"]]
+        found = [placement.subject(customer, row) for customer, row in rows]
+        return sorted(found, key=lambda item: -item["monthly"])
+
+    def placements(self, customer_id: str | None = None) -> dict:
+        """Compass's placements of the unplaced subscriptions it has been asked about and
+        whose services have not changed since, and the new solutions it proposed."""
+        subjects = {item["key"]: item for item in self._unplaced(customer_id)}
+        kept = self._store.placements()
+        current = {key: {**kept[key]["suggestion"], "customer": item["customer"], "subscription": item["subscription"],
+                         "monthly": item["monthly"]} for key, item in subjects.items()
+                   if key in kept and kept[key].get("fingerprint") == placement.fingerprint(item)}
+        return {"available": bool(self._llm and self._llm.available()),
+                "suggestions": current, "unplaced": len(subjects),
+                "pending": [key for key in subjects if key not in current],
+                "proposals": placement.proposals(current, subjects)}
+
+    def place(self, customer_id: str | None = None, limit: int = 24) -> dict:
+        """Asks Compass about the largest unplaced subscriptions not asked about yet
+        (operator, 2026-10-23: the second part of LLM enablement)."""
+        if self._llm is None:
+            raise BriefUnavailable("Placing subscriptions needs a framework that offers Compass to plugins "
+                                   "(api.llm, ADR-063): update Second Brain")
+        state = self.placements(customer_id)
+        subjects = {item["key"]: item for item in self._unplaced(customer_id)}
+        asking = [subjects[key] for key in state["pending"]][:max(1, min(limit, 60))]
+        catalog = self._patterns()
+        for start in range(0, len(asking), placement.BATCH):
+            batch = asking[start:start + placement.BATCH]
+            found = placement.parse(self._llm.complete(placement.messages(batch, catalog), timeout=180.0), batch, catalog)
+            stamp = self._now().isoformat()
+            self._store.save_placements({key: {"fingerprint": placement.fingerprint(subjects[key]), "suggestion": answer,
+                                               "asked_at": stamp} for key, answer in found.items()})
+        return self.placements(customer_id)
+
+    def proposal_note(self, name: str) -> dict:
+        """A proposed solution as a Solution note to paste into the vault."""
+        found = next((item for item in self.placements()["proposals"] if item["name"].lower() == name.lower()), None)
+        if not found:
+            raise ValueError(f"no proposed solution named {name!r}")
+        return {"name": found["name"], "file": f"Work/Solutions/{found['name']}.md",
+                "markdown": placement.solution_note(found, self._today().isoformat())}
 
     def guide(self) -> dict:
         """The Solutions Guide without choosing a customer (operator, 2026-10-23: "I don't

@@ -2,6 +2,16 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.45.0] - 2026-10-23
+
+- feat: **Compass places the subscriptions the rules could not** -- the second part of LLM enablement (operator, 2026-10-23). On a customer's Solutions tab and on Solutions, all customers, **Placed by Compass** asks Compass about the 24 largest unplaced subscriptions not asked about yet. For each, from its services, meters, resource-group names and environment, it names the solution it most likely is -- one from the catalog, or a **new** one -- with a confidence and a one-line reason (click a row). It is shown as Compass's suggestion, never as the rules' verdict.
+  - **Asked once:** an answer is kept with the fingerprint of what the subscription ran, and asked again only when that changes.
+  - **Checked:** a solution not in the catalog is dropped; a proposed pattern is validated like a Solution note's, and one that does not hold says what to fix.
+  - **New solutions proposed** are merged by name with the subscriptions, customers and monthly spend behind them; **Get the Solution note** gives the note to paste into `Work/Solutions/` (copy in one click) -- once it is there, the rules place those subscriptions themselves. The plugin cannot write vault notes, so the paste is the operator's.
+  - **Routes:** `GET/POST /solutions/placements?customer=&limit=`, `GET /solutions/proposals/note?name=`.
+- feat: **loading is a turning circle in the middle of the space it fills** (operator, 2026-10-23), on every screen and popup; the brief shows it while Compass writes, a rewrite included.
+- fix: **the brief hears what a thread said.** A thread captured before it was summarised keeps its words in its message notes; the brief reads its latest two (sender, date, text, the external-mail banner dropped), and leaves partner, person and opportunity hubs out of the conversations (checked on ADNOC's brief, whose threads came through as titles only).
+
 ## [0.44.1] - 2026-10-23
 
 - fix: **the brief reads a conversation that has no summary yet.** A thread captured before it was summarised has no `## Summary`; the brief now takes the start of its text instead of only its title (checked on ADNOC's brief, whose recent threads came through as titles alone).

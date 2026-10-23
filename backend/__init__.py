@@ -18,7 +18,7 @@ from .billing_client import BillingClient
 from .commitment_notes import CommitmentNotes
 from .consumption_provider import SERVICE as CONSUMPTION_SERVICE, ConsumptionProvider
 from .consumption_service import ConsumptionService
-from .consumption_store import BRIEFS_FILE, DATA_FILES, ConsumptionStore
+from .consumption_store import BRIEFS_FILE, DATA_FILES, PLACEMENTS_FILE, ConsumptionStore
 from .customer_context import CustomerContext
 from .consumption_sync import RESUME_AFTER_SECONDS, ConsumptionSync
 from .customers import AccountDirectory, CustomerBook
@@ -31,7 +31,7 @@ from .sync_log import SYNC_LOG_FILE, SyncLog
 
 
 def register(api) -> None:
-    for data_file in (*DATA_FILES, SYNC_LOG_FILE, BRIEFS_FILE):
+    for data_file in (*DATA_FILES, SYNC_LOG_FILE, BRIEFS_FILE, PLACEMENTS_FILE):
         api.register_seed_data_file(data_file)
     token = AzureCliToken()
     log = SyncLog(lambda: api.data.read_text(SYNC_LOG_FILE), lambda text: api.data.write_text(SYNC_LOG_FILE, text))

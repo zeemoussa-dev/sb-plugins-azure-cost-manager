@@ -7,6 +7,7 @@ import { DrillLink } from './Drill';
 import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
+import { Loading } from './Loading';
 
 const FILTERS = { all: 'All', growing: 'Growing', declining: 'Declining', signals: 'Stopped or dropped' } as const;
 type Filter = keyof typeof FILTERS;
@@ -51,7 +52,7 @@ export function GrowthPage() {
         month or more and fell below a tenth of that has stopped. Groups include their affiliates.
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!rows ? <p className="text-muted">Loading…</p> : (
+      {!rows ? <Loading /> : (
         <section className="card azure-cost-card">
           <div className="azure-cost-chips" role="group" aria-label="Show">
             {(Object.keys(FILTERS) as Filter[]).map((name) => (

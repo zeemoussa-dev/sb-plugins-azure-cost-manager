@@ -23,6 +23,7 @@ import { DrillPanel, DrillProvider, useDrillState } from './Drill';
 import { BriefButton } from './Brief';
 import { REPORTS, reportLink, reportTitle, settingsLink, type Report } from './ReportsHome';
 import { SyncControl } from './SyncControl';
+import { Loading } from './Loading';
 
 const VIEWS = ['account', 'customer'] as const;
 
@@ -98,7 +99,7 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
   const reload = useCallback(() => setReloads((count) => count + 1), []);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
-  if (!analysis) return <p className="text-muted">Loading…</p>;
+  if (!analysis) return <Loading />;
 
   const accountErrors = Object.entries(analysis.errors);
   const nothingSynced = analysis.months.length === 0;
@@ -207,7 +208,7 @@ export function AzureCostPage() {
       </header>
       {signIn && !signIn.signed_in ? <div className="azure-cost-error">{signIn.message}</div> : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!customers ? <p className="text-muted">Loading…</p>
+      {!customers ? <Loading />
         : selected && !customer ? (
           <p className="empty-state">That customer no longer exists. <Link to={reportLink(report)}>Choose another</Link>.</p>
         ) : !customer ? <CustomerPortfolio report={report} />

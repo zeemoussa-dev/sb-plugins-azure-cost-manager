@@ -7,6 +7,7 @@ import { DrillLink } from './Drill';
 import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
+import { Loading } from './Loading';
 
 const TAGS = ['Environment', 'Project', 'Owner'];
 
@@ -35,7 +36,7 @@ export function HygienePage() {
         spend carrying the tag (Sync tags to fill it). Groups include their affiliates.
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!rows ? <p className="text-muted">Loading…</p> : (
+      {!rows ? <Loading /> : (
         <section className="card azure-cost-card">
           <table className="azure-cost-table">
             <thead>

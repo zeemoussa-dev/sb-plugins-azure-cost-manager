@@ -130,6 +130,26 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                 raise HTTPException(status_code=502, detail=f"Compass could not write the brief: {exc}") from exc
             raise
 
+    @router.get("/solutions/placements")
+    def get_placements(customer: str | None = None) -> dict:
+        return _answered(lambda: service.placements(customer))
+
+    @router.post("/solutions/placements")
+    def post_placements(customer: str | None = None, limit: int = 24) -> dict:
+        """Asks Compass about the largest unplaced subscriptions not yet asked about."""
+        try:
+            return _answered(lambda: service.place(customer, limit))
+        except RuntimeError as exc:
+            if type(exc).__name__ == "BriefUnavailable":
+                raise HTTPException(status_code=424, detail=str(exc)) from exc
+            if type(exc).__name__ == "LlmError":
+                raise HTTPException(status_code=502, detail=f"Compass could not answer: {exc}") from exc
+            raise
+
+    @router.get("/solutions/proposals/note")
+    def get_proposal_note(name: str) -> dict:
+        return _answered(lambda: service.proposal_note(name))
+
     @router.get("/customers/{customer_id}/drill")
     def get_customer_drill(customer_id: str, kind: str, name: str, accounts: str | None = None) -> dict:
         return _answered(lambda: service.drill(customer_id, kind, name,

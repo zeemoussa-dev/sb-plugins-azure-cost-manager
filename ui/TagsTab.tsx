@@ -3,6 +3,7 @@ import { useUrlState } from '../../pluginHost/state';
 import { SeriesChart } from './charts';
 import { fetchTags, startTagSync, UNTAGGED, type TagsReport, type View } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
+import { Loading } from './Loading';
 
 // Values beyond these are added up as "Other" in the chart; the table lists them all.
 const CHARTED_VALUES = 6;
@@ -21,7 +22,7 @@ export function TagsTab({ customerId, syncedVersion, view }: { customerId: strin
   }, [customerId, syncedVersion]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
-  if (!report) return <p className="text-muted">Loading…</p>;
+  if (!report) return <Loading />;
 
   const syncTags = view === 'account' ? (
     <button type="button" className="btn" onClick={() => startTagSync(customerId).then(

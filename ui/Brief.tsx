@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NoteText } from '../../pluginHost/noteText';
 import { fetchBrief, writeBrief, type CustomerBrief } from './client';
 import { errorText } from './format';
+import { Loading } from './Loading';
 import { Popup } from './Popup';
 
 /** The brief before a meeting (operator, 2026-10-23): written by Compass over the
@@ -25,8 +26,8 @@ function BriefBody({ customerId }: { customerId: string }) {
   }, [customerId]);
 
   if (error && !found?.markdown) return <div className="azure-cost-error">{error}</div>;
-  if (!found || (writing && !found.markdown)) {
-    return <p className="text-muted">{writing ? 'Compass is writing the brief from this customer\'s figures and notes — this can take a minute…' : 'Loading…'}</p>;
+  if (!found || writing) {
+    return <Loading label={writing ? 'Compass is writing the brief from this customer\'s figures and notes — this can take a minute…' : 'Loading…'} />;
   }
   if (!found.markdown) {
     return <p className="empty-state">{found.available ? 'No brief yet.' : 'Compass is not available to plugins on this install: the brief needs Compass configured (Settings > System) and a framework that offers it.'}</p>;

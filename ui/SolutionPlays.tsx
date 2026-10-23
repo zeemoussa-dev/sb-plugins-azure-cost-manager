@@ -3,6 +3,7 @@ import { SeriesChart } from './charts';
 import { fetchSolutionPlays, setSolutionPlay, type Analysis, type SolutionPlaysSettings } from './client';
 import { DrillLink, useDrillOpener } from './Drill';
 import { errorText, formatMoney, formatMonth } from './format';
+import { Loading } from './Loading';
 
 const SHOWN_MONTHS = 12;
 
@@ -84,7 +85,7 @@ export function SolutionPlaysSettingsCard() {
         {view?.unmapped.length ? ` ${view.unmapped.length} service(s) are in no play yet and count as Unassigned.` : ''}
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!view ? <p className="text-muted">Loading…</p> : (
+      {!view ? <Loading /> : (
         <>
           <div className="azure-cost-toolbar">
             <input type="search" placeholder={`Search ${view.services.length} services or plays`} value={search}

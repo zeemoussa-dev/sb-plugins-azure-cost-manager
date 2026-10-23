@@ -3,6 +3,7 @@ import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
 import { fetchRenewals, type RenewalRow, reportExportPath } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
+import { Loading } from './Loading';
 
 const WINDOWS = { 3: 'Next 3 months', 12: 'Next 12 months', overdue: 'Overdue' } as const;
 type Window = keyof typeof WINDOWS;
@@ -44,7 +45,7 @@ export function RenewalsPage() {
         another way, or cancelled.
       </p>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!rows ? <p className="text-muted">Loading…</p> : (
+      {!rows ? <Loading /> : (
         <section className="card azure-cost-card">
           <div className="azure-cost-toolbar">
             <div className="azure-cost-chips" role="group" aria-label="When">

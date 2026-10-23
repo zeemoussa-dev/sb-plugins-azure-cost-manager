@@ -7,6 +7,7 @@ import { DrillLink } from './Drill';
 import { errorText, formatMoney, formatMonth } from './format';
 import { PopupRow } from './Popup';
 import { SolutionDetail } from './Solutions';
+import { Loading } from './Loading';
 
 const TABS = { playbooks: 'Playbooks', solutions: 'Solutions', services: 'Services' } as const;
 type Tab = keyof typeof TABS;
@@ -209,7 +210,7 @@ export function GuidePage() {
         ) : null}
       </div>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!guide ? <p className="text-muted">Loading…</p> : (
+      {!guide ? <Loading /> : (
         <section className="card azure-cost-card">
           {tab !== 'playbooks' ? <Chips plays={plays} chosen={play} onChoose={setPlay} /> : null}
           {tab === 'playbooks' ? <Playbooks guide={guide} />

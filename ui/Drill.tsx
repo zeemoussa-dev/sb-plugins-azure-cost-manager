@@ -6,6 +6,7 @@ import { fetchDrill, type Drill, type DrillKind } from './client';
 import { Popup } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink, type Report } from './ReportsHome';
+import { Loading } from './Loading';
 
 const KIND_LABELS: Record<DrillKind, string> = {
   service: 'Service', subscription: 'Subscription', play: 'Solution play', month: 'Month',
@@ -74,7 +75,7 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
   return (
     <Popup kicker={KIND_LABELS[opened.kind]} title={opened.kind === 'month' ? formatMonth(opened.name) : opened.name}
            onClose={onClose} tall>
-      {error ? <div className="azure-cost-error">{error}</div> : !drill ? <p className="text-muted">Loading…</p> : (
+      {error ? <div className="azure-cost-error">{error}</div> : !drill ? <Loading /> : (
         <>
           <p className="azure-cost-note">
             {drill.play ? <>Solution play: <DrillLink kind="play" name={drill.play} />. </> : null}

@@ -36,6 +36,9 @@ SOLUTION_PLAYS_FILE = "Azure-Cost-Manager/Solution-Plays.json"
 # Customer briefs written by Compass, kept with the fingerprint of their facts. Not a
 # data file to move between machines: a brief is written again from the data.
 BRIEFS_FILE = "Azure-Cost-Manager/Briefs.json"
+# Compass's placements of subscriptions the rules could not place, each with the
+# fingerprint of what the subscription ran when it was asked.
+PLACEMENTS_FILE = "Azure-Cost-Manager/Placements.json"
 # The seller's baseline (start, months), fiscal year and quota -- one for everyone.
 QUOTA_FILE = "Azure-Cost-Manager/Quota.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
@@ -177,6 +180,16 @@ class ConsumptionStore:
             state = _read_json(self._api, BRIEFS_FILE, {})
             state.setdefault("briefs", {})[customer_id] = brief
             _write_json(self._api, BRIEFS_FILE, state)
+
+    def placements(self) -> dict[str, dict]:
+        with self._lock:
+            return dict(_read_json(self._api, PLACEMENTS_FILE, {}).get("placements") or {})
+
+    def save_placements(self, found: dict[str, dict]) -> None:
+        with self._lock:
+            state = _read_json(self._api, PLACEMENTS_FILE, {})
+            state.setdefault("placements", {}).update(found)
+            _write_json(self._api, PLACEMENTS_FILE, state)
 
     def customer(self, customer_id: str) -> dict | None:
         return next((customer for customer in self.customers() if customer["id"] == customer_id), None)

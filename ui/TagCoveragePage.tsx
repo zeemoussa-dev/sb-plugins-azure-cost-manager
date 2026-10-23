@@ -4,6 +4,7 @@ import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { fetchTagsAcross, startTagSync, type TagsAcrossRow } from './client';
 import { errorText } from './format';
 import { reportLink } from './ReportsHome';
+import { Loading } from './Loading';
 
 const DIMENSIONS = ['Environment', 'Project', 'Application', 'Business unit', 'Owner', 'Cost centre'];
 
@@ -33,7 +34,7 @@ export function TagCoveragePage() {
       </p>
       {notice ? <p className="text-muted azure-cost-note">{notice}</p> : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!rows ? <p className="text-muted">Loading…</p> : (
+      {!rows ? <Loading /> : (
         <section className="card azure-cost-card">
           <table className="azure-cost-table">
             <thead><tr><th>Customer</th><th>Tag keys</th>{DIMENSIONS.map((name) => <th key={name}>{name}</th>)}</tr></thead>

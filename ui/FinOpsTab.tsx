@@ -6,6 +6,7 @@ import {
 } from './client';
 import { DrillLink, useDrillOpener } from './Drill';
 import { errorText, formatMoney, formatMonth } from './format';
+import { Loading } from './Loading';
 
 /** The flexible option and the deepest one: what a conversation starts and ends with. */
 const SHOWN_OPTIONS = ['sp_1y', 'ri_3y'] as const;
@@ -91,7 +92,7 @@ export function FinOpsTab({ customerId, syncedVersion, view }: { customerId: str
   }, [customerId, syncedVersion]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
-  if (!found) return <p className="text-muted">Loading…</p>;
+  if (!found) return <Loading />;
   if (!found.has_meters) {
     return <p className="empty-state">No meter detail synced for this customer yet. Sync it to see FinOps.</p>;
   }
