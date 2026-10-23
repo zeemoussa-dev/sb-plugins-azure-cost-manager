@@ -841,3 +841,27 @@ tr.azure-cost-affiliate td:first-child {
   margin: var(--space-4) 0 var(--space-1);
 }
 
+
+/* A popup whose content loads after it opens keeps its full height from the start. */
+.azure-cost-popup-tall {
+  height: calc(100vh - 64px);
+}
+
+.azure-cost-popup-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.azure-cost-popup-close:hover,
+.azure-cost-popup-close:focus-visible {
+  background: var(--color-border);
+  color: var(--color-text);
+}

@@ -2,6 +2,12 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.44.1] - 2026-10-23
+
+- fix: **the brief reads a conversation that has no summary yet.** A thread captured before it was summarised has no `## Summary`; the brief now takes the start of its text instead of only its title (checked on ADNOC's brief, whose recent threads came through as titles alone).
+- fix: **a popup no longer jumps when its content arrives** (operator, 2026-10-23: the brief opened small at the top and then filled the screen). The brief and the drill-downs, whose content loads after they open, open at their full height straight away.
+- fix: **Close is an icon** (✕, "Close (Esc)") on every popup.
+
 ## [0.44.0] - 2026-10-23
 
 - feat: **Brief me** -- a one-click brief before a meeting, written by Compass (operator, 2026-10-23). In a customer's report (My view), the button opens a popup with: Headline, Where they stand, What moved, What they are building, What to pitch, Pipeline and quota, From recent conversations, Questions to ask, Watch out for.

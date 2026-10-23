@@ -5,13 +5,16 @@ interface PopupProps {
   title: ReactNode;
   onClose: () => void;
   children: ReactNode;
+  /** `tall`: opens at its full height, for content that loads after it opens -- growing
+   *  from a line of "Loading…" to a page read as a jump (operator, 2026-10-23). */
+  tall?: boolean;
 }
 
 /** Details over the page, never pushed into it (operator, 2026-10-23: "why not a popup
  *  with a close button ... same goes for everything, much better with all drill-downs").
  *  Fixed to the window, so it covers the page wherever it was opened from; Close, Escape
  *  or a click outside leaves the page exactly where it was. */
-export function Popup({ kicker, title, onClose, children }: PopupProps) {
+export function Popup({ kicker, title, onClose, children, tall = false }: PopupProps) {
   const panel = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -25,14 +28,16 @@ export function Popup({ kicker, title, onClose, children }: PopupProps) {
 
   return (
     <div className="azure-cost-drill-backdrop" onClick={onClose}>
-      <section ref={panel} className="card azure-cost-card azure-cost-drill" role="dialog" aria-modal="true"
+      <section ref={panel} className={`card azure-cost-card azure-cost-drill${tall ? ' azure-cost-popup-tall' : ''}`}
+               role="dialog" aria-modal="true"
                aria-label={typeof title === 'string' ? title : kicker} onClick={(event) => event.stopPropagation()}>
         <header className="azure-cost-drill-header">
           <div>
             {kicker ? <span className="azure-cost-kpi-label">{kicker}</span> : null}
             <h3>{title}</h3>
           </div>
-          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Close">Close</button>
+          <button type="button" className="azure-cost-popup-close" onClick={onClose} aria-label="Close"
+                  title="Close (Esc)">✕</button>
         </header>
         {children}
       </section>

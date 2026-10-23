@@ -48,6 +48,11 @@ class CustomerContext:
         for entry in linked[:RECENT_NOTES]:
             frontmatter = entry.get("frontmatter") or {}
             text = vault.read_section(entry["path"], "Summary") or ""
+            if not text:
+                # A thread captured before it was summarised has only its body; its start
+                # still says what it was about (checked on ADNOC, 2026-10-23).
+                _, body = vault.read_note(entry["path"])
+                text = " ".join((body or "").split())
             recent.append({"note": entry["stem"], "type": frontmatter.get("type"), "date": _date(frontmatter),
                            "summary": text[:NOTE_EXCERPT]})
         return {"customer_note": (summary or "")[:CUSTOMER_EXCERPT] or None, "recent": recent}

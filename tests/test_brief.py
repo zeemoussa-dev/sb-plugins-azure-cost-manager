@@ -86,7 +86,7 @@ def test_the_vault_part_is_the_customer_note_and_the_latest_notes_linking_to_it(
     notes = {
         "Contoso": ({"type": "Customer"}, [], "## Summary\nOil and gas.", "Oil and gas."),
         "Old meeting": ({"type": "Meeting", "date": "2026-05-01"}, ["Contoso"], "", "Talked MACC."),
-        "New thread": ({"type": "Thread", "date": "2026-10-20"}, ["contoso"], "", "Asked about GPUs."),
+        "New thread": ({"type": "Thread", "date": "2026-10-20"}, ["contoso"], "Asked  about\nGPUs.", ""),
         "Solution": ({"type": "Solution"}, ["Contoso"], "", "Not a conversation."),
         "Elsewhere": ({"type": "Meeting", "date": "2026-10-22"}, ["Fabrikam"], "", "Other customer."),
     }
@@ -100,6 +100,7 @@ def test_the_vault_part_is_the_customer_note_and_the_latest_notes_linking_to_it(
 
     assert found["customer_note"] == "Oil and gas."
     assert [note["note"] for note in found["recent"]] == ["New thread", "Old meeting"]
+    assert found["recent"][0]["summary"] == "Asked about GPUs."          # no Summary: the start of its text
 
 
 def test_the_fingerprint_ignores_the_day_it_was_asked():

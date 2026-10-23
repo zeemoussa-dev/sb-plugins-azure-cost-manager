@@ -61,7 +61,7 @@ export function BriefButton({ customerId, customerName }: { customerId: string; 
       <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}
               title="A brief before a meeting, written by Compass from this customer's data">Brief me</button>
       {open ? (
-        <Popup kicker="Brief before a meeting" title={customerName} onClose={() => setOpen(false)}>
+        <Popup kicker="Brief before a meeting" title={customerName} onClose={() => setOpen(false)} tall>
           <BriefBody customerId={customerId} />
         </Popup>
       ) : null}

@@ -73,7 +73,7 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
   const money = (value: number) => formatMoney(value, drill?.currency ?? null, true);
   return (
     <Popup kicker={KIND_LABELS[opened.kind]} title={opened.kind === 'month' ? formatMonth(opened.name) : opened.name}
-           onClose={onClose}>
+           onClose={onClose} tall>
       {error ? <div className="azure-cost-error">{error}</div> : !drill ? <p className="text-muted">Loading…</p> : (
         <>
           <p className="azure-cost-note">
