@@ -136,3 +136,19 @@ def test_months_keep_service_by_subscription_and_older_months_are_fetched_once_m
     assert ConsumptionStore.months_to_fetch(old, ["2026-01"]) == ["2026-01"]
     old["months"]["2026-01"]["actual"]["pairs"] = {}
     assert not ConsumptionStore.lacks_pairs(old) and ConsumptionStore.months_to_fetch(old, ["2026-01"]) == []
+
+
+def test_a_small_add_on_is_also_run_and_a_pitch_looks_at_the_summed_estate():
+    view = solutions.customer_view({"1": entry({
+        "sub-vdi": {"services": {"Virtual Machines": 120000, "Backup": 180}, "groups": {"rg-prd-avd-01": 1}},
+        "sub-soc": {"services": {"Sentinel": 30000}},
+        "sub-sec": {"services": {"Microsoft Defender for Cloud": 60}, "groups": {}},
+        "sub-sec2": {"services": {"Microsoft Defender for Cloud": 60, "Storage": 30000}},
+    })}, CATALOG)
+
+    vdi = next(row for row in view["subscriptions"] if row["subscription"] == "sub-vdi")
+    assert [found["id"] for found in vdi["solutions"]] == ["avd"]           # named: what it is for
+    assert [found["id"] for found in vdi["also"]] == ["backup-dr"]          # $60 a month of a $40K subscription
+    assert not any("Site Recovery" in pitch["pitch"] for pitch in view["pitches"])   # an add-on drives no pitch
+    # Defender is $20 a month in each of two subscriptions, $40 together: they run it.
+    assert not any("Defender for Cloud" in pitch["pitch"] for pitch in view["pitches"])

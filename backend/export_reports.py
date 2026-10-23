@@ -327,12 +327,13 @@ def build_solutions(report: dict, today: date) -> bytes:
 
     placed = _new_sheet(workbook, "Subscriptions", "Every subscription and the solution it looks like",
                         "Strong: required services plus supporting ones or a telling name; likely: required services only.")
-    _widths(placed, {"A": 36, "B": 44, "C": 14, "D": 14, "E": 44, "F": 12, "G": 70})
-    _table(placed, 4, ["Customer", "Subscription", "Monthly", "Environment", "Solutions", "Confidence",
+    _widths(placed, {"A": 36, "B": 44, "C": 14, "D": 14, "E": 44, "F": 12, "G": 40, "H": 70})
+    _table(placed, 4, ["Customer", "Subscription", "Monthly", "Environment", "Solutions", "Confidence", "Also runs",
                        "Largest services"],
            [[item["customer"], item["subscription"], item["monthly"], item.get("environment"),
              ", ".join(found["name"] for found in item["solutions"]) or "Not placed",
              ", ".join(sorted({found["confidence"] for found in item["solutions"]})) or None,
+             ", ".join(found["name"] for found in item.get("also") or []) or None,
              ", ".join(service["name"] for service in item["top_services"])] for item in report["subscriptions"]],
            {2: MONEY})
     placed.freeze_panes = "C5"

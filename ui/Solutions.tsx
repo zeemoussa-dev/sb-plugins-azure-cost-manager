@@ -52,13 +52,14 @@ function SubscriptionRow({ row }: { row: SubscriptionSolutions }) {
               {found.name}{found.confidence === 'likely' ? ' (likely)' : ''}
             </span>
           )) : <span className="text-muted">Not placed</span>}
+          {row.also.length ? <span className="text-muted"> · also {row.also.map((found) => found.name).join(', ')}</span> : null}
         </td>
         <td className="text-muted">{row.top_services.slice(0, 3).map((service) => service.name).join(', ')}</td>
       </tr>
       {open ? (
         <tr>
           <td colSpan={5} className="azure-cost-note">
-            {row.solutions.map((found) => (
+            {[...row.solutions, ...row.also].map((found) => (
               <p key={found.id}>
                 <strong>{found.name}</strong> ({found.play}, {found.confidence}):{' '}
                 {found.evidence.map((item) => item.monthly != null ? `${item.name} ${money(item.monthly)}/mo` : item.name).join(' · ')}
@@ -114,7 +115,8 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
       <p className="text-muted azure-cost-note">
         Monthly averages over {windowText(view.window)}. Each subscription is placed by the services it runs, its meters
         and the words in its and its resource groups' names. <em>Likely</em>: the required services only; otherwise
-        supporting services or a telling name agree. A pitch is the piece a solution usually has that this customer runs
+        supporting services or a telling name agree. A solution under 2% of a subscription's spend, without a name
+        saying so, is listed as <em>also</em> and does not drive pitches. A pitch is the piece a solution usually has that this customer runs
         nowhere. Click a subscription for the evidence.
       </p>
       <div className="azure-cost-kpis">

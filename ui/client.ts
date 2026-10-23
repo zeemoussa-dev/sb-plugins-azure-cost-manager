@@ -847,6 +847,7 @@ export interface FoundSolution {
   confidence: 'strong' | 'likely';
   evidence: { name: string; monthly: number | null }[];
   named: string[];
+  primary: boolean;
 }
 
 export interface SubscriptionSolutions {
@@ -854,6 +855,8 @@ export interface SubscriptionSolutions {
   monthly: number;
   environment: string | null;
   solutions: FoundSolution[];
+  /** Fits, but too small a share of the subscription to be what it is for. */
+  also: FoundSolution[];
   top_services: { name: string; monthly: number }[];
   resource_groups: string[];
 }

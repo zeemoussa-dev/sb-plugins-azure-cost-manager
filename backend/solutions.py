@@ -21,6 +21,11 @@ AI, DATA, INFRA, SECURITY, APPS = (solution_plays.AI, solution_plays.DATA, solut
                                    solution_plays.SECURITY, solution_plays.APPS)
 # Below this a month a service is residue -- a test, a leftover disk -- not a sign of a solution.
 MIN_MONTHLY = 25.0
+# A solution is what a subscription is for when its required services are at least
+# this share of the subscription's spend, or the names say so; otherwise it is
+# something the subscription also runs (2026-10-23, ADNOC: $59 of Backup in a
+# $46K subscription is not a backup solution). Only these drive pitches.
+PRIMARY_SHARE = 0.02
 SIGNAL_KINDS = ("service", "meter", "name")
 STRONG = "strong"
 LIKELY = "likely"
@@ -300,8 +305,8 @@ def _evidence(found: list[tuple[str, float | None]]) -> list[dict]:
             for name, cost in sorted(unique.items(), key=lambda item: -(item[1] or 0))]
 
 
-def classify(estate: _Estate, catalog: list[dict]) -> list[dict]:
-    """The patterns a subscription fits, the strongest evidence first."""
+def classify(estate: _Estate, catalog: list[dict], monthly: float = 0.0) -> list[dict]:
+    """The patterns a subscription fits, what it is for first, the strongest evidence first."""
     fitted: dict[str, dict] = {}
     for pattern in catalog:
         if pattern["fallback"]:
@@ -311,7 +316,10 @@ def classify(estate: _Estate, catalog: list[dict]) -> list[dict]:
             continue
         supports = [hit for signal in pattern["supports"] for hit in estate.matches(signal)]
         named = sorted(word for word in pattern["names"] if word in estate.words)
+        required = sum(cost or 0 for name, cost in dict(hit for group in groups for hit in group).items())
         fitted[pattern["id"]] = {
+            "primary": bool(named) or any(name.startswith("named ") for group in groups for name, _ in group)
+            or (monthly > 0 and required >= PRIMARY_SHARE * monthly),
             "id": pattern["id"], "name": pattern["name"], "play": pattern["play"],
             "confidence": STRONG if (len(supports) >= 2 or named or len(groups) > 1) else LIKELY,
             "evidence": _evidence([hit for group in groups for hit in group] + supports),
@@ -327,9 +335,9 @@ def classify(estate: _Estate, catalog: list[dict]) -> list[dict]:
             groups = [[hit for signal in group for hit in estate.matches(signal)] for group in pattern["requires"]]
             if all(groups):
                 fitted[pattern["id"]] = {"id": pattern["id"], "name": pattern["name"], "play": pattern["play"],
-                                         "confidence": LIKELY, "named": [],
+                                         "confidence": LIKELY, "named": [], "primary": True,
                                          "evidence": _evidence([hit for group in groups for hit in group])}
-    return sorted(fitted.values(), key=lambda found: (found["confidence"] != STRONG,
+    return sorted(fitted.values(), key=lambda found: (not found["primary"], found["confidence"] != STRONG,
                                                       -sum(item["monthly"] or 0 for item in found["evidence"])))
 
 
@@ -362,10 +370,14 @@ def customer_view(entries: dict[str, dict], catalog: list[dict]) -> dict:
     """Each subscription's solutions, the customer's solutions and the pitches."""
     subscriptions, window = _footprints(entries)
     by_id = {pattern["id"]: pattern for pattern in catalog}
-    everything = _Estate(
-        {name: cost for found in subscriptions.values() for name, cost in (found.get("services") or {}).items()},
-        {name: cost for found in subscriptions.values() for name, cost in (found.get("meters") or {}).items()},
-        [], max(1, (window or {}).get("months") or 1))
+    def summed(key: str) -> dict[str, float]:
+        totals: dict[str, float] = {}
+        for found in subscriptions.values():
+            for name, cost in (found.get(key) or {}).items():
+                totals[name] = totals.get(name, 0.0) + cost
+        return totals
+
+    everything = _Estate(summed("services"), summed("meters"), [], max(1, (window or {}).get("months") or 1))
     rows = []
     for name, found in subscriptions.items():
         months = found.get("months") or 1
@@ -374,10 +386,12 @@ def customer_view(entries: dict[str, dict], catalog: list[dict]) -> dict:
         monthly = sum((found.get("services") or {}).values()) / months
         if monthly < MIN_MONTHLY:
             continue
+        fitted = classify(estate, catalog, monthly)
         top = sorted((found.get("services") or {}).items(), key=lambda item: -item[1])[:5]
         rows.append({"subscription": name, "monthly": round(monthly, 2),
                      "environment": environment(name, *groups),
-                     "solutions": classify(estate, catalog),
+                     "solutions": [found for found in fitted if found["primary"]],
+                     "also": [found for found in fitted if not found["primary"]],
                      "top_services": [{"name": service, "monthly": round(cost / months, 2)} for service, cost in top],
                      "resource_groups": [group for group, _ in sorted((found.get("resource_groups") or {}).items(),
                                                                       key=lambda item: -item[1])[:5]]})

@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.39.1] - 2026-10-23
+
+- fix: **Solutions name what a subscription is for, and list the rest as "also"** (checked on ADNOC's real data, 2026-10-23: its largest subscription matched twelve patterns, among them $59 of Backup read as a backup solution). A solution is the subscription's when its required services are at least 2% of the subscription's spend, or its or its resource groups' names say so (an AKS cluster bills as VMs; `aks-...` names carry it). The rest is shown as *also* on screen and in a new **Also runs** column of the export, and drives no pitch.
+- fix: **a pitch no longer offers what the customer already runs.** The estate-wide check kept one subscription's cost per service instead of the sum, so a service spread thin read as absent: ADNOC was pitched Defender for Cloud while spending about $15K a month on it.
+
 ## [0.39.0] - 2026-10-23
 
 - fix: **which services run in which subscription is kept** (operator, 2026-10-23: "dropping the services' attachment to subscription was a bad move and made us lose data"). Cost Management has always answered by service and subscription together; the sync kept the two apart and threw the pairing away to keep the cache small. Now every month keeps `pairs` (subscription -> service -> cost) under both actual and amortized cost, and the daily data keeps it per day.
