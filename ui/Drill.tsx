@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useUrlState } from '../../pluginHost/state';
 import { SeriesChart } from './charts';
@@ -63,6 +63,20 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
   const open = useDrillOpener();
   const [drill, setDrill] = useState<Drill | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const panel = useRef<HTMLElement>(null);
+
+  // A popup over the report (operator, 2026-10-23: "why not a popup with a close
+  // button"): it opens wherever the click was, and closing leaves the page as it was.
+  // Drilling further inside it starts the new item from its top.
+  useEffect(() => {
+    panel.current?.scrollTo({ top: 0 });
+  }, [opened.kind, opened.name]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
 
   useEffect(() => {
     setDrill(null); setError(null);
@@ -71,7 +85,9 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
 
   const money = (value: number) => formatMoney(value, drill?.currency ?? null, true);
   return (
-    <section className="card azure-cost-card azure-cost-drill" aria-label={`${KIND_LABELS[opened.kind]} ${opened.name}`}>
+    <div className="azure-cost-drill-backdrop" onClick={onClose}>
+    <section ref={panel} className="card azure-cost-card azure-cost-drill" role="dialog" aria-modal="true"
+             aria-label={`${KIND_LABELS[opened.kind]} ${opened.name}`} onClick={(event) => event.stopPropagation()}>
       <header className="azure-cost-drill-header">
         <div>
           <span className="azure-cost-kpi-label">{KIND_LABELS[opened.kind]}</span>
@@ -189,5 +205,6 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
         </>
       )}
     </section>
+    </div>
   );
 }

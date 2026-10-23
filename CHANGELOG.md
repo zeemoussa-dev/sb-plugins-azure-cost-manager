@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.41.2] - 2026-10-23
+
+- fix: **the drill panel scrolls into view** when it opens or shows something else (operator, 2026-10-23: a subscription clicked further down opened the panel at the top of the page, out of sight).
+
 ## [0.41.1] - 2026-10-23
 
 - fix: **a drill shows which subscriptions run a service before the history is refetched.** Until the next Sync all fills in the pairs, a service or subscription drill reads the tags sync's last closed months (the footprint) and says so; checked on ADNOC, whose Foundry Models drill was empty.
