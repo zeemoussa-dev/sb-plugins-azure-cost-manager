@@ -849,10 +849,12 @@ export interface Drill {
   name: string;
   trend?: { month: string; cost: number }[];
   parts_kind: DrillKind;
-  parts: ({ name: string; monthly: number; last_12: number; technology_note?: string | null }
+  parts: ({ name: string; monthly: number; last_12: number | null; technology_note?: string | null }
     | { name: string; cost: number; before: number })[];
   recent_months?: string[];
   pairs_missing?: boolean;
+  /** The breakdown came from the tags sync's last closed months: the history has no pairs yet. */
+  from_footprint?: boolean;
   play?: string;
   technology_note?: string | null;
   solutions?: { id: string; name: string; note?: string | null }[];

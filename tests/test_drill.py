@@ -91,3 +91,12 @@ def test_a_billed_service_finds_its_technology_note():
     assert notes.note_for("Kubernetes Service") == "Azure Kubernetes Service"  # without the prefix
     assert notes.note_for("Sentinel") == "Microsoft Sentinel"
     assert notes.note_for("Some meeting") is None
+
+
+def test_without_pairs_a_drill_reads_the_footprint():
+    entries = {"1": {"footprint": {"months": 3, "subscriptions": {
+        "Prod": {"services": {"Foundry Models": 900.0, "VM": 300.0}}, "Dev": {"services": {"Foundry Models": 90.0}}}}}}
+    assert drill.from_footprints(entries, "service", "Foundry Models") == [
+        {"name": "Prod", "monthly": 300.0, "last_12": None}, {"name": "Dev", "monthly": 30.0, "last_12": None}]
+    assert [row["name"] for row in drill.from_footprints(entries, "subscription", "Prod")] == ["Foundry Models", "VM"]
+

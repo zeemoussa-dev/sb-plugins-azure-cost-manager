@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.41.1] - 2026-10-23
+
+- fix: **a drill shows which subscriptions run a service before the history is refetched.** Until the next Sync all fills in the pairs, a service or subscription drill reads the tags sync's last closed months (the footprint) and says so; checked on ADNOC, whose Foundry Models drill was empty.
+- fix: Marketplace lines under 50 cents a month are left out of the SaaS drill.
+
 ## [0.41.0] - 2026-10-23
 
 - feat: **drill-downs** (operator, 2026-10-23: "check any text can be drilled down ... every graph", "the drill down links to services"). In a customer's report, a service, subscription, solution play or month -- in a table or a chart -- opens a panel above the report (`drill=<kind>:<name>` in the URL; Back closes it):

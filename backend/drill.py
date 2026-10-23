@@ -47,6 +47,24 @@ def _breakdown(merged: dict, months_wanted: list[str], recent: list[str], pick) 
     return _rows(totals, len(recent))
 
 
+def from_footprints(entries: dict[str, dict], kind: str, name: str) -> list[dict]:
+    """The same breakdown from the tags sync's footprint (the last closed months by
+    subscription and service), for history synced before the pairs were kept."""
+    totals: dict[str, float] = {}
+    for entry in entries.values():
+        footprint = entry.get("footprint") or {}
+        spread = footprint.get("months") or 1
+        for subscription, found in (footprint.get("subscriptions") or {}).items():
+            services = found.get("services") or {}
+            if kind == "service" and name in services:
+                totals[subscription] = totals.get(subscription, 0.0) + services[name] / spread
+            elif kind == "subscription" and subscription == name:
+                for service, cost in services.items():
+                    totals[service] = totals.get(service, 0.0) + cost / spread
+    return sorted(({"name": key, "monthly": round(cost, 2), "last_12": None} for key, cost in totals.items()
+                   if round(cost, 2)), key=lambda row: -row["monthly"])
+
+
 def analyse(merged: dict, kind: str, name: str, current_month: str, plays: dict[str, str],
             resource_groups: dict[str, float] | None = None) -> dict:
     """`{kind, name, trend, parts, parts_kind, ...}` for one item of a customer's merged months."""

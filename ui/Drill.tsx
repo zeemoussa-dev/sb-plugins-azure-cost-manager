@@ -159,7 +159,9 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
               <h4>{drill.parts_kind === 'subscription' ? 'Subscriptions running it' : 'Services in it'}</h4>
               {drill.pairs_missing ? (
                 <p className="text-muted azure-cost-note">
-                  Some months were synced before services were kept by subscription; the next Sync all fills them in.
+                  {drill.from_footprint
+                    ? 'From the last closed months the tags sync read: the history was synced before services were kept by subscription, and the next Sync all fills in the twelve months.'
+                    : 'Some months were synced before services were kept by subscription; the next Sync all fills them in.'}
                 </p>
               ) : null}
               {drill.parts.length ? (
@@ -168,10 +170,10 @@ export function DrillPanel({ customerId, accounts, opened, onClose }: {
                     <th>Monthly, last {drill.recent_months?.length ?? 3}</th><th>Last 12 months</th>
                     {drill.parts_kind === 'service' ? <th /> : null}</tr></thead>
                   <tbody>
-                    {(drill.parts as { name: string; monthly: number; last_12: number; technology_note?: string | null }[]).slice(0, 40).map((row) => (
+                    {(drill.parts as { name: string; monthly: number; last_12: number | null; technology_note?: string | null }[]).slice(0, 40).map((row) => (
                       <tr key={row.name}>
                         <td><DrillLink kind={drill.parts_kind} name={row.name} /></td>
-                        <td>{money(row.monthly)}</td><td>{money(row.last_12)}</td>
+                        <td>{money(row.monthly)}</td><td>{row.last_12 != null ? money(row.last_12) : '—'}</td>
                         {drill.parts_kind === 'service' ? <td><NoteLink stem={row.technology_note}>About it</NoteLink></td> : null}
                       </tr>
                     ))}

@@ -809,6 +809,8 @@ class ConsumptionService:
                                   for pattern in self._patterns()
                                   if f"service:{name}" in {signal for group in pattern["requires"] for signal in group}
                                   | set(pattern["supports"])]
+        if found.get("pairs_missing") and not found["parts"] and kind in ("service", "subscription"):
+            found.update(parts=drill.from_footprints(entries, kind, name), from_footprint=True)
         if kind == "service" and name in MARKETPLACE_SERVICES:
             found["marketplace"] = self._marketplace_behind(entries, found["recent_months"])
         if found.get("parts_kind") == "service" and notes:
@@ -837,7 +839,8 @@ class ConsumptionService:
                         row["subscriptions"].add(item["subscription"])
         rows = [{**{key: value for key, value in row.items() if key != "cost"},
                  "monthly": round(row["cost"] / max(1, len(recent)), 2),
-                 "subscriptions": sorted(row["subscriptions"])} for row in found.values()]
+                 "subscriptions": sorted(row["subscriptions"])} for row in found.values()
+                if row["cost"] / max(1, len(recent)) >= 0.5]
         return sorted(rows, key=lambda row: -row["monthly"])
 
     def consumption(self, customer_id: str, first_month: str | None, last_month: str | None,
