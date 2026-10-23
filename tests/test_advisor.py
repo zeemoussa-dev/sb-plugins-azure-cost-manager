@@ -125,3 +125,10 @@ def test_without_compass_a_feature_says_why(fake_api):
     found._llm = None
     with pytest.raises(compass.CompassUnavailable, match="api.llm"):
         found.explain(customer_id, "service", "VM", write=True)
+
+
+def test_the_month_still_being_billed_is_marked_partial():
+    drill = {"trend": [{"month": "2026-09", "cost": 300.0}, {"month": "2026-10", "cost": 100.0}]}
+    facts = advisor.explain_facts(drill, "2026-10")
+    assert "partial" not in facts["by_month"][0] and facts["by_month"][1]["partial"]
+

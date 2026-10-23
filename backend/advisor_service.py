@@ -27,7 +27,7 @@ class Advisor:
 
     def explain(self, customer_id: str, kind: str, name: str, write: bool = False,
                 accounts: list[str] | None = None) -> dict:
-        facts = advisor.explain_facts(self._service.drill(customer_id, kind, name, accounts))
+        facts = advisor.explain_facts(self._service.drill(customer_id, kind, name, accounts), self._service.current_month())
         stamp, key = compass.fingerprint(facts), f"{customer_id}|{kind}|{name}"
         if write:
             text = compass.ask(self._llm, advisor.explain_messages(facts))
@@ -79,7 +79,8 @@ class Advisor:
             raise ValueError("that pitch is not one this customer is shown")
         sizing = next((pattern.get("sizing") for pattern in self._service.solution_catalog()["patterns"]
                        if pattern["name"] == pitch["solution"]), None)
-        facts = advisor.draft_facts(self._service.brief_facts(customer_id), pitch, sizing)
+        running = next((item for item in view["solutions"] if item["name"] == pitch["solution"]), {})
+        facts = advisor.draft_facts(self._service.brief_facts(customer_id), pitch, sizing, running.get("monthly"))
         return {**advisor.check_draft(compass.ask(self._llm, advisor.draft_messages(facts)), facts),
                 "solution": pitch["solution"]}
 

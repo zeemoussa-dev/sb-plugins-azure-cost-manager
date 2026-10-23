@@ -26,8 +26,11 @@ def _system(task: str) -> dict:
 
 # -- explain a move ----------------------------------------------------------------
 
-def explain_facts(drill: dict) -> dict:
-    trend = [point for point in drill.get("trend") or [] if point.get("cost")][-8:]
+def explain_facts(drill: dict, current_month: str | None = None) -> dict:
+    # The month still being billed is marked: read as a whole month, a third of one
+    # looked like a fall (checked on ADNOC's Foundry Models, 2026-10-23).
+    trend = [{**point, **({"partial": "billed so far, month not over"} if point["month"] == current_month else {})}
+             for point in drill.get("trend") or [] if point.get("cost")][-8:]
     return {key: value for key, value in {
         "customer": (drill.get("customer") or {}).get("name"), "kind": drill.get("kind"), "name": drill.get("name"),
         "currency": drill.get("currency"), "by_month": trend,
@@ -44,7 +47,8 @@ def explain_messages(facts: dict) -> list[dict]:
         "Explain to the seller what this item of a customer's Azure bill is doing: what moved and when, where it "
         "moved (which of the parts it is made of), the most likely reason the facts support, and the one question "
         "to ask the customer. Monthly figures are monthly averages of the last closed months unless a month is "
-        "named; 'last_12' is a twelve-month total. Markdown, at most 120 words, no headings: two or three short "
+        "named; 'last_12' is a twelve-month total. A month marked partial is still being billed: never read it as "
+        "a fall. Markdown, at most 120 words, no headings: two or three short "
         "paragraphs, the question in bold at the end."),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
 
@@ -107,8 +111,12 @@ def check_actions(reply: str, facts: dict) -> list[dict]:
 
 # -- draft from a pitch -------------------------------------------------------------
 
-def draft_facts(brief_facts: dict, pitch: dict, sizing: dict | None) -> dict:
+def draft_facts(brief_facts: dict, pitch: dict, sizing: dict | None, solution_monthly: float | None = None) -> dict:
+    # What the customer already spends in the subscriptions running this solution: without
+    # it the size was chosen blind -- ADNOC, at ~$2M a month on GenAI, was drafted "small"
+    # (2026-10-23).
     return {"customer": brief_facts.get("customer"), "pitch": pitch.get("pitch"), "because_of": pitch.get("solution"),
+            "monthly_today_in_subscriptions_running_it": round(solution_monthly) if solution_monthly else None,
             "play": pitch.get("play"), "subscriptions": pitch.get("subscriptions"),
             "sizing": sizing, "consumption": {key: brief_facts["consumption"].get(key) for key in
                                               ("last_month", "monthly_run_rate_3m", "year_on_year_pct")},
@@ -121,7 +129,9 @@ def draft_messages(facts: dict) -> list[dict]:
         "Draft an opportunity and a short email to the customer from this pitch.\n"
         'Answer with one JSON object: {"title": <opportunity title, under 80 characters, naming the customer and '
         'the solution>, "summary": <two sentences: the customer need the facts show and what is proposed>, '
-        '"size": "small"|"medium"|"large" <which of the sizing fits, from the consumption facts>, "next_steps": '
+        '"size": "small"|"medium"|"large" <which of the sizing fits this customer\'s scale -- compare with what it '
+        'already spends in the subscriptions running the solution; when that is far above the large size, choose '
+        'large and say in the summary that the sizing is a first phase>, "next_steps": '
         '[<3 short steps>], "email_subject": <subject>, "email_body": <plain text, under 150 words, to the '
         'customer\'s technical lead, no figures from inside Core42 such as quota or pipeline>}. Nothing else.'),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]

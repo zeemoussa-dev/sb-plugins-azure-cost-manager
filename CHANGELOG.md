@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.46.1] - 2026-10-23
+
+- fix: **Explain this no longer reads the month being billed as a fall.** The current month is marked partial in what Compass is handed, and it is told never to read it as a decline (checked on ADNOC's Foundry Models, where 23 days of October read as a "scale-back").
+- fix: **a draft is sized for the customer's scale.** Compass is now shown what the customer already spends in the subscriptions running the solution, and picks the large size -- calling it a first phase -- when that is far above it (ADNOC, at about $2M a month on GenAI, had been drafted "small" at $555 a month).
+
 ## [0.46.0] - 2026-10-23
 
 - feat: **the rest of Compass for sellers** (operator, 2026-10-23: "the rest of the features LLM reasoning can help the sellers with"). The rule throughout: the plugin supplies every figure, Compass explains, ranks and drafts, and its answer is checked before it is shown.
