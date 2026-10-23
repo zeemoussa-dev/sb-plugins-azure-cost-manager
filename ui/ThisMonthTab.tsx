@@ -79,7 +79,7 @@ function Rows({ rows, caption, found, view, drillKind }: {
  *  the tenant -- early enough to open an opportunity. Refreshed only on demand.
  *  One grouping at a time and folding sections, because a large tenant has
  *  hundreds of resource groups (operator, 2026-10-18). */
-export function ThisMonthTab({ customerId, view }: { customerId: string; view: View }) {
+export function ThisMonthTab({ customerId, view, accounts }: { customerId: string; view: View; accounts?: string[] }) {
   const [found, setFound] = useState<ThisMonth | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<string | null>(null);
@@ -88,9 +88,10 @@ export function ThisMonthTab({ customerId, view }: { customerId: string; view: V
   const poll = useRef<number | undefined>(undefined);
 
   const load = useCallback(() => {
-    fetchThisMonth(customerId).then((result) => { setFound(result); setError(null); },
+    fetchThisMonth(customerId, accounts).then((result) => { setFound(result); setError(null); },
       (failure) => setError(errorText(failure)));
-  }, [customerId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, accounts?.join(',')]);
 
   useEffect(() => { load(); return () => window.clearTimeout(poll.current); }, [load]);
 

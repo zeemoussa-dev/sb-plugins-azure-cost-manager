@@ -94,6 +94,17 @@ class ConsumptionService:
         affiliates = [listed for listed in self._book.list() if listed.get("parent") == customer["id"]]
         return [customer] + affiliates
 
+    def _only(self, customer: dict, accounts: list[str] | None) -> set[str] | None:
+        """The enrollments a report is limited to (operator, 2026-10-23: "some reports I can
+        filter enrollments and others I can't"); None shows them all."""
+        if not accounts:
+            return None
+        in_group = {account["name"] for member in self._group(customer) for account in member["accounts"]}
+        only = {name for name in accounts if name in in_group}
+        if not only:
+            raise ValueError("none of those enrollments belong to this customer")
+        return only
+
     def _merged(self, customer: dict, rolled_up: bool = True,
                 only: set[str] | None = None) -> tuple[dict, str | None, dict[str, dict]]:
         """`only`: just these enrollments of the group -- the ones the report shows."""
@@ -115,10 +126,13 @@ class ConsumptionService:
             return None, last or default_last
         return first or default_first, last or default_last
 
-    def marketplace(self, customer_id: str, first: str | None = None, last: str | None = None) -> dict:
+    def marketplace(self, customer_id: str, first: str | None = None, last: str | None = None,
+                    shown: list[str] | None = None) -> dict:
         """The customer's (a group's: with its affiliates') Marketplace solutions."""
         customer = self._customer(customer_id)
-        accounts = {account["name"]: account for member in self._group(customer) for account in member["accounts"]}
+        only = self._only(customer, shown)
+        accounts = {account["name"]: account for member in self._group(customer) for account in member["accounts"]
+                    if only is None or account["name"] in only}
         entries = {name: self._store.account(name) for name in accounts}
         labels = {name: f"{account['display_name']} ({name})" for name, account in accounts.items()}
         first, last = self._period(first, last)
@@ -178,10 +192,10 @@ class ConsumptionService:
         self._store.save_quota_state({**self._store.quota_state(), **quota.validated(changes)})
         return self.quota_settings()
 
-    def _quota_of(self, customer: dict, measure: dict | None, chosen: dict) -> dict:
+    def _quota_of(self, customer: dict, measure: dict | None, chosen: dict, only: set[str] | None = None) -> dict:
         """One customer (a group, with its affiliates) against the baseline."""
         current_month = months.month_of(self._today())
-        merged, currency, _ = self._merged(customer)
+        merged, currency, _ = self._merged(customer, only=only)
         trend = consumption_analysis.monthly_totals(merged, current_month, measure)
         pipeline = self.pipeline(customer["id"])
         automatic = forecasting.automatic(trend, self._today(), pipeline["by_month"])
@@ -190,12 +204,12 @@ class ConsumptionService:
                 "pipeline": quota.pipeline_against_actual(pipeline["opportunities"], found, current_month),
                 "pipeline_available": pipeline["available"]}
 
-    def quota_customer(self, customer_id: str, measure: dict | None = None) -> dict:
+    def quota_customer(self, customer_id: str, measure: dict | None = None, shown: list[str] | None = None) -> dict:
         """A customer's fiscal year above its baseline (operator, 2026-10-22)."""
         customer = self._customer(customer_id)
         chosen = self.quota_settings()
         return {"customer": {"id": customer["id"], "name": customer["name"]}, "settings": chosen,
-                "measure": measure, **self._quota_of(customer, measure, chosen)}
+                "measure": measure, **self._quota_of(customer, measure, chosen, self._only(customer, shown))}
 
     def quota_across(self, measure: dict | None = None) -> dict:
         """Every top-level customer above its baseline, and the seller's quota
@@ -236,18 +250,19 @@ class ConsumptionService:
     def _patterns(self) -> list[dict]:
         return self.solution_catalog()["patterns"]
 
-    def _solutions_view(self, members: list[dict], catalog: list[dict]) -> dict:
+    def _solutions_view(self, members: list[dict], catalog: list[dict], only: set[str] | None = None) -> dict:
         entries = {account["name"]: self._store.account(account["name"])
-                   for member in members for account in member["accounts"]}
+                   for member in members for account in member["accounts"]
+                   if only is None or account["name"] in only}
         return solutions.customer_view(entries, catalog)
 
-    def solutions_of(self, customer_id: str) -> dict:
+    def solutions_of(self, customer_id: str, shown: list[str] | None = None) -> dict:
         """Each of the customer's subscriptions (a group's: with its affiliates'), the
         solution it looks like, and what to pitch (operator, 2026-10-23)."""
         customer = self._customer(customer_id)
         catalog = self._patterns()
         return {"customer": {"id": customer["id"], "name": customer["name"]},
-                **self._solutions_view(self._group(customer), catalog)}
+                **self._solutions_view(self._group(customer), catalog, self._only(customer, shown))}
 
     def solutions_across(self) -> dict:
         everyone = self._book.list()
@@ -566,9 +581,9 @@ class ConsumptionService:
                                            burn_merged=burn_merged),
         }
 
-    def _finops_of(self, customer: dict) -> dict:
+    def _finops_of(self, customer: dict, only: set[str] | None = None) -> dict:
         members = self._group(customer)
-        merged, currency, entries = self._merged(customer)
+        merged, currency, entries = self._merged(customer, only=only)
         current_month = months.month_of(self._today())
         commitment = customer.get("commitment")
         trend = consumption_analysis.monthly_totals(merged, current_month,
@@ -585,10 +600,11 @@ class ConsumptionService:
                                  self._today(), self.prices.discounts()),
                 "pricing_region": self.prices.region()}
 
-    def finops(self, customer_id: str) -> dict:
+    def finops(self, customer_id: str, shown: list[str] | None = None) -> dict:
         """The FinOps findings for one customer (a group: with its affiliates). The
         Customer view shows the same findings: nothing here is internal."""
-        return self._finops_of(self._customer(customer_id))
+        customer = self._customer(customer_id)
+        return self._finops_of(customer, self._only(customer, shown))
 
     def finops_across(self) -> list[dict]:
         """Every top-level customer's FinOps at a glance, the largest steady
@@ -611,8 +627,8 @@ class ConsumptionService:
                          "budget": found["budget"]})
         return sorted(rows, key=lambda row: (-row["candidates_monthly"], row["name"].lower()))
 
-    def _tags_of(self, customer: dict) -> dict:
-        merged, currency, entries = self._merged(customer)
+    def _tags_of(self, customer: dict, only: set[str] | None = None) -> dict:
+        merged, currency, entries = self._merged(customer, only=only)
         totals = {month: sum(((data.get("actual") or {}).get("service") or {}).values())
                   for month, data in merged.items()}
         return {"customer": {"id": customer["id"], "name": customer["name"]},
@@ -620,11 +636,12 @@ class ConsumptionService:
                 "synced": any((entry.get("tags") or {}).get("keys_fetched_at") for entry in entries.values()),
                 **tags.report(entries, totals, months.month_of(self._today()))}
 
-    def tags(self, customer_id: str) -> dict:
+    def tags(self, customer_id: str, shown: list[str] | None = None) -> dict:
         """A customer's cost by business tag -- Environment, Project, Application,
         Business unit, Owner, Cost centre -- with coverage and the spellings behind
         each. Nothing here is internal: the Customer view shows it all."""
-        return self._tags_of(self._customer(customer_id))
+        customer = self._customer(customer_id)
+        return self._tags_of(customer, self._only(customer, shown))
 
     def tags_across(self) -> list[dict]:
         """Every top-level customer's tag coverage, per dimension, last closed month."""
@@ -690,11 +707,11 @@ class ConsumptionService:
         trend = consumption_analysis.monthly_totals(merged, months.month_of(self._today()), measure)
         return trend, (currency or "").strip() or None, customer.get("commitment")
 
-    def this_month(self, customer_id: str) -> dict:
+    def this_month(self, customer_id: str, shown: list[str] | None = None) -> dict:
         """This month so far for a customer (a group: with its affiliates), from the
         on-demand daily refresh: pace against last month, and what is new or moving."""
         customer = self._customer(customer_id)
-        merged, currency, entries = self._merged(customer)
+        merged, currency, entries = self._merged(customer, only=self._only(customer, shown))
         return {"customer": {"id": customer["id"], "name": customer["name"],
                              "entity_customer": customer.get("entity_customer")},
                 "currency": (currency or "").strip() or None,

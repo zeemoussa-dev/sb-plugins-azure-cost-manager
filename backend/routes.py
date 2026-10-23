@@ -86,8 +86,9 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
     @router.get("/customers/{customer_id}/marketplace")
-    def get_customer_marketplace(customer_id: str, first_month: str | None = None, last_month: str | None = None) -> dict:
-        return _answered(lambda: service.marketplace(customer_id, first_month, last_month))
+    def get_customer_marketplace(customer_id: str, first_month: str | None = None, last_month: str | None = None,
+                                 accounts: str | None = None) -> dict:
+        return _answered(lambda: service.marketplace(customer_id, first_month, last_month, _account_list(accounts)))
 
     @router.get("/marketplace/renewals")
     def get_marketplace_renewals() -> list[dict]:
@@ -229,8 +230,8 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                                                [a for a in (accounts or "").split(",") if a] or None))
 
     @router.get("/customers/{customer_id}/solutions")
-    def get_customer_solutions(customer_id: str) -> dict:
-        return _answered(lambda: service.solutions_of(customer_id))
+    def get_customer_solutions(customer_id: str, accounts: str | None = None) -> dict:
+        return _answered(lambda: service.solutions_of(customer_id, _account_list(accounts)))
 
     @router.get("/data/export.zip")
     def get_data_export() -> Response:
@@ -264,8 +265,9 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return _answered(lambda: service.quota_across(measure(marketplace, credits)))
 
     @router.get("/customers/{customer_id}/quota")
-    def get_customer_quota(customer_id: str, marketplace: str = "true", credits: bool = True) -> dict:
-        return _answered(lambda: service.quota_customer(customer_id, measure(marketplace, credits)))
+    def get_customer_quota(customer_id: str, marketplace: str = "true", credits: bool = True,
+                           accounts: str | None = None) -> dict:
+        return _answered(lambda: service.quota_customer(customer_id, measure(marketplace, credits), _account_list(accounts)))
 
     @router.get("/reports/{report}/export.xlsx")
     def get_report_export(report: str, marketplace: str = "true", credits: bool = True) -> Response:
@@ -365,12 +367,12 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                                                   _account_list(accounts)))
 
     @router.get("/customers/{customer_id}/finops")
-    def get_finops(customer_id: str) -> dict:
-        return _answered(lambda: service.finops(customer_id))
+    def get_finops(customer_id: str, accounts: str | None = None) -> dict:
+        return _answered(lambda: service.finops(customer_id, _account_list(accounts)))
 
     @router.get("/customers/{customer_id}/this-month")
-    def get_this_month(customer_id: str) -> dict:
-        return _answered(lambda: service.this_month(customer_id))
+    def get_this_month(customer_id: str, accounts: str | None = None) -> dict:
+        return _answered(lambda: service.this_month(customer_id, _account_list(accounts)))
 
     @router.post("/sync/this-month")
     def post_sync_this_month(customer: str | None = None) -> dict:
@@ -378,8 +380,8 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return sync.start_this_month(customer)
 
     @router.get("/customers/{customer_id}/tags")
-    def get_tags(customer_id: str) -> dict:
-        return _answered(lambda: service.tags(customer_id))
+    def get_tags(customer_id: str, accounts: str | None = None) -> dict:
+        return _answered(lambda: service.tags(customer_id, _account_list(accounts)))
 
     @router.get("/tags")
     def get_tags_across() -> list[dict]:

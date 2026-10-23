@@ -114,7 +114,9 @@ function SubscriptionRow({ row }: { row: SubscriptionSolutions }) {
 
 /** One customer's subscriptions, the solution each looks like, and what to pitch
  *  (operator, 2026-10-23: for the Solution Sellers). */
-export function SolutionsTab({ customerId, syncedVersion }: { customerId: string; syncedVersion: number }) {
+export function SolutionsTab({ customerId, syncedVersion, accounts }: {
+  customerId: string; syncedVersion: number; accounts?: string[];
+}) {
   const [view, setView] = useState<CustomerSolutions | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -122,9 +124,10 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCustomerSolutions(customerId).then((found) => { setView(found); setError(null); },
+    fetchCustomerSolutions(customerId, accounts).then((found) => { setView(found); setError(null); },
       (failure) => setError(errorText(failure)));
-  }, [customerId, syncedVersion]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, syncedVersion, accounts?.join(',')]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
   if (!view) return <Loading />;

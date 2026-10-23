@@ -109,8 +109,8 @@ function publisherSeries(report: MarketplaceReport, publishers: string[]): Serie
   return series;
 }
 
-export function MarketplaceTab({ customerId, currency, syncedVersion }: {
-  customerId: string; currency: string | null; syncedVersion: number;
+export function MarketplaceTab({ customerId, currency, syncedVersion, accounts }: {
+  customerId: string; currency: string | null; syncedVersion: number; accounts?: string[];
 }) {
   const [period, setPeriod] = useUrlState<Period>('marketplace-period', '12m', { valid: PERIODS });
   const [report, setReport] = useState<MarketplaceReport | null>(null);
@@ -120,9 +120,10 @@ export function MarketplaceTab({ customerId, currency, syncedVersion }: {
 
   useEffect(() => {
     const { first, last } = periodRange(period);
-    fetchCustomerMarketplace(customerId, first, last).then((result) => { setReport(result); setError(null); },
+    fetchCustomerMarketplace(customerId, first, last, accounts).then((result) => { setReport(result); setError(null); },
       (failure) => setError(errorText(failure)));
-  }, [customerId, period, syncedVersion, reloads]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, period, syncedVersion, reloads, accounts?.join(',')]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
   if (!report) return <Loading />;

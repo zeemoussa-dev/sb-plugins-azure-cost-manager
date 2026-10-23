@@ -2,7 +2,7 @@
   "id": "azure-cost-manager",
   "name": "Azure Customer 360",
   "description": "Customers' Azure agreements and monthly consumption, read from Cost Management with your own az login: trend, top services, anomalies, commitment burn-down and forecast.",
-  "version": "0.47.0",
+  "version": "0.47.1",
   "framework_api": 12,
   "requires": []
 }

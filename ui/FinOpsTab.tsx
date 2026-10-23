@@ -81,15 +81,18 @@ function GrowthTable({ title, rows, currency, kind }: {
 /** Paying less for the same consumption: how much of it commitments cover, what
  *  runs on demand steadily enough to commit, what was bought, what is growing,
  *  and the budget. The same findings in both views -- none of it is internal. */
-export function FinOpsTab({ customerId, syncedVersion, view }: { customerId: string; syncedVersion: number; view: View }) {
+export function FinOpsTab({ customerId, syncedVersion, view, accounts }: {
+  customerId: string; syncedVersion: number; view: View; accounts?: string[];
+}) {
   const drill = useDrillOpener();
   const [found, setFound] = useState<FinOps | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchFinOps(customerId).then((result) => { setFound(result); setError(null); },
+    fetchFinOps(customerId, accounts).then((result) => { setFound(result); setError(null); },
       (failure) => setError(errorText(failure)));
-  }, [customerId, syncedVersion]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, syncedVersion, accounts?.join(',')]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
   if (!found) return <Loading />;

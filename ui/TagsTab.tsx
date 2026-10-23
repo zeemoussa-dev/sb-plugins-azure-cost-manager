@@ -10,16 +10,19 @@ const CHARTED_VALUES = 6;
 
 /** A customer's cost by business tag: each dimension's values by month, how much
  *  of the spend carries the tag at all, and the spellings behind it. */
-export function TagsTab({ customerId, syncedVersion, view }: { customerId: string; syncedVersion: number; view: View }) {
+export function TagsTab({ customerId, syncedVersion, view, accounts }: {
+  customerId: string; syncedVersion: number; view: View; accounts?: string[];
+}) {
   const [report, setReport] = useState<TagsReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [chosen, setChosen] = useUrlState<string>('dimension', '');
 
   useEffect(() => {
-    fetchTags(customerId).then((result) => { setReport(result); setError(null); },
+    fetchTags(customerId, accounts).then((result) => { setReport(result); setError(null); },
       (failure) => setError(errorText(failure)));
-  }, [customerId, syncedVersion]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, syncedVersion, accounts?.join(',')]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
   if (!report) return <Loading />;

@@ -66,14 +66,15 @@ function MeasureFilters({ measure, onChange }: { measure: Measure; onChange: (ne
 /** One customer's fiscal year against the baseline (operator, 2026-10-22): what
  *  it added above the line so far, where the year lands, and the pipeline's plan
  *  against what happened. */
-export function QuotaTab({ customerId, measure }: { customerId: string; measure: Measure }) {
+export function QuotaTab({ customerId, measure, accounts }: { customerId: string; measure: Measure; accounts?: string[] }) {
   const [found, setFound] = useState<CustomerQuota | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCustomerQuota(customerId, measure).then((result) => { setFound(result); setError(null); },
+    fetchCustomerQuota(customerId, measure, accounts).then((result) => { setFound(result); setError(null); },
       (failure) => setError(errorText(failure)));
-  }, [customerId, measure]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, measure, accounts?.join(',')]);
 
   if (error) return <div className="azure-cost-error">{error}</div>;
   if (!found) return <Loading />;

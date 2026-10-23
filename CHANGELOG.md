@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.47.1] - 2026-10-23
+
+- fix: **every customer report can be limited to some enrollments** (operator, 2026-10-23: "some customer reports I can filter enrollments and others I can't"). The Enrollments picker was on Overview, Forecast and Breakdown only; This month, Marketplace, FinOps, Tags, Quota and Solutions read the whole group whatever was chosen. They now read only the enrollments chosen, and the picker shows on all of them. Pipeline keeps the whole group: an opportunity belongs to the customer, not to an enrollment. An enrollment outside the customer is refused.
+- **Routes:** `accounts=` on `/customers/{id}/this-month`, `/marketplace`, `/finops`, `/tags`, `/quota` and `/solutions`.
+
 ## [0.47.0] - 2026-10-23
 
 - feat: **customer memory** (operator, 2026-10-23: "Brief me has no memory"). What you tell Compass about a customer is kept for that customer and handed to everything Compass writes about it -- the brief, Explain this, drafts, sizing and next best actions -- as fact: it corrects a guess from the reports (a MACC already renewed needs no renewal action), a figure you gave is quoted marked "(you said)", and a report's own figure is never changed by it.

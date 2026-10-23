@@ -467,8 +467,8 @@ const customer = (id: string) => `${BASE}/customers/${encodeURIComponent(id)}`;
 const periodQuery = (first?: string, last?: string) =>
   [first ? `first_month=${first}` : '', last ? `last_month=${last}` : ''].filter(Boolean).join('&');
 
-export const fetchCustomerMarketplace = (id: string, first?: string, last?: string) =>
-  apiFetch<MarketplaceReport>(`${customer(id)}/marketplace?${periodQuery(first, last)}`);
+export const fetchCustomerMarketplace = (id: string, first?: string, last?: string, accounts?: string[]) =>
+  apiFetch<MarketplaceReport>(`${customer(id)}/marketplace?${periodQuery(first, last)}${accountsQuery(accounts)}`);
 
 export const fetchMarketplaceAcross = (first?: string, last?: string) =>
   apiFetch<MarketplaceAcross>(`${BASE}/marketplace?${periodQuery(first, last)}`);
@@ -551,6 +551,9 @@ export type View = 'account' | 'customer';
 
 const accountsQuery = (accounts?: string[]) =>
   accounts?.length ? `&accounts=${encodeURIComponent(accounts.join(','))}` : '';
+/** The same, as a path's only query. */
+const onlyAccounts = (accounts?: string[]) =>
+  accounts?.length ? `?accounts=${encodeURIComponent(accounts.join(','))}` : '';
 
 /** `accounts`: only these of the group's enrollments; none given shows them all. */
 export const fetchAnalysis = (id: string, measure: Measure, view: View = 'account', accounts?: string[]) =>
@@ -628,7 +631,7 @@ export interface FinOpsAcrossRow {
   budget: Budget | null;
 }
 
-export const fetchFinOps = (id: string) => apiFetch<FinOps>(`${customer(id)}/finops`);
+export const fetchFinOps = (id: string, accounts?: string[]) => apiFetch<FinOps>(`${customer(id)}/finops${onlyAccounts(accounts)}`);
 export const fetchFinOpsAcross = () => apiFetch<FinOpsAcrossRow[]>(`${BASE}/finops`);
 export interface MonthRow {
   name: string;
@@ -664,7 +667,8 @@ export interface ThisMonth {
   new_workloads?: { kind: string; kind_label: string; name: string; this_month: number }[];
 }
 
-export const fetchThisMonth = (id: string) => apiFetch<ThisMonth>(`${customer(id)}/this-month`);
+export const fetchThisMonth = (id: string, accounts?: string[]) =>
+  apiFetch<ThisMonth>(`${customer(id)}/this-month${onlyAccounts(accounts)}`);
 /** Last month and this one by day; every customer's enrollments without `customerId`. */
 export const refreshThisMonth = (customerId?: string) =>
   apiFetch<SyncStatus & { started: boolean }>(`${BASE}/sync/this-month${customerId ? `?customer=${encodeURIComponent(customerId)}` : ''}`,
@@ -701,7 +705,7 @@ export interface TagsAcrossRow {
 }
 
 export const UNTAGGED = '(untagged)';
-export const fetchTags = (id: string) => apiFetch<TagsReport>(`${customer(id)}/tags`);
+export const fetchTags = (id: string, accounts?: string[]) => apiFetch<TagsReport>(`${customer(id)}/tags${onlyAccounts(accounts)}`);
 export const fetchTagsAcross = () => apiFetch<TagsAcrossRow[]>(`${BASE}/tags`);
 export const startTagSync = (customerId?: string) =>
   apiFetch<SyncStatus & { started: boolean }>(`${BASE}/sync/tags${customerId ? `?customer=${encodeURIComponent(customerId)}` : ''}`,
@@ -1136,7 +1140,8 @@ export interface Guide {
 
 export const fetchGuide = () => apiFetch<Guide>(`${BASE}/guide`);
 
-export const fetchCustomerSolutions = (id: string) => apiFetch<CustomerSolutions>(`${customer(id)}/solutions`);
+export const fetchCustomerSolutions = (id: string, accounts?: string[]) =>
+  apiFetch<CustomerSolutions>(`${customer(id)}/solutions${onlyAccounts(accounts)}`);
 export const fetchSolutionsAcross = () => apiFetch<SolutionsAcross>(`${BASE}/solutions`);
 export const fetchSolutionCatalog = () => apiFetch<SolutionCatalog>(`${BASE}/solutions/catalog`);
 
@@ -1198,8 +1203,8 @@ export interface QuotaAcross {
 }
 
 export const fetchQuota = (measure: Measure) => apiFetch<QuotaAcross>(`${BASE}/quota?${measureQuery(measure)}`);
-export const fetchCustomerQuota = (id: string, measure: Measure) =>
-  apiFetch<CustomerQuota>(`${customer(id)}/quota?${measureQuery(measure)}`);
+export const fetchCustomerQuota = (id: string, measure: Measure, accounts?: string[]) =>
+  apiFetch<CustomerQuota>(`${customer(id)}/quota?${measureQuery(measure)}${accountsQuery(accounts)}`);
 export const saveQuotaSettings = (changes: Partial<{ quota: number | null; baseline_start: string | null;
   baseline_months: number; fy_start_month: number; period_first: string | null; period_last: string | null }>) =>
   apiFetch<QuotaSettings>(`${BASE}/quota/settings`, { method: 'PUT', body: JSON.stringify(changes) });

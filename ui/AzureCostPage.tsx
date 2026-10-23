@@ -28,7 +28,9 @@ import { Loading } from './Loading';
 const VIEWS = ['account', 'customer'] as const;
 
 // The reports read from the analysis -- the ones the enrollment choice applies to.
-const CHOOSES_ENROLLMENTS: Report[] = ['Overview', 'Forecast', 'Breakdown'];
+// Every report but Pipeline -- an opportunity belongs to the customer, not to an enrollment
+// (operator, 2026-10-23: "some reports I can filter enrollments and others I can't").
+const CHOOSES_ENROLLMENTS: Report[] = REPORTS.filter((name) => name !== 'Pipeline');
 
 /** Which of a group's enrollments the report covers (operator, 2026-10-21: the
  *  list was too long to read, and Mubadala HQ was lost in it). Grouped by whose
@@ -102,6 +104,8 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
   if (!analysis) return <Loading />;
 
   const accountErrors = Object.entries(analysis.errors);
+  // The enrollments chosen in the picker, for the reports that fetch on their own; none means all.
+  const shown = chosen.length ? chosen : undefined;
   const nothingSynced = analysis.months.length === 0;
   const nothingBilled = !nothingSynced && analysis.months.every((month) => !month.actual && !month.amortized);
 
@@ -127,12 +131,12 @@ function CustomerView({ customerId, measure, syncedVersion, report, view, chosen
                              opened={drilled} onClose={closeDrill} /> : null}
       {report === 'Pipeline' ? <PipelineTab analysis={analysis} onChanged={reload} />
         : nothingSynced ? <p className="empty-state">Nothing synced for this customer yet. Sync it to load its consumption.</p>
-          : report === 'Marketplace' ? <MarketplaceTab customerId={customerId} currency={analysis.currency} syncedVersion={syncedVersion} />
-          : report === 'FinOps' ? <FinOpsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
-          : report === 'Tags' ? <TagsTab customerId={customerId} syncedVersion={syncedVersion} view={view} />
-          : report === 'Solutions' && view === 'account' ? <SolutionsTab customerId={customerId} syncedVersion={syncedVersion} />
-          : report === 'This month' ? <ThisMonthTab customerId={customerId} view={view} />
-          : report === 'Quota' && view === 'account' ? <QuotaTab customerId={customerId} measure={measure} />
+          : report === 'Marketplace' ? <MarketplaceTab customerId={customerId} currency={analysis.currency} syncedVersion={syncedVersion} accounts={shown} />
+          : report === 'FinOps' ? <FinOpsTab customerId={customerId} syncedVersion={syncedVersion} view={view} accounts={shown} />
+          : report === 'Tags' ? <TagsTab customerId={customerId} syncedVersion={syncedVersion} view={view} accounts={shown} />
+          : report === 'Solutions' && view === 'account' ? <SolutionsTab customerId={customerId} syncedVersion={syncedVersion} accounts={shown} />
+          : report === 'This month' ? <ThisMonthTab customerId={customerId} view={view} accounts={shown} />
+          : report === 'Quota' && view === 'account' ? <QuotaTab customerId={customerId} measure={measure} accounts={shown} />
           : nothingBilled ? <p className="empty-state">Nothing was billed on these enrollments in the synced period.</p>
             : report === 'Overview' ? <OverviewTab analysis={analysis} />
               : report === 'Forecast' ? <ForecastTab analysis={analysis} onChanged={reload} />
