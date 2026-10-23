@@ -4,6 +4,7 @@ import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
 import { fetchGrowth, type GrowthRow, reportExportPath } from './client';
 import { DrillLink } from './Drill';
+import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -86,8 +87,7 @@ export function GrowthPage() {
                     ))}</td>
                   </tr>
                   {open === row.id ? (
-                    <tr>
-                      <td colSpan={7}>
+                    <PopupRow kicker="Growth and churn" title={row.name} onClose={() => setOpen(null)}>
                         <div className="azure-cost-columns">
                           <div>
                             <h4>By solution play, last 3 months against the 3 before (monthly)</h4>
@@ -115,8 +115,7 @@ export function GrowthPage() {
                             ) : <p className="text-muted">Nothing new.</p>}
                           </div>
                         </div>
-                      </td>
-                    </tr>
+                      </PopupRow>
                   ) : null}
                 </Fragment>
               ))}

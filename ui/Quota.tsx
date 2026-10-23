@@ -8,6 +8,7 @@ import {
   fetchCustomerQuota, fetchQuota, reportExportPath, saveQuotaSettings,
   type CustomerQuota, type Measure, type QuotaAcross, type QuotaSettings,
 } from './client';
+import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -267,13 +268,13 @@ export function QuotaPage() {
                       ) : ''}</td>
                     </tr>
                     {open === row.id ? (
-                      <tr><td colSpan={6}>
+                      <PopupRow kicker="Missed forecasts" title={row.name} onClose={() => setOpen(null)}>
                         <h4>Opportunities that planned more than happened</h4>
                         <ul>{row.missed.map((item) => (
                           <li key={item.id ?? item.title}>{item.route ? <Link to={item.route}>{item.title}</Link> : item.title}
                             {' '}— {item.status}, {item.stage}: {money(item.planned_to_date, row.currency)} planned from{' '}
                             {formatMonth(item.first_month)}</li>))}</ul>
-                      </td></tr>
+                      </PopupRow>
                     ) : null}
                   </Fragment>
                 ))}

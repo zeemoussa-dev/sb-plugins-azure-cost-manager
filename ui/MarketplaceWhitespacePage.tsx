@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
 import { fetchMarketplaceWhitespace, type MarketplaceWhitespace, reportExportPath } from './client';
+import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 
 /** What customers buy on the Marketplace from publishers other than Core42
@@ -58,7 +59,7 @@ export function MarketplaceWhitespacePage() {
                       <td>{category.solutions.slice(0, 2).map((item) => item.publisher).join(' · ')}</td>
                     </tr>
                     {open === category.category ? (
-                      <tr><td colSpan={5}>
+                      <PopupRow kicker="Marketplace category" title={category.category} onClose={() => setOpen(null)}>
                         <table className="azure-cost-table">
                           <thead><tr><th>Publisher</th><th>Offer</th><th>Kind</th><th>Spend</th><th>Customers</th></tr></thead>
                           <tbody>
@@ -71,7 +72,7 @@ export function MarketplaceWhitespacePage() {
                             ))}
                           </tbody>
                         </table>
-                      </td></tr>
+                      </PopupRow>
                     ) : null}
                   </Fragment>
                 ))}

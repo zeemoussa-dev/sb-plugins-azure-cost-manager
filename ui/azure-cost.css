@@ -778,8 +778,32 @@ tr.azure-cost-affiliate td:first-child {
   text-decoration: underline;
 }
 
+.azure-cost-drill-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--space-6, 32px) var(--space-4, 16px);
+  background: rgba(0, 0, 0, 0.45);
+}
+
 .azure-cost-drill {
+  width: 100%;
+  max-width: 980px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  margin: 0;
   border-left: 3px solid var(--color-primary);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.azure-cost-drill-header {
+  position: sticky;
+  top: calc(-1 * var(--space-4, 16px));
+  z-index: 1;
+  background: inherit;
 }
 
 .azure-cost-drill-header {
@@ -797,3 +821,11 @@ tr.azure-cost-affiliate td:first-child {
   cursor: pointer;
 }
 
+
+/* A popup opened from a table row sits in a row that takes no space. */
+.azure-cost-popup-host,
+.azure-cost-popup-host > td {
+  padding: 0;
+  border: 0;
+  height: 0;
+}

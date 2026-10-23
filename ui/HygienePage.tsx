@@ -4,6 +4,7 @@ import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
 import { fetchHygiene, type HygieneRow, reportExportPath } from './client';
 import { DrillLink } from './Drill';
+import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -61,7 +62,7 @@ export function HygienePage() {
                     ))}
                   </tr>
                   {open === row.id ? (
-                    <tr><td colSpan={6 + TAGS.length}>
+                    <PopupRow kicker="Subscriptions" title={row.name} onClose={() => setOpen(null)}>
                       <div className="azure-cost-columns">
                         <div>
                           <h4>New in {formatMonth(row.last_month)}</h4>
@@ -77,7 +78,7 @@ export function HygienePage() {
                             : <p className="text-muted">None.</p>}
                         </div>
                       </div>
-                    </td></tr>
+                    </PopupRow>
                   ) : null}
                 </Fragment>
               ))}

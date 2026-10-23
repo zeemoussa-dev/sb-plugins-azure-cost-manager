@@ -9,6 +9,7 @@ import {
   type SubscriptionSolutions,
 } from './client';
 import { DrillLink } from './Drill';
+import { PopupRow } from './Popup';
 import { errorText, formatMoney, formatMonth } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -89,8 +90,7 @@ function SubscriptionRow({ row }: { row: SubscriptionSolutions }) {
           <span key={service.name}>{index ? ', ' : ''}<DrillLink kind="service" name={service.name} /></span>))}</td>
       </tr>
       {open ? (
-        <tr>
-          <td colSpan={5} className="azure-cost-note">
+        <PopupRow kicker="Subscription" title={row.subscription} onClose={() => setOpen(false)}>
             {[...row.solutions, ...row.also].map((found) => (
               <p key={found.id}>
                 <strong>{found.name}</strong> ({found.play}, {found.confidence}):{' '}
@@ -102,8 +102,7 @@ function SubscriptionRow({ row }: { row: SubscriptionSolutions }) {
               Largest services: {row.top_services.map((service) => `${service.name} ${money(service.monthly)}`).join(' · ')}
               {row.resource_groups.length ? <><br />Resource groups: {row.resource_groups.join(', ')}</> : null}
             </p>
-          </td>
-        </tr>
+          </PopupRow>
       ) : null}
     </>
   );
@@ -170,7 +169,9 @@ export function SolutionsTab({ customerId, syncedVersion }: { customerId: string
                   <td>{open === item.id ? '▾' : '▸'} {item.name}</td><td>{item.play}</td><td>{item.subscriptions}</td>
                   <td>{money(item.monthly)}</td>
                   <td>{item.sizing ? `${money(item.sizing.totals.small)} – ${money(item.sizing.totals.large)}` : '—'}</td></tr>
-                {open === item.id ? <tr><td colSpan={5}><SolutionDetail guide={item} /></td></tr> : null}
+                {open === item.id ? (
+                  <PopupRow kicker="Solution" title={item.name} onClose={() => setOpen(null)}><SolutionDetail guide={item} /></PopupRow>
+                ) : null}
               </Fragment>
             ))}
           </tbody>
@@ -257,10 +258,10 @@ export function SolutionsPage() {
                       <td>{item.subscriptions}</td><td>{money(item.monthly)}</td>
                     </tr>
                     {open === item.id ? (
-                      <tr><td colSpan={5}>
+                      <PopupRow kicker="Solution" title={item.name} onClose={() => setOpen(null)}>
                         <p className="text-muted">{item.customers.join(', ')}</p>
                         <SolutionDetail guide={item} />
-                      </td></tr>
+                      </PopupRow>
                     ) : null}
                   </Fragment>
                 ))}

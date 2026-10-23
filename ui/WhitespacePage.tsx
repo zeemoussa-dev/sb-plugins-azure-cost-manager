@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
 import { createOpportunity, fetchWhitespace, type WhitespaceRow, reportExportPath } from './client';
+import { PopupRow } from './Popup';
 import { errorText, formatMoney } from './format';
 import { reportLink } from './ReportsHome';
 
@@ -79,8 +80,7 @@ export function WhitespacePage() {
                     <td>{gapsOf(row).slice(0, PREVIEWED).map((gap) => gap.service).join(' · ')}</td>
                   </tr>
                   {open === row.id ? (
-                    <tr>
-                      <td colSpan={4}>
+                    <PopupRow kicker="Service whitespace" title={row.name} onClose={() => setOpen(null)}>
                         <table className="azure-cost-table">
                           <thead><tr><th>Service</th><th>Solution play</th><th>Customers using it</th>
                             <th>Typical spend a month</th><th /></tr></thead>
@@ -95,8 +95,7 @@ export function WhitespacePage() {
                             ))}
                           </tbody>
                         </table>
-                      </td>
-                    </tr>
+                      </PopupRow>
                   ) : null}
                 </Fragment>
               ))}
