@@ -13,8 +13,8 @@ from __future__ import annotations
 import hashlib
 import json
 
-SECTIONS = ["Headline", "Where they stand", "What moved", "What they are building", "What to pitch",
-            "Pipeline and quota", "From recent conversations", "Questions to ask", "Watch out for"]
+SECTIONS = ["Headline", "What to look for", "Where they stand", "What moved", "What they are building",
+            "What to pitch", "Pipeline and quota", "From recent conversations", "Questions to ask", "Watch out for"]
 RECENT_MONTHS = 6
 TOP = 8
 
@@ -24,7 +24,7 @@ def _r(value):
 
 
 def facts(customer: dict, analysis: dict, quota: dict | None, solutions_view: dict, sizing_by_name: dict,
-          vault: dict, seller_says: list[dict] | None = None) -> dict:
+          vault: dict, seller_says: list[dict] | None = None, industry: dict | None = None) -> dict:
     kpis = (analysis.get("dashboard") or {}).get("kpis") or {}
     commitment = analysis.get("commitment") or {}
     closed = [month for month in analysis.get("months") or [] if month["month"] <= (analysis.get("last_closed_month") or "")]
@@ -65,6 +65,8 @@ def facts(customer: dict, analysis: dict, quota: dict | None, solutions_view: di
         "vault": vault,
         # What the seller told Compass about this customer (`memory`).
         "seller_says": seller_says or [],
+        # The customer's industry from its Industry note (`industry`), or why there is none.
+        "industry": industry or {"industry": None},
     }
 
 
@@ -76,10 +78,11 @@ def fingerprint(found: dict) -> str:
 
 def messages(found: dict) -> list[dict[str, str]]:
     headings = "\n".join(f"## {name}" for name in SECTIONS)
+    # Who is speaking is the persona's (`personas`, put before this); the task and rules are fixed.
     system = (
-        "You are a Core42 account strategist preparing a seller for a meeting with an Azure customer in the UAE. "
-        "Core42 sells Azure consumption against the customer's MACC and its own offers, including Compass by Core42 "
-        "(sovereign, in-country AI models).\n\n"
+        "Prepare a Core42 seller for a meeting with an Azure customer in the UAE. Core42 sells Azure consumption "
+        "against the customer's MACC and its own offers, including Compass by Core42 (sovereign, in-country AI "
+        "models).\n\n"
         "Rules:\n"
         "- Use ONLY the facts in the JSON the user sends. Never invent a number, a date, a person, a product or an "
         "event. Quote figures as given; you may round them (e.g. $5.98M) and add or compare them, nothing more.\n"
@@ -92,7 +95,15 @@ def messages(found: dict) -> list[dict[str, str]]:
         "- Answer in markdown with exactly these headings, in this order, under 450 words in all:\n"
         f"{headings}\n"
         "- 'Headline' is two sentences. 'What to pitch' is at most three bullets, each with its sizing when given. "
-        "'Questions to ask' is 3-5 bullets. 'From recent conversations' uses only the vault notes."
+        "'Questions to ask' is 3-5 bullets. 'From recent conversations' uses only the vault notes.\n"
+        "- 'industry' is what the customer's Industry note says: its business drivers, typical use cases, "
+        "regulation and Core42's positioning, and this customer's line in it. 'What to look for' is 3-5 bullets "
+        "telling the seller what to look and listen for in this meeting: where a driver or regulation of the "
+        "industry meets something in this customer's facts (a service growing, a solution running or missing, a "
+        "conversation, the MACC). Name the driver or regulation each comes from. Write 'What to pitch' and "
+        "'Questions to ask' for the business owner, in the industry's language, with the technical solution "
+        "second. When 'industry' has none, 'What to look for' starts with one line saying the industry is not set "
+        "on the Customer note and that setting it is recommended, then reads the facts alone."
     )
     return [{"role": "system", "content": system},
             {"role": "user", "content": "Facts:\n```json\n" + json.dumps(found, indent=1, default=str) + "\n```"}]

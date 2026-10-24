@@ -47,8 +47,10 @@ QUOTA_FILE = "Azure-Cost-Manager/Quota.json"
 # What the seller has told Compass about each customer (`memory`). A data file: it is
 # the seller's knowledge, and moves with an export.
 CUSTOMER_MEMORY_FILE = "Azure-Cost-Manager/Customer-Memory.json"
+# The seller's edits to Compass's personas (`personas`): their judgment, so it moves with an export.
+PERSONAS_FILE = "Azure-Cost-Manager/Compass-Personas.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
-              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE, CUSTOMER_MEMORY_FILE)
+              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE, CUSTOMER_MEMORY_FILE, PERSONAS_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -204,6 +206,14 @@ class ConsumptionStore:
     def save_customer_memory(self, state: dict) -> None:
         with self._lock:
             _write_json(self._api, CUSTOMER_MEMORY_FILE, state)
+
+    def personas(self) -> dict:
+        with self._lock:
+            return dict(_read_json(self._api, PERSONAS_FILE, {}))
+
+    def save_personas(self, state: dict) -> None:
+        with self._lock:
+            _write_json(self._api, PERSONAS_FILE, state)
 
     def compass_answers(self) -> dict:
         with self._lock:

@@ -1037,6 +1037,12 @@ export const writeActions = () => apiFetch<Kept<NextAction[]>>(`${BASE}/advisor/
 /** A pitch Compass recommends: a catalog solution, the note's sizing, the playbook to use. */
 export interface RecommendedPitch {
   pitch: string;
+  /** The industry use case it serves, in the business's words. */
+  use_case?: string | null;
+  /** The industry use-case note it matches, when there is one. */
+  use_case_note?: string | null;
+  business_outcome?: string | null;
+  business_owner?: string | null;
   solution_id: string;
   solution: string;
   play: string;
@@ -1046,8 +1052,37 @@ export interface RecommendedPitch {
   sized_monthly: number[] | null;
 }
 
-export const fetchPitches = (id: string) => apiFetch<Kept<RecommendedPitch[]>>(`${customer(id)}/pitches`);
-export const writePitches = (id: string) => apiFetch<Kept<RecommendedPitch[]>>(`${customer(id)}/pitches`, { method: 'POST' });
+/** Pitches come with the customer's industry, or why there is none. */
+export type KeptPitches = Kept<RecommendedPitch[]> & { industry?: string | null; industry_missing?: string | null };
+export const fetchPitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`);
+export const writePitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`, { method: 'POST' });
+
+/** Who Compass is in a feature: the editable part of its system prompt. */
+export interface Persona {
+  id: string;
+  name: string;
+  serves: string[];
+  prompt: string;
+  shipped: string;
+  edited: boolean;
+}
+
+export interface PersonasState {
+  personas: Persona[];
+  available: boolean;
+  /** The Industry notes in the vault. */
+  industries: string[];
+}
+
+export const fetchPersonas = () => apiFetch<PersonasState>(`${BASE}/compass/personas`);
+export const savePersona = (personaId: string, prompt: string) =>
+  apiFetch<PersonasState>(`${BASE}/compass/personas/${encodeURIComponent(personaId)}`,
+    { method: 'PUT', body: JSON.stringify({ prompt }) });
+export const resetPersona = (personaId: string) =>
+  apiFetch<PersonasState>(`${BASE}/compass/personas/${encodeURIComponent(personaId)}`, { method: 'DELETE' });
+export const generatePersona = (personaId: string, wish: string) =>
+  apiFetch<{ draft: string }>(`${BASE}/compass/personas/${encodeURIComponent(personaId)}/generate`,
+    { method: 'POST', body: JSON.stringify({ wish }) });
 
 export const draftFromPitch = (id: string, pitch: string) =>
   apiFetch<DraftOpportunity>(`${customer(id)}/draft`, { method: 'POST', body: JSON.stringify({ pitch }) });
@@ -1111,7 +1146,8 @@ export interface CustomerBrief {
   stale: boolean;
   /** Compass can be asked on this install. */
   available: boolean;
-  facts: unknown;
+  /** What the brief was written from; `industry` is the customer's industry, or why there is none. */
+  facts: { industry?: { industry: string | null; missing?: string } } & Record<string, unknown>;
 }
 
 /** One thing the seller told Compass about a customer (operator, 2026-10-23: "Brief me has no memory"). */

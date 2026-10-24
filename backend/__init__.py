@@ -23,6 +23,7 @@ from .consumption_store import BRIEFS_FILE, COMPASS_ANSWERS_FILE, DATA_FILES, PL
 from .advisor_service import Advisor
 from .compass import Answers
 from .customer_context import CustomerContext
+from .industry import IndustryContext
 from .consumption_sync import RESUME_AFTER_SECONDS, ConsumptionSync
 from .customers import AccountDirectory, CustomerBook
 from .pipeline import Pipeline
@@ -49,7 +50,7 @@ def register(api) -> None:
     # Compass, where the framework offers it to plugins (`api.llm`, optional under API 12, ADR-063).
     service = ConsumptionService(store, book, pipeline=pipeline, solution_notes=SolutionNotes(api),
                                  technology_notes=TechnologyNotes(api), llm=getattr(api, "llm", None),
-                                 customer_context=CustomerContext(api))
+                                 customer_context=CustomerContext(api), industry_context=IndustryContext(api))
     sync = ConsumptionSync(store, directory, lambda: BillingClient(token, observe=log), customers=book.records,
                            after_customers=service.refresh_prices, log=log)
     answers = Answers(store.compass_answers, store.save_compass_answers, _now)

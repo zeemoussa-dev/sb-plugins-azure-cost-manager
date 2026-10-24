@@ -208,6 +208,23 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def post_tagging_guide(customer_id: str, accounts: str | None = None) -> dict:
         return _compass(lambda: advisor.tagging_guide(customer_id, True, _account_list(accounts)))
 
+    @router.get("/compass/personas")
+    def get_personas() -> dict:
+        return advisor.personas()
+
+    @router.put("/compass/personas/{persona_id}")
+    def put_persona(persona_id: str, submitted: dict = Body(...)) -> dict:
+        return _answered(lambda: {**advisor.personas(),
+                                  "personas": service.personas.save(persona_id, str(submitted.get("prompt") or ""))})
+
+    @router.delete("/compass/personas/{persona_id}")
+    def delete_persona(persona_id: str) -> dict:
+        return _answered(lambda: {**advisor.personas(), "personas": service.personas.reset(persona_id)})
+
+    @router.post("/compass/personas/{persona_id}/generate")
+    def generate_persona(persona_id: str, submitted: dict | None = Body(None)) -> dict:
+        return _compass(lambda: advisor.generate_persona(persona_id, str((submitted or {}).get("wish") or "")))
+
     @router.get("/advisor/actions")
     def get_actions() -> dict:
         return _compass(advisor.actions)

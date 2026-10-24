@@ -2,6 +2,33 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.52.0] - 2026-10-24
+
+- feat: **Compass knows the customer's industry, and speaks through personas you can edit** (operator, 2026-10-24: "personas with customer knowledge and industry-specific knowledge ... Brief me as guidance of what to look for ... industry-specific solutions instead of technical ones alone ... follow that thought into every part").
+  - **The customer's industry** is the Customer note's optional `industry: "[[<Industry note>]]"` (Entities 1.12.1 documents the key). An affiliate without one takes its parent's. Compass reads the Industry note under Work/Industries: what it is, business drivers, typical use cases, regulation, Core42's positioning, and the customer's own line under Key accounts. With no industry set, everything works as before, and the brief and pitches say that setting it is recommended.
+  - **Industry use-case notes** (`type: IndustryUseCase`, new template `industry-use-case`) name a business outcome, the role that owns it, and the Solution notes that deliver it. Compass recommends from them first.
+  - **Personas** (Settings → Compass personas): eight, one for each kind of work.
+    - Account strategist (Brief me).
+    - Consumption analyst (Explain this).
+    - Pipeline coach (Next best actions).
+    - Industry solution advisor (What to pitch, Draft, Size it).
+    - FinOps advisor (Savings plan).
+    - Cloud governance advisor (Tagging plan).
+    - Advisor to the customer (Savings report, Tagging guidance).
+    - Portfolio analyst (Ask).
+
+    Each can be edited, reset to the shipped one, or drafted by Compass from what you want of it; a draft is saved only when you save it. The persona heads the system prompt, and each feature's task, grounding rules and answer format stay fixed underneath, so an edit changes the voice and the judgment, never the figures or the checks. Editing a persona marks what it wrote before as out of date. Edits are kept in `Compass-Personas.json` and move with a data export.
+  - **The industry lens in every feature:**
+    - **Brief me** gains **What to look for**: 3-5 signals to look and listen for in the meeting, where an industry driver or regulation meets this customer's facts. What to pitch and the questions are written for the business owner.
+    - **What to pitch** recommends industry use cases: the outcome, who owns it, linked to the use-case note when there is one, delivered by a catalog solution whose sizing is still the Solution note's.
+    - **Draft** writes the email to the outcome's business owner, in the industry's language.
+    - **Explain this** names an industry reason as a possibility where the facts meet one.
+    - **Next best actions** words each action for the customer's industry.
+    - **Savings plan:** the reinvestment story names the industry's priorities.
+    - **Tagging plan and guidance** add the tags the industry's regulation calls for.
+    - **Ask** gains customers by industry.
+  - **Routes:** `GET /compass/personas`, `PUT /compass/personas/{id}`, `DELETE /compass/personas/{id}`, `POST /compass/personas/{id}/generate`. `/customers/{id}/pitches` also returns `industry` and `industry_missing`.
+
 ## [0.51.1] - 2026-10-24
 
 - fix: **tag coverage is measured against spend that can carry tags** (checked on FAB and Mubadala, 2026-10-24).

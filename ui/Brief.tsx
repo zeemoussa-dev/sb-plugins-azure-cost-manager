@@ -55,13 +55,15 @@ function BriefBody({ customerId }: { customerId: string }) {
       <div className="azure-cost-toolbar">
         <span className="text-muted azure-cost-note">
           Written {found.generated_at ? new Date(found.generated_at).toLocaleString() : ''} by Compass from this report's figures,
-          its solutions and pitches, the pipeline and quota, and the vault's notes. Check before you quote it.
+          its solutions and pitches, the pipeline and quota, the vault's notes
+          {found.facts?.industry?.industry ? `, and the ${found.facts.industry.industry} industry note` : ''}. Check before you quote it.
         </span>
         <button type="button" className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
         <button type="button" className="btn" disabled={writing || !found.available} onClick={write}>
           {writing ? 'Writing…' : 'Write again'}</button>
       </div>
       {found.stale ? <p className="azure-cost-warning">The data has changed since this brief was written. Write it again for the latest.</p> : null}
+      {found.facts?.industry?.missing ? <p className="text-muted azure-cost-note">{found.facts.industry.missing}</p> : null}
       {error ? <div className="azure-cost-error">{error}</div> : null}
       <div className="azure-cost-brief"><NoteText text={found.markdown} /></div>
       <section className="azure-cost-memory">

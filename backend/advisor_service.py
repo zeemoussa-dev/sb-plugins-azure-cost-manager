@@ -3,7 +3,7 @@ already computes, asks Compass, and keeps what is worth keeping (`advisor`,
 `compass`). Nothing here computes a figure of its own."""
 from __future__ import annotations
 
-from . import advisor, compass
+from . import advisor, compass, personas
 
 ACTIONS_FOR = 30
 MARKETPLACE_BATCH = 40
@@ -17,6 +17,14 @@ class Advisor:
 
     def available(self) -> bool:
         return bool(self._llm and self._llm.available())
+
+    def _ask(self, feature: str, messages: list[dict]) -> str:
+        """Compass, speaking as the feature's persona (`personas`)."""
+        return compass.ask(self._llm, personas.apply(messages, self._service.personas.for_feature(feature)))
+
+    def _stamp(self, feature: str, facts) -> str:
+        # The persona is part of what an answer was written from: editing it makes the answer stale.
+        return compass.fingerprint({"facts": facts, "persona": self._service.personas.for_feature(feature)})
 
     def _kept(self, kind: str, key: str, stamp: str) -> dict:
         kept = self._answers.get(kind, key)
@@ -37,10 +45,11 @@ class Advisor:
             self._service.memory.add(customer_id, note, about)
             write = True
         facts = advisor.explain_facts(self._service.drill(customer_id, kind, name, accounts),
-                                      self._service.current_month(), self._service.memory.handed(customer_id))
-        stamp = compass.fingerprint(facts)
+                                      self._service.current_month(), self._service.memory.handed(customer_id),
+                                      self._service.industry_of(customer_id))
+        stamp = self._stamp("explain", facts)
         if write:
-            text = compass.ask(self._llm, advisor.explain_messages(facts))
+            text = self._ask("explain", advisor.explain_messages(facts))
             self._answers.put("explain", key, stamp, text.strip())
         return {**self._kept("explain", key, stamp),
                 "notes": [line for line in self._service.memory.of(customer_id) if line.get("source") == about]}
@@ -78,13 +87,13 @@ class Advisor:
             if soon:
                 renewing[row["id"]] = soon
         return advisor.action_facts(portfolio, growth, self._service.quota_across(), self._pitches_by_customer(),
-                                    pipeline, ACTIONS_FOR, said, renewing)
+                                    pipeline, ACTIONS_FOR, said, renewing, self._service.industry_names())
 
     def actions(self, write: bool = False) -> dict:
         facts = self._action_facts()
-        stamp = compass.fingerprint(facts)
+        stamp = self._stamp("actions", facts)
         if write:
-            ranked = advisor.check_actions(compass.ask(self._llm, advisor.action_messages(facts)), facts)
+            ranked = advisor.check_actions(self._ask("actions", advisor.action_messages(facts)), facts)
             self._answers.put("actions", "all", stamp, ranked)
         return self._kept("actions", "all", stamp)
 
@@ -95,11 +104,12 @@ class Advisor:
         2026-10-23), kept until the customer's facts move."""
         facts = advisor.pitch_facts(self._service.brief_facts(customer_id),
                                     self._service.solution_catalog()["patterns"], self._service.playbooks())
-        stamp = compass.fingerprint(facts)
+        stamp = self._stamp("pitches", facts)
         if write:
-            found = advisor.check_pitches(compass.ask(self._llm, advisor.pitch_messages(facts)), facts)
+            found = advisor.check_pitches(self._ask("pitches", advisor.pitch_messages(facts)), facts)
             self._answers.put("pitches", customer_id, stamp, found)
-        return self._kept("pitches", customer_id, stamp)
+        return {**self._kept("pitches", customer_id, stamp), "industry": facts["industry"].get("industry"),
+                "industry_missing": facts["industry"].get("missing")}
 
     # -- draft from a pitch --------------------------------------------------------
 
@@ -110,38 +120,42 @@ class Advisor:
             # One Compass recommended (kept), drafted the same way as a rule's.
             kept = (self._answers.get("pitches", customer_id) or {}).get("value") or []
             pitch = next(({"pitch": item["pitch"], "solution": item["solution"], "play": item["play"],
-                           "subscriptions": []} for item in kept if item["pitch"] == pitch_text), None)
+                           "subscriptions": [], "use_case": item.get("use_case"),
+                           "business_outcome": item.get("business_outcome"),
+                           "business_owner": item.get("business_owner")}
+                          for item in kept if item["pitch"] == pitch_text), None)
         if not pitch:
             raise ValueError("that pitch is not one this customer is shown")
         sizing = next((pattern.get("sizing") for pattern in self._service.solution_catalog()["patterns"]
                        if pattern["name"] == pitch["solution"]), None)
         running = next((item for item in view["solutions"] if item["name"] == pitch["solution"]), {})
         facts = advisor.draft_facts(self._service.brief_facts(customer_id), pitch, sizing, running.get("monthly"))
-        return {**advisor.check_draft(compass.ask(self._llm, advisor.draft_messages(facts)), facts),
+        return {**advisor.check_draft(self._ask("draft", advisor.draft_messages(facts)), facts),
                 "solution": pitch["solution"]}
 
     # -- FinOps ---------------------------------------------------------------------
 
     def _finops_facts(self, customer_id: str, customer_view: bool, accounts: list[str] | None) -> dict:
         found = self._service.finops(customer_id, accounts)
-        return advisor.finops_facts(found, None if customer_view else self._service.brief_facts(customer_id), customer_view)
+        return advisor.finops_facts(found, None if customer_view else self._service.brief_facts(customer_id), customer_view,
+                                    self._service.industry_of(customer_id))
 
     def finops_plan(self, customer_id: str, write: bool = False, accounts: list[str] | None = None) -> dict:
         """Compass's savings plan over the FinOps findings (operator, 2026-10-24): commit,
         hold or investigate, the risk of each, and savings told as money to reinvest."""
         facts = self._finops_facts(customer_id, False, accounts)
-        stamp, key = compass.fingerprint(facts), f"{customer_id}|{','.join(accounts or [])}"
+        stamp, key = self._stamp("finops-plan", facts), f"{customer_id}|{','.join(accounts or [])}"
         if write:
-            plan = advisor.check_finops_plan(compass.ask(self._llm, advisor.finops_plan_messages(facts)), facts)
+            plan = advisor.check_finops_plan(self._ask("finops-plan", advisor.finops_plan_messages(facts)), facts)
             self._answers.put("finops-plan", key, stamp, plan)
         return self._kept("finops-plan", key, stamp)
 
     def finops_report(self, customer_id: str, write: bool = False, accounts: list[str] | None = None) -> dict:
         """The savings report to hand the customer: their own findings only, nothing internal."""
         facts = self._finops_facts(customer_id, True, accounts)
-        stamp, key = compass.fingerprint(facts), f"{customer_id}|{','.join(accounts or [])}"
+        stamp, key = self._stamp("finops-report", facts), f"{customer_id}|{','.join(accounts or [])}"
         if write:
-            text = compass.ask(self._llm, advisor.finops_report_messages(facts))
+            text = self._ask("finops-report", advisor.finops_report_messages(facts))
             self._answers.put("finops-report", key, stamp, text.strip())
         return self._kept("finops-report", key, stamp)
 
@@ -149,24 +163,25 @@ class Advisor:
 
     def _tagging_facts(self, customer_id: str, customer_view: bool, accounts: list[str] | None) -> dict:
         found = self._service.tags(customer_id, accounts)
-        return advisor.tagging_facts(found, None if customer_view else self._service.brief_facts(customer_id), customer_view)
+        return advisor.tagging_facts(found, None if customer_view else self._service.brief_facts(customer_id), customer_view,
+                                     self._service.industry_of(customer_id))
 
     def tagging_plan(self, customer_id: str, write: bool = False, accounts: list[str] | None = None) -> dict:
         """Compass's tagging plan over the gaps (operator, 2026-10-24): which keys and values
         to standardize, what inheritance and policy fill, in order of coverage for effort."""
         facts = self._tagging_facts(customer_id, False, accounts)
-        stamp, key = compass.fingerprint(facts), f"{customer_id}|{','.join(accounts or [])}"
+        stamp, key = self._stamp("tagging-plan", facts), f"{customer_id}|{','.join(accounts or [])}"
         if write:
-            plan = advisor.check_tagging_plan(compass.ask(self._llm, advisor.tagging_plan_messages(facts)), facts)
+            plan = advisor.check_tagging_plan(self._ask("tagging-plan", advisor.tagging_plan_messages(facts)), facts)
             self._answers.put("tagging-plan", key, stamp, plan)
         return self._kept("tagging-plan", key, stamp)
 
     def tagging_guide(self, customer_id: str, write: bool = False, accounts: list[str] | None = None) -> dict:
         """Tagging guidance to hand the customer: their own gaps only, nothing internal."""
         facts = self._tagging_facts(customer_id, True, accounts)
-        stamp, key = compass.fingerprint(facts), f"{customer_id}|{','.join(accounts or [])}"
+        stamp, key = self._stamp("tagging-guide", facts), f"{customer_id}|{','.join(accounts or [])}"
         if write:
-            text = compass.ask(self._llm, advisor.tagging_guide_messages(facts))
+            text = self._ask("tagging-guide", advisor.tagging_guide_messages(facts))
             self._answers.put("tagging-guide", key, stamp, text.strip())
         return self._kept("tagging-guide", key, stamp)
 
@@ -183,8 +198,9 @@ class Advisor:
         if customer_id:
             facts = self._service.brief_facts(customer_id)
             customer = {"name": facts["customer"], "consumption": facts["consumption"].get("monthly_run_rate_3m"),
-                        "seller_says": facts.get("seller_says")}
-        reply = compass.ask(self._llm, advisor.sizing_messages(solution, answers, customer))
+                        "seller_says": facts.get("seller_says"),
+                        "industry": (facts.get("industry") or {}).get("industry")}
+        reply = self._ask("size", advisor.sizing_messages(solution, answers, customer))
         return {"solution": solution["name"], "note": solution.get("note"),
                 **advisor.check_sizing(reply, solution["sizing"])}
 
@@ -202,11 +218,11 @@ class Advisor:
             return cache["guide"]
 
         catalog = self._service.solution_catalog()["patterns"]
-        plan = advisor.check_plan(compass.ask(self._llm, advisor.plan_messages(
+        plan = advisor.check_plan(self._ask("ask", advisor.plan_messages(
             question, [item["name"] for item in guide()["services"] if item["customers"]],
             [pattern["name"] for pattern in catalog])))
         results = [{"report": call["tool"], "args": call["args"], "rows": self._run(call, guide)} for call in plan]
-        answer = compass.ask(self._llm, advisor.answer_messages(question, results)) if results else \
+        answer = self._ask("ask", advisor.answer_messages(question, results)) if results else \
             "None of the reports answers that. Try asking about services, solutions, growth, MACCs, quota or Marketplace."
         return {"question": question, "answer": answer.strip(), "calls": results}
 
@@ -248,6 +264,14 @@ class Advisor:
                      "customers": [customer["name"] for customer in product["customers"]]}
                     for product in (services.get("saas") or {}).get("marketplace") or []
                     if words and words in f"{product['publisher']} {product['offer']} {product['plan']}".lower()][:20]
+        if call["tool"] == "customers_by_industry":
+            wanted = str(args.get("industry") or "").strip().lower()
+            names = self._service.industry_names()
+            rows = [{"customer": row["name"], "industry": names.get(row["id"]) or "not set",
+                     "last_month": round((row.get("last_month") or {}).get("actual") or 0)}
+                    for row in self._service.portfolio() if not row.get("parent")]
+            return sorted([row for row in rows if not wanted or wanted in row["industry"].lower()],
+                          key=lambda row: (row["industry"], -row["last_month"]))[:60]
         if call["tool"] == "tag_coverage":
             return [{"customer": row["name"], "tag_keys": row["tag_keys"], "coverage_pct": row["coverage"],
                      "spellings_per_dimension": row["spellings"]}
@@ -275,6 +299,20 @@ class Advisor:
                                   for row in sorted(found.get("customers") or [],
                                                     key=lambda row: -(row.get("above_projected") or 0))[:15]]}
         return []
+
+    # -- personas ------------------------------------------------------------------
+
+    def personas(self) -> dict:
+        return {"personas": self._service.personas.listed(), "available": self.available(),
+                "industries": self._service.industries()}
+
+    def generate_persona(self, persona_id: str, wish: str) -> dict:
+        """Compass drafts a persona for the seller to read, change and save -- never saved by itself."""
+        if persona_id not in personas.PERSONAS:
+            raise ValueError("no such persona")
+        draft = compass.ask(self._llm, personas.generate_messages(
+            persona_id, self._service.personas.prompt(persona_id), wish or "", self._service.industries()))
+        return {"draft": draft.strip()[:personas.LONGEST]}
 
     # -- Marketplace products --------------------------------------------------------
 

@@ -9,6 +9,7 @@ is one the plugin computed -- a model's number is never shown as a fact.
 from __future__ import annotations
 
 from . import compass
+from .industry import short as industry_short
 
 RULES = (
     "Use ONLY the facts given. Never invent a number, a date, a person, a product or an event; quote figures as "
@@ -16,6 +17,9 @@ RULES = (
     "Azure consumption against the customer's MACC and Core42's own offers, including Compass by Core42 (sovereign, "
     "in-country AI models). Be specific and brief."
 )
+# Every feature handed the customer's industry (`industry`) reads it this way.
+INDUSTRY_RULE = ("'industry' is what the customer's Industry note says; bring it in where the facts "
+                 "meet it, never as a claim about this customer the facts do not support.")
 SIZES = ("small", "medium", "large")
 URGENCY = ("now", "this quarter", "later")
 
@@ -26,7 +30,8 @@ def _system(task: str) -> dict:
 
 # -- explain a move ----------------------------------------------------------------
 
-def explain_facts(drill: dict, current_month: str | None = None, seller_notes: list[dict] | None = None) -> dict:
+def explain_facts(drill: dict, current_month: str | None = None, seller_notes: list[dict] | None = None,
+                  industry: dict | None = None) -> dict:
     """`seller_notes`: the customer's memory -- what the seller told Compass about it."""
     # The month still being billed is marked: read as a whole month, a third of one
     # looked like a fall (checked on ADNOC's Foundry Models, 2026-10-23).
@@ -42,6 +47,7 @@ def explain_facts(drill: dict, current_month: str | None = None, seller_notes: l
         "previous_month": drill.get("previous"), "total": drill.get("total"),
         # What the seller has told us about this item -- the customer's answers, or their own knowledge.
         "seller_says": seller_notes,
+        "industry": industry_short(industry) if (industry or {}).get("industry") else None,
     }.items() if value not in (None, [], {})}
 
 
@@ -55,7 +61,9 @@ def explain_messages(facts: dict) -> list[dict]:
         "question): treat it as fact, let it replace a guessed reason, and do not ask again what it already "
         "answers. Markdown, at most 140 words, no headings: two or three short paragraphs, then a last line "
         "starting exactly '**Ask the customer:**' with the one question still worth asking -- or, when "
-        "seller_says leaves nothing to ask, '**Next:**' with what the seller should do."),
+        "seller_says leaves nothing to ask, '**Next:**' with what the seller should do. "
+        "When the customer's industry has a reason for such a move (a regulatory programme, a reporting cycle), "
+        "name it as a possibility -- " + INDUSTRY_RULE),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
 
 
@@ -63,7 +71,7 @@ def explain_messages(facts: dict) -> list[dict]:
 
 def action_facts(portfolio: list[dict], growth: dict[str, dict], quota: dict, pitches: dict[str, list[dict]],
                  pipeline: dict[str, dict], limit: int = 30, seller_says: dict[str, list[dict]] | None = None,
-                 renewals: dict[str, list[dict]] | None = None) -> dict:
+                 renewals: dict[str, list[dict]] | None = None, industries: dict[str, str | None] | None = None) -> dict:
     """One line per top-level customer, the largest last month first, and the seller's quota."""
     rows = []
     for row in sorted((item for item in portfolio if not item.get("parent")),
@@ -72,7 +80,7 @@ def action_facts(portfolio: list[dict], growth: dict[str, dict], quota: dict, pi
         moved = growth.get(row["id"]) or {}
         above = next((item for item in quota.get("customers") or [] if item["id"] == row["id"]), {})
         rows.append({key: value for key, value in {
-            "customer_id": row["id"], "customer": row["name"],
+            "customer_id": row["id"], "customer": row["name"], "industry": (industries or {}).get(row["id"]),
             "last_month": round((row.get("last_month") or {}).get("actual") or 0),
             "change_3m_pct": moved.get("change_3m_pct"), "change_12m_pct": moved.get("change_12m_pct"),
             "signals": [signal.get("text") for signal in moved.get("signals") or []][:3],
@@ -96,7 +104,8 @@ def action_messages(facts: dict) -> list[dict]:
         "top-up), a MACC heading for a shortfall (consumption to grow), sharp growth or decline, pitches with "
         "their sizing, thin pipeline, and commitments that may renew soon (a renewal conversation). A customer's "
         "'seller_says' is what the seller told you: treat it as "
-        "fact (a MACC already renewed needs no renewal action).\n"
+        "fact (a MACC already renewed needs no renewal action). Word each action for the customer's industry "
+        "where it is given -- what it means to that business.\n"
         'Answer with a JSON array of at most 12 objects, best first: {"customer_id": <as given>, "action": <what '
         'to do, one sentence>, "why": <one sentence citing the facts>, "urgency": "now"|"this quarter"|"later", '
         '"pitch": <the pitch text it uses, exactly as given, or null>}. Nothing else.'),
@@ -133,7 +142,11 @@ def draft_facts(brief_facts: dict, pitch: dict, sizing: dict | None, solution_mo
                                               ("last_month", "monthly_run_rate_3m", "year_on_year_pct")},
             "commitment": brief_facts.get("commitment"), "existing_pipeline": brief_facts.get("pipeline"),
             "seller_says": brief_facts.get("seller_says"),
-            "recent_conversations": (brief_facts.get("vault") or {}).get("recent")}
+            "recent_conversations": (brief_facts.get("vault") or {}).get("recent"),
+            "industry": industry_short(brief_facts.get("industry")),
+            # A Compass pitch carries the industry use case it serves; a rule's does not.
+            "use_case": pitch.get("use_case"), "business_outcome": pitch.get("business_outcome"),
+            "business_owner": pitch.get("business_owner")}
 
 
 def draft_messages(facts: dict) -> list[dict]:
@@ -146,7 +159,9 @@ def draft_messages(facts: dict) -> list[dict]:
         'already spends in the subscriptions running the solution; when that is far above the large size, choose '
         'large and say in the summary that the sizing is a first phase>, "next_steps": '
         '[<3 short steps>], "email_subject": <subject>, "email_body": <plain text, under 150 words, to the '
-        'customer\'s technical lead, no figures from inside Core42 such as quota or pipeline>}. Nothing else.'),
+        'business owner of the outcome when one is given (else the technical lead), in the language of the '
+        'customer\'s industry: the business outcome first, the technical solution second; no figures from inside '
+        'Core42 such as quota or pipeline>}. ' + INDUSTRY_RULE + " Nothing else."),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
 
 
@@ -215,6 +230,7 @@ TOOLS = {
     "savings_candidates": "every customer's steady on-demand spend worth committing and its estimated saving. args: {}",
     "hybrid_benefit": "customers billed for Windows Server, SQL Server, RHEL or SUSE licenses Azure Hybrid Benefit could remove. args: {}",
     "commitment_renewals": "customers whose up-front commitments may renew soon (one- or three-year terms). args: {}",
+    "customers_by_industry": "customers grouped by industry, with last month's spend; or one industry's customers. args: {\"industry\": <name, or empty for all>}",
     "tag_coverage": "every customer's tag coverage by business dimension (environment, project, application, business unit, owner, cost centre) and how many spellings each key has. args: {}",
 }
 
@@ -286,6 +302,8 @@ def pitch_facts(brief_facts: dict, catalog: list[dict], playbooks: list[dict]) -
         "pipeline": brief_facts.get("pipeline"),
         "seller_says": brief_facts.get("seller_says"),
         "recent_conversations": (brief_facts.get("vault") or {}).get("recent"),
+        # The industry note and its use-case notes: what to recommend in the business's language.
+        "industry": brief_facts.get("industry") or {"industry": None},
         "catalog": [{"id": pattern["id"], "name": pattern["name"], "play": pattern["play"],
                      "description": pattern.get("description") or "",
                      "sized_monthly": [pattern["sizing"]["totals"][size] for size in SIZES]
@@ -299,11 +317,16 @@ def pitch_messages(facts: dict) -> list[dict]:
         "Recommend what this seller should pitch to this customer next -- beyond what the rules already pitch "
         "(listed), unless one of those deserves to be first, in which case say why. Weigh what the customer runs "
         "and grows, its MACC position (room to grow consumption, or a commitment running out), its pipeline, its "
-        "recent conversations and what the seller told you.\n"
+        "recent conversations and what the seller told you. Recommend industry use cases, not only technology: "
+        "a business outcome for this customer's industry -- from 'industry.use_cases' when one fits, else from its "
+        "typical use cases and business drivers -- delivered by a catalog solution. When the industry is not set, "
+        "recommend from the facts alone.\n"
         'Answer with a JSON array of at most 5 objects, best first: {"solution_id": <an id from the catalog>, '
+        '"use_case": <the industry use case, a few words in the business\'s language>, "business_outcome": <what '
+        'it changes for the business, one sentence>, "business_owner": <the role that owns that outcome>, '
         '"pitch": <what to sell, one sentence, naming the situation of the customer>, "why": <one or two sentences '
-        'citing the facts>, "playbook": <a playbook name exactly as given, or null>, "confidence": '
-        '"high"|"medium"|"low"}. Only solutions in the catalog. Nothing else.'),
+        'citing the facts and the industry>, "playbook": <a playbook name exactly as given, or null>, "confidence": '
+        '"high"|"medium"|"low"}. Only solutions in the catalog. ' + INDUSTRY_RULE + " Nothing else."),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
 
 
@@ -311,6 +334,8 @@ def check_pitches(reply: str, facts: dict) -> list[dict]:
     """Recommendations about catalog solutions only; the sizing is the note's."""
     catalog = {item["id"]: item for item in facts["catalog"]}
     playbooks = {item["name"] for item in facts["playbooks"]}
+    use_case_notes = {item["use_case"].lower(): item["note"]
+                      for item in (facts.get("industry") or {}).get("use_cases") or []}
     found, seen = [], set()
     for item in compass.json_array(reply):
         if not isinstance(item, dict) or item.get("solution_id") not in catalog or not str(item.get("pitch") or "").strip():
@@ -320,7 +345,12 @@ def check_pitches(reply: str, facts: dict) -> list[dict]:
             continue
         seen.add(pitch)
         solution = catalog[item["solution_id"]]
-        found.append({"pitch": pitch, "solution_id": solution["id"], "solution": solution["name"],
+        use_case = str(item.get("use_case") or "").strip()[:120] or None
+        found.append({"pitch": pitch, "use_case": use_case,
+                      "use_case_note": use_case_notes.get((use_case or "").lower()),
+                      "business_outcome": str(item.get("business_outcome") or "")[:300] or None,
+                      "business_owner": str(item.get("business_owner") or "")[:80] or None,
+                      "solution_id": solution["id"], "solution": solution["name"],
                       "play": solution["play"], "why": str(item.get("why") or "")[:500],
                       "playbook": item.get("playbook") if item.get("playbook") in playbooks else None,
                       "confidence": item.get("confidence") if item.get("confidence") in ("high", "medium", "low") else "medium",
@@ -334,7 +364,8 @@ FINOPS_MOVES = ("reserve", "savings_plan", "hybrid_benefit", "keep_on_demand", "
 RISK = ("low", "medium", "high")
 
 
-def finops_facts(finops: dict, brief_facts: dict | None, customer_view: bool = False) -> dict:
+def finops_facts(finops: dict, brief_facts: dict | None, customer_view: bool = False,
+                 industry: dict | None = None) -> dict:
     """What Compass reads for the savings plan: the FinOps findings as computed, and --
     for the seller, never the customer -- the MACC, the pitches and what the seller said."""
     candidates = [{"meter": item["meter"], "family": item["family"], "monthly_on_demand": item["monthly_on_demand"],
@@ -358,6 +389,8 @@ def finops_facts(finops: dict, brief_facts: dict | None, customer_view: bool = F
             "'Virtual Machine Licenses' mixes Microsoft licenses with third-party software (e.g. firewalls) billed "
             "through Marketplace; Azure Hybrid Benefit can remove only the hybrid_benefit amounts, never the rest.",
             "'Unassigned' is reservation and savings-plan purchases, not usage: its growth is commitments bought."],
+        # The customer's own industry: fine for the customer's report as for the seller's plan.
+        "industry": industry_short(industry),
     }
     if not customer_view and brief_facts:
         facts.update(commitment=brief_facts.get("commitment"), pitches=brief_facts.get("pitches"),
@@ -373,7 +406,8 @@ def finops_plan_messages(facts: dict) -> list[dict]:
         "Benefit where license meters are billed. Raise what is worth a look as questions, not as waste. Then the "
         "reinvestment story: a Core42 seller is paid on consumption, so frame savings as money to put into what the "
         "customer is building or should pitch, keeping MACC consumption, never as spend cut. Say where the budget "
-        "stands in one sentence.\n"
+        "stands in one sentence. Tell the reinvestment story in the customer's industry: the business drivers "
+        "and use cases the savings could fund. " + INDUSTRY_RULE + "\n"
         'Answer with one JSON object: {"summary": <3-4 sentences>, "moves": [{"kind": "reserve"|"savings_plan"|'
         '"hybrid_benefit"|"keep_on_demand"|"investigate", "ref": <the candidate meter, the hybrid benefit product, or '
         'the subscription, exactly as given>, "option": "ri_1y"|"ri_3y"|"sp_1y"|"sp_3y"|null, "why": <one sentence>, '
@@ -432,7 +466,8 @@ def finops_report_messages(facts: dict) -> list[dict]:
         "(figures exactly as given); Azure Hybrid Benefit where license meters are billed, if they hold the "
         "licenses; what is worth checking (as questions); where they stand on budget. Markdown with headings "
         "'Where you stand', 'Commit to save', 'Licenses you may already own', 'Worth checking', 'Next steps'; under "
-        "350 words. A section with nothing to say is left out."),
+        "350 words. A section with nothing to say is left out. Where the industry is given, write in its terms "
+        "(what the savings could fund for that business). " + INDUSTRY_RULE),
         {"role": "user", "content": "Findings:\n" + compass.json_block(facts)}]
 
 
@@ -443,7 +478,8 @@ TAGGING_MOVES = ("adopt_key", "standardize_key", "normalize_values", "inherit", 
 EFFORT = ("low", "medium", "high")
 
 
-def tagging_facts(report: dict, brief_facts: dict | None, customer_view: bool = False) -> dict:
+def tagging_facts(report: dict, brief_facts: dict | None, customer_view: bool = False,
+                  industry: dict | None = None) -> dict:
     """What Compass reads for tagging: the gaps as computed, and -- for the seller only --
     what the customer runs, the pitches and what the seller said."""
     gaps = report.get("gaps") or {}
@@ -458,6 +494,7 @@ def tagging_facts(report: dict, brief_facts: dict | None, customer_view: bool = 
         "environment_in_subscription_names": gaps.get("environment_in_subscription_names"),
         "enrollments_without_any_tag": gaps.get("enrollments_without_tags"),
         "coverage_is_of": "spend tags can be on: commitment purchases and third-party software billed as VM licenses are left out",
+        "industry": industry_short(industry),
     }
     if not customer_view and brief_facts:
         facts.update(running=brief_facts.get("solutions"), pitches=brief_facts.get("pitches"),
@@ -475,7 +512,9 @@ def tagging_plan_messages(facts: dict) -> list[dict]:
         "enforce_policy (Azure Policy: require on new resources, then Modify to add missing tags), backfill (tag "
         "what exists), allocate_untagged (split untagged shared cost by a rule). Order by what moves coverage most "
         "for least effort. Then one or two sentences on what the seller can offer (a governance or landing-zone "
-        "engagement, Cost Management views per team), and questions for the customer's cloud team.\n"
+        "engagement, Cost Management views per team), and questions for the customer's cloud team. In a "
+        "regulated industry, say which tags its regulation calls for (data classification, residency, the "
+        "regulated workload) from 'industry.regulation'. " + INDUSTRY_RULE + "\n"
         'Answer with one JSON object: {"summary": <3 sentences>, "moves": [{"kind": <one of the moves>, '
         '"dimension": <a standard dimension, exactly as given>, "detail": <what exactly: keys, values, scope>, '
         '"why": <one sentence>, "effort": "low"|"medium"|"high"}], "offer": <1-2 sentences>, "questions": [<up to 4>]}. '
@@ -515,5 +554,7 @@ def tagging_guide_messages(facts: dict) -> list[dict]:
         "already use where one is clearly dominant), 'Close the gaps' (inheritance from subscriptions or resource "
         "groups where names already say the environment, backfilling, folding values), 'Enforce it' (Azure Policy: "
         "require tags on new resource groups and resources, inherit from the subscription or resource group with "
-        "Modify, audit first then deny), 'Next steps'. Under 450 words."),
+        "Modify, audit first then deny), 'Next steps'. Under 450 words. Where the industry's regulation calls for "
+        "tags (data classification, residency), include them in the standard and say which rule they serve. "
+        + INDUSTRY_RULE),
         {"role": "user", "content": "Findings:\n" + compass.json_block(facts)}]

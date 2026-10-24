@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (brief, consumption_analysis, finops_extra, memory, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
+from . import (brief, consumption_analysis, finops_extra, industry, memory, personas, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
                marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tag_gaps, tags,
                this_month,
@@ -61,11 +61,13 @@ class ConsumptionService:
     def __init__(self, store: ConsumptionStore, book: CustomerBook,
                  today: Callable[[], date] = date.today, now: Callable[[], datetime] = _now,
                  pipeline: Pipeline | None = None, solution_notes=None, technology_notes=None,
-                 llm=None, customer_context=None) -> None:
+                 llm=None, customer_context=None, industry_context=None) -> None:
         self._store = store
         self._book = book
         self._llm = llm
         self._customer_context = customer_context
+        self._industry_context = industry_context
+        self.personas = personas.Personas(store.personas, store.save_personas)
         self.memory = memory.CustomerMemory(store.customer_memory, store.save_customer_memory, today)
         self._solution_notes = solution_notes
         self._technology_notes = technology_notes
@@ -290,14 +292,39 @@ class ConsumptionService:
                   for pattern in self._patterns() if pattern.get("sizing")}
         vault = self._customer_context.about(customer.get("entity_customer")) if self._customer_context else {}
         return brief.facts(customer, analysis, quota_found, self.solutions_of(customer_id), sizing, vault,
-                           self.memory.handed(customer_id))
+                           self.memory.handed(customer_id), self.industry_of(customer_id))
+
+    def industry_of(self, customer_id: str) -> dict:
+        """The customer's industry and what its Industry note says (`industry`); an affiliate
+        without one takes its parent's."""
+        if not self._industry_context:
+            return {"industry": None, "missing": industry.MISSING}
+        customer = self._customer(customer_id)
+        parent = self._customer(customer["parent"]) if customer.get("parent") else None
+        return self._industry_context.of(customer.get("entity_customer"), customer["name"],
+                                         (parent or {}).get("entity_customer"))
+
+    def industry_names(self) -> dict[str, str | None]:
+        """Every customer's industry name, by id."""
+        everyone = {customer["id"]: customer for customer in self._book.list()}
+        if not self._industry_context:
+            return {customer_id: None for customer_id in everyone}
+        return self._industry_context.names_of({
+            customer_id: (customer.get("entity_customer"),
+                          (everyone.get(customer.get("parent") or "") or {}).get("entity_customer"))
+            for customer_id, customer in everyone.items()})
+
+    def industries(self) -> list[str]:
+        return self._industry_context.industries() if self._industry_context else []
 
     def customer_brief(self, customer_id: str, write: bool = False) -> dict:
         """The customer's brief before a meeting (operator, 2026-10-23), written by Compass
         over the facts the reports computed. `write`: write it now, even when the facts
         have not changed; otherwise the kept one is returned, `stale` when they have."""
         found = self.brief_facts(customer_id)
-        stamp = brief.fingerprint(found)
+        persona = self.personas.for_feature("brief")
+        # The persona is part of what the brief was written from: editing it makes the brief stale.
+        stamp = brief.fingerprint({**found, "persona": persona})
         kept = self._store.brief(customer_id)
         available = bool(self._llm and self._llm.available())
         if not write:
@@ -306,7 +333,7 @@ class ConsumptionService:
         if self._llm is None:
             raise BriefUnavailable("The customer brief needs a framework that offers Compass to plugins "
                                    "(api.llm, ADR-063): update Second Brain")
-        written = {"markdown": self._llm.complete(brief.messages(found), timeout=180.0),
+        written = {"markdown": self._llm.complete(personas.apply(brief.messages(found), persona), timeout=180.0),
                    "generated_at": self._now().isoformat(), "fingerprint": stamp}
         self._store.save_brief(customer_id, written)
         return {**written, "kept": True, "stale": False, "available": available, "facts": found}

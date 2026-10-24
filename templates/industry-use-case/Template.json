@@ -1,0 +1,72 @@
+{
+  "id": "industry-use-case",
+  "schema_version": 2,
+  "version": 1,
+  "identity": {
+    "strategy": "id"
+  },
+  "on_missing": "create",
+  "allow_create_folder": true,
+  "root": {
+    "type": "md",
+    "own_folder": false,
+    "plain_filename": true,
+    "on_existing_title": "update_section",
+    "frontmatter_defaults": {
+      "type": "IndustryUseCase",
+      "name": "",
+      "industry": "",
+      "solutions": [],
+      "outcome": "",
+      "buyer": "",
+      "status": "draft",
+      "last_refreshed": "",
+      "tags": [
+        "kind/industry-use-case"
+      ]
+    },
+    "frontmatter_rules": [
+      "industry is a wikilink to the Industry note under Work/Industries this use case belongs to, e.g. \"[[Banking]]\"",
+      "solutions is a list of wikilinks to the Solution notes that deliver it, by their exact names -- the sizing a seller is shown comes from those notes",
+      "outcome is one sentence on what changes for the business, in its own language; buyer is the role that owns that outcome (e.g. Head of Financial Crime)"
+    ],
+    "sections": [
+      {
+        "name": "Summary",
+        "access": "machine_write"
+      },
+      {
+        "name": "Business outcome",
+        "access": "machine_write"
+      },
+      {
+        "name": "Who owns it",
+        "access": "machine_write"
+      },
+      {
+        "name": "Why now",
+        "access": "machine_write"
+      },
+      {
+        "name": "How it is delivered",
+        "access": "machine_write"
+      },
+      {
+        "name": "Value and KPIs",
+        "access": "machine_write"
+      },
+      {
+        "name": "Discovery questions",
+        "access": "machine_write"
+      },
+      {
+        "name": "Core42 angle",
+        "access": "machine_write"
+      },
+      {
+        "name": "Sources",
+        "access": "machine_write"
+      }
+    ]
+  }
+}
