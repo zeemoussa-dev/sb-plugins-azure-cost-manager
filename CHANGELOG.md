@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.51.1] - 2026-10-24
+
+- fix: **tag coverage is measured against spend that can carry tags** (checked on FAB and Mubadala, 2026-10-24).
+  - **FAB:** $10.1M of Fortinet FortiFlex is billed as "Virtual Machine Licenses" (third-party software, invoiced as Marketplace). It made September read 2.3% tagged for Environment; every tag seemed to collapse that month.
+  - **Mubadala:** the old enrollment 47218105, where all spend was until August, has no tag keys. Those months read as 0% tagged.
+  - **Now:** the measure leaves out commitment purchases ("Unassigned") and third-party software billed as VM licenses. Enrollments with no tag keys are listed as a gap of their own and left out of coverage. The Tags tab's coverage and Untagged figures use the same measure.
+- feat: **the Tagging gaps card folds** (operator: "the Tagging Gaps need to be collapsed as well"). While folded, its title shows how many tags fall short of the target. The choice is kept in this browser.
+
 ## [0.51.0] - 2026-10-24
 
 - feat: **Tagging with Compass** (operator, 2026-10-24: "tagging recommendations using Compass, and some tagging guidance and gaps for the customer"). The plugin computes the gaps; Compass turns them into a plan and a guide.

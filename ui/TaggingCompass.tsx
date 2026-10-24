@@ -101,9 +101,15 @@ export function TaggingGuideButton({ customerId, customerName, accounts }: {
  *  covers too little, the key spellings and the values that drift. */
 export function TaggingGaps({ gaps, currency }: { gaps: TagGaps; currency: string | null }) {
   const named = gaps.environment_in_subscription_names;
+  const [open, fold] = useRememberedFold('azure-cost-manager.tagging-gaps-folded');
+  const short = gaps.dimensions.filter((item) => !item.used || item.below_target).length;
   return (
-    <section className="card azure-cost-card">
-      <h3>Tagging gaps</h3>
+    <details className="card azure-cost-card azure-cost-fold" open={open}
+             onToggle={(event) => { const nowOpen = (event.target as HTMLDetailsElement).open; if (nowOpen !== open) fold(nowOpen); }}>
+      <summary className="azure-cost-fold-head">
+        <h3>Tagging gaps</h3>
+        {!open ? <span className="text-muted">{short} of {gaps.dimensions.length} tags short of the target</span> : null}
+      </summary>
       <p className="text-muted azure-cost-note">
         Against six business tags — Environment, Project, Application, Business unit, Owner, Cost centre — with
         {` ${gaps.coverage_target_pct}%`} of the spend tagged as the target. {gaps.tag_keys} tag keys are in use on these enrollments.
@@ -141,6 +147,16 @@ export function TaggingGaps({ gaps, currency }: { gaps: TagGaps; currency: strin
           inherited by what runs in it, would tag that spend without touching a resource.
         </p>
       ) : null}
-    </section>
+      {gaps.enrollments_without_tags.length ? (
+        <p className="text-muted azure-cost-note">
+          No tag keys were found on {gaps.enrollments_without_tags.join(', ')}: untagged, or tags not readable there.
+          Their spend is left out of the coverage above.
+        </p>
+      ) : null}
+      <p className="text-muted azure-cost-note">
+        Coverage is of the spend tags can be on: commitment purchases and third-party software billed as VM licenses
+        carry no resource tags and are left out.
+      </p>
+    </details>
   );
 }

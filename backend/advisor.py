@@ -456,6 +456,8 @@ def tagging_facts(report: dict, brief_facts: dict | None, customer_view: bool = 
         "dimensions": gaps.get("dimensions"),
         "not_used_at_all": gaps.get("missing"),
         "environment_in_subscription_names": gaps.get("environment_in_subscription_names"),
+        "enrollments_without_any_tag": gaps.get("enrollments_without_tags"),
+        "coverage_is_of": "spend tags can be on: commitment purchases and third-party software billed as VM licenses are left out",
     }
     if not customer_view and brief_facts:
         facts.update(running=brief_facts.get("solutions"), pitches=brief_facts.get("pitches"),

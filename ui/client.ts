@@ -759,6 +759,8 @@ export interface TagGaps {
   tag_keys: number;
   dimensions: TagGapDimension[];
   missing: string[];
+  /** Enrollments with no tag keys at all: left out of coverage. */
+  enrollments_without_tags: string[];
   environment_in_subscription_names: {
     subscriptions: number; of_subscriptions: number; monthly: number; share_pct: number | null;
     by_environment: Record<string, number>;

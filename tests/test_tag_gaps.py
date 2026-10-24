@@ -58,3 +58,13 @@ def test_the_customers_guide_is_never_handed_the_sellers_view():
 
     assert "pitches" not in advisor.tagging_facts(report, seller, customer_view=True)
     assert advisor.tagging_facts(report, seller)["seller_says"] == ["z"]
+
+
+def test_third_party_software_billed_as_licenses_is_not_taggable_spend():
+    from backend import solution_plays
+    month = {"actual": {"service": {"Virtual Machine Licenses": 10000.0, "Virtual Machines": 3000.0}},
+             "meters": {"FortiFlex|Virtual Machine Licenses": 9800.0, "Windows Server|Virtual Machine Licenses": 200.0},
+             "marketplace_offers": {"FortiFlex MSSP": 9800.0}, "measured": {"marketplace": 9900.0}}
+
+    assert solution_plays.third_party_in_month(month, solution_plays.mapping(None)) == 9800.0
+

@@ -635,7 +635,17 @@ class ConsumptionService:
 
     def _tags_of(self, customer: dict, only: set[str] | None = None, gaps: bool = False) -> dict:
         merged, currency, entries = self._merged(customer, only=only)
-        totals = {month: sum(((data.get("actual") or {}).get("service") or {}).values())
+        # Coverage is of the spend tags could be on (2026-10-24, on real bills): an enrollment
+        # with no tag keys says nothing (Mubadala's old enrollment read as five months at 0%),
+        # and neither purchases ("Unassigned") nor third-party software billed as VM licenses
+        # carry resource tags (FAB's $10.1M Fortinet made September read 2%).
+        tagless = {name for name, entry in entries.items() if not (entry.get("tags") or {}).get("keys")}
+        if tagless and len(tagless) < len(entries):
+            merged, _, _ = self._merged(customer, only=set(entries) - tagless)
+        plays = self.solution_play_mapping()
+        totals = {month: max(0.0, sum(((data.get("actual") or {}).get("service") or {}).values())
+                             - (((data.get("actual") or {}).get("service") or {}).get("Unassigned") or 0.0)
+                             - solution_plays.third_party_in_month(data, plays))
                   for month, data in merged.items()}
         current = months.month_of(self._today())
         found = {"customer": {"id": customer["id"], "name": customer["name"]},
@@ -645,6 +655,7 @@ class ConsumptionService:
         if gaps:
             subscriptions = self._solutions_view(self._group(customer), self._patterns(), only)["subscriptions"]
             found["gaps"] = tag_gaps.gaps(found, entries, subscriptions, current)
+            found["gaps"]["enrollments_without_tags"] = sorted(tagless) if len(tagless) < len(entries) else []
         return found
 
     def tags(self, customer_id: str, shown: list[str] | None = None) -> dict:

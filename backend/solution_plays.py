@@ -132,6 +132,14 @@ def split(services: dict[str, float], meters: dict[str, float] | None, plays: di
     return {play: round(cost, 2) for play, cost in by_play.items() if round(cost, 2) != 0}
 
 
+def third_party_in_month(month: dict, plays: dict[str, str]) -> float:
+    """A merged month's VM licenses that are Marketplace software, in actual cost."""
+    services = (month.get("actual") or {}).get("service") or {}
+    shown = sum(cost for service, cost in services.items() if play_of(service, plays) == MARKETPLACE)
+    return third_party_licenses(services, month.get("meters"), month.get("marketplace_offers"),
+                                ((month.get("measured") or {}).get("marketplace") or 0.0) - shown)
+
+
 def split_month(month: dict, plays: dict[str, str], cost_kind: str = "amortized") -> dict[str, float]:
     """A merged month by play. Amortized by default (operator, 2026-10-23): a reservation or
     savings plan bought that month is otherwise a lump under "Unassigned" -- $1.41M in six
