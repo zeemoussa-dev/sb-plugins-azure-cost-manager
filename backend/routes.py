@@ -176,6 +176,22 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                                                 [a for a in (accounts or "").split(",") if a] or None,
                                                 (submitted or {}).get("note")))
 
+    @router.get("/customers/{customer_id}/finops/plan")
+    def get_finops_plan(customer_id: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.finops_plan(customer_id, False, _account_list(accounts)))
+
+    @router.post("/customers/{customer_id}/finops/plan")
+    def post_finops_plan(customer_id: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.finops_plan(customer_id, True, _account_list(accounts)))
+
+    @router.get("/customers/{customer_id}/finops/report")
+    def get_finops_report(customer_id: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.finops_report(customer_id, False, _account_list(accounts)))
+
+    @router.post("/customers/{customer_id}/finops/report")
+    def post_finops_report(customer_id: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.finops_report(customer_id, True, _account_list(accounts)))
+
     @router.get("/advisor/actions")
     def get_actions() -> dict:
         return _compass(advisor.actions)

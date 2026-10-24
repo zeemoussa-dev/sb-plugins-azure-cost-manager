@@ -2,6 +2,23 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.50.0] - 2026-10-24
+
+- feat: **FinOps with Compass** (operator, 2026-10-24: "use LLM inside the FinOps tab to the max"). The plugin computes the findings, and Compass turns them into decisions.
+  - **Savings plan** (seller view, at the top of FinOps): what to reserve, what to put on a savings plan, where to use Azure Hybrid Benefit, what to keep on demand and why, and what to ask about. Each move carries its risk. The savings are framed as money to reinvest so MACC consumption is kept, not as spend cut. Compass also writes questions for the customer's engineers.
+    - **Checked:** a move must name a candidate meter, a license product or a flagged subscription from the findings. The saving shown is always the plugin's estimate for that option, never Compass's figure.
+    - Reads the MACC, the pitches, what the customer runs, and the customer's memory.
+    - Kept until the findings change; **Ask again** rewrites it.
+  - **Savings report** (both views): a short report for the customer's IT and finance leads, with Copy. It is written only from the customer's own findings. Pitches, quota, pipeline and memory are never handed to it.
+  - **Azure Hybrid Benefit:** the Windows Server, SQL Server, RHEL and SUSE license meters billed, as a monthly figure over the last three closed months. SQL Server billed through Arc is excluded.
+  - **Commitments that may renew:** each up-front purchase shows when it would renew on a 1-year or a 3-year term. The bill does not say which term applies, so both are shown. A renewal within six months is marked "soon".
+  - **Worth a look:** three patterns raised as questions, not as waste:
+    - premium or Ultra disks in Test, Development or Sandbox subscriptions;
+    - monitoring that is 30% or more of a subscription;
+    - subscriptions that only store data.
+  - **Ask** gains three reports: savings candidates, Hybrid Benefit and renewals, each across customers. **Next best actions** now sees commitments renewing soon.
+  - **Routes:** `GET/POST /customers/{id}/finops/plan`, `GET/POST /customers/{id}/finops/report`. `/finops` now also returns `hybrid_benefit`, `renewals` and `waste`.
+
 ## [0.49.0] - 2026-10-23
 
 - fix: **third-party VM licenses are Marketplace, counted once** (operator, 2026-10-23: "Virtual Machine Licenses is also Marketplace -- validate"). Validated on the data: "Virtual Machine Licenses" holds both Microsoft's own licenses (Windows Server, SQL Server, RHEL -- Azure spend) and third-party software billed the same way. FAB's $10.44M of licenses (Apr-Sep 2026) is $10.2M Fortinet FortiFlex, line for line in its invoice's Marketplace charges -- so it was counted twice: once in Infra, once in Marketplace (FAB's plays came to $42.1M against $31.9M invoiced). The part of the licenses matching an invoiced Marketplace offer by name, and not already shown as SaaS, now leaves the licenses' play: FAB's plays come to $31.7M. Microsoft's licenses stay where they were.

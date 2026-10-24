@@ -62,7 +62,8 @@ def explain_messages(facts: dict) -> list[dict]:
 # -- next best actions -------------------------------------------------------------
 
 def action_facts(portfolio: list[dict], growth: dict[str, dict], quota: dict, pitches: dict[str, list[dict]],
-                 pipeline: dict[str, dict], limit: int = 30, seller_says: dict[str, list[dict]] | None = None) -> dict:
+                 pipeline: dict[str, dict], limit: int = 30, seller_says: dict[str, list[dict]] | None = None,
+                 renewals: dict[str, list[dict]] | None = None) -> dict:
     """One line per top-level customer, the largest last month first, and the seller's quota."""
     rows = []
     for row in sorted((item for item in portfolio if not item.get("parent")),
@@ -81,6 +82,7 @@ def action_facts(portfolio: list[dict], growth: dict[str, dict], quota: dict, pi
             "above_baseline_projected": round(above["above_projected"]) if above.get("above_projected") is not None else None,
             "pitches": pitches.get(row["id"]) or [],
             "open_pipeline": pipeline.get(row["id"]),
+            "commitments_may_renew": (renewals or {}).get(row["id"]),
             "seller_says": (seller_says or {}).get(row["id"]),
         }.items() if value not in (None, [], {})})
     return {"quota": {key: quota.get(key) for key in ("above_projected", "gap_to_quota", "projected_pct")},
@@ -92,7 +94,8 @@ def action_messages(facts: dict) -> list[dict]:
         "Rank the seller's next best actions across these customers -- the ones most worth doing this week for "
         "the customer, the MACC and the seller's quota. Consider: a MACC running out before its end (renewal or "
         "top-up), a MACC heading for a shortfall (consumption to grow), sharp growth or decline, pitches with "
-        "their sizing, and thin pipeline. A customer's 'seller_says' is what the seller told you: treat it as "
+        "their sizing, thin pipeline, and commitments that may renew soon (a renewal conversation). A customer's "
+        "'seller_says' is what the seller told you: treat it as "
         "fact (a MACC already renewed needs no renewal action).\n"
         'Answer with a JSON array of at most 12 objects, best first: {"customer_id": <as given>, "action": <what '
         'to do, one sentence>, "why": <one sentence citing the facts>, "urgency": "now"|"this quarter"|"later", '
@@ -209,6 +212,9 @@ TOOLS = {
     "customer_summary": "one customer's figures, MACC, solutions and pitches. args: {\"customer\": <name>}",
     "marketplace_buyers": "who buys a Marketplace publisher's or offer's products. args: {\"text\": <publisher or offer words>}",
     "quota": "the seller's quota attainment and each customer above its baseline. args: {}",
+    "savings_candidates": "every customer's steady on-demand spend worth committing and its estimated saving. args: {}",
+    "hybrid_benefit": "customers billed for Windows Server, SQL Server, RHEL or SUSE licenses Azure Hybrid Benefit could remove. args: {}",
+    "commitment_renewals": "customers whose up-front commitments may renew soon (one- or three-year terms). args: {}",
 }
 
 
@@ -319,3 +325,106 @@ def check_pitches(reply: str, facts: dict) -> list[dict]:
                       "confidence": item.get("confidence") if item.get("confidence") in ("high", "medium", "low") else "medium",
                       "sized_monthly": solution["sized_monthly"]})
     return found[:5]
+
+
+# -- FinOps ----------------------------------------------------------------------------
+
+FINOPS_MOVES = ("reserve", "savings_plan", "hybrid_benefit", "keep_on_demand", "investigate")
+RISK = ("low", "medium", "high")
+
+
+def finops_facts(finops: dict, brief_facts: dict | None, customer_view: bool = False) -> dict:
+    """What Compass reads for the savings plan: the FinOps findings as computed, and --
+    for the seller, never the customer -- the MACC, the pitches and what the seller said."""
+    candidates = [{"meter": item["meter"], "family": item["family"], "monthly_on_demand": item["monthly_on_demand"],
+                   "variation_pct": item["variation_pct"], "lowest_month": item["lowest_month"],
+                   "savings_monthly_by_option": item.get("savings"), "not_priced": item.get("not_priced")}
+                  for item in (finops.get("candidates") or [])[:15]]
+    facts = {
+        "customer": (finops.get("customer") or {}).get("name"),
+        "coverage": {"latest": (finops.get("coverage") or {}).get("latest"),
+                     "by_month": ((finops.get("coverage") or {}).get("months") or [])[-6:]},
+        "candidates": candidates,
+        "savings_options": {"ri_1y": "1-year reservation", "ri_3y": "3-year reservation",
+                            "sp_1y": "1-year savings plan", "sp_3y": "3-year savings plan"},
+        "bought_up_front": finops.get("renewals"),
+        "hybrid_benefit": finops.get("hybrid_benefit"),
+        "worth_a_look": (finops.get("waste") or [])[:10],
+        "fastest_growing_services": ((finops.get("growth") or {}).get("services") or [])[:6],
+        "budget": finops.get("budget"),
+    }
+    if not customer_view and brief_facts:
+        facts.update(commitment=brief_facts.get("commitment"), pitches=brief_facts.get("pitches"),
+                     running=brief_facts.get("solutions"), seller_says=brief_facts.get("seller_says"))
+    return facts
+
+
+def finops_plan_messages(facts: dict) -> list[dict]:
+    return [_system(
+        "Turn this customer's FinOps findings into a savings plan for the seller. For each steady candidate decide: "
+        "reserve (a family that will keep running), a savings plan (spread across families or likely to change "
+        "size), or keep on demand (growing fast, new, a dev/test subscription, shrinking -- say why). Use Azure Hybrid "
+        "Benefit where license meters are billed. Raise what is worth a look as questions, not as waste. Then the "
+        "reinvestment story: a Core42 seller is paid on consumption, so frame savings as money to put into what the "
+        "customer is building or should pitch, keeping MACC consumption, never as spend cut. Say where the budget "
+        "stands in one sentence.\n"
+        'Answer with one JSON object: {"summary": <3-4 sentences>, "moves": [{"kind": "reserve"|"savings_plan"|'
+        '"hybrid_benefit"|"keep_on_demand"|"investigate", "ref": <the candidate meter, the hybrid benefit product, or '
+        'the subscription, exactly as given>, "option": "ri_1y"|"ri_3y"|"sp_1y"|"sp_3y"|null, "why": <one sentence>, '
+        '"risk": "low"|"medium"|"high", "risk_reason": <short>}], "reinvest": <2-3 sentences>, "questions": [<up to 4 '
+        "for the customer's engineers>]}. At most 10 moves, largest first. Nothing else."),
+        {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
+
+
+def check_finops_plan(reply: str, facts: dict) -> dict:
+    """Moves about things in the facts only; each saving is the plugin's figure."""
+    found = compass.json_object(reply)
+    candidates = {item["meter"]: item for item in facts["candidates"]}
+    hybrid = {item["product"]: item for item in facts.get("hybrid_benefit") or []}
+    looks = {item["subscription"]: item for item in facts.get("worth_a_look") or []}
+    moves = []
+    for move in found.get("moves") or []:
+        if not isinstance(move, dict) or move.get("kind") not in FINOPS_MOVES:
+            continue
+        ref, kind, saving, option = move.get("ref"), move["kind"], None, None
+        if kind in ("reserve", "savings_plan", "keep_on_demand"):
+            candidate = candidates.get(ref)
+            if not candidate:
+                continue
+            options = candidate.get("savings_monthly_by_option") or {}
+            option = move.get("option") if move.get("option") in options else None
+            if kind == "reserve" and not (option or "").startswith("ri_"):
+                option = "ri_3y" if "ri_3y" in options else None
+            if kind == "savings_plan" and not (option or "").startswith("sp_"):
+                option = "sp_1y" if "sp_1y" in options else None
+            saving = options.get(option) if option and kind != "keep_on_demand" else None
+            monthly = candidate["monthly_on_demand"]
+        elif kind == "hybrid_benefit":
+            if ref not in hybrid:
+                continue
+            saving, monthly = hybrid[ref]["monthly"], hybrid[ref]["monthly"]
+        else:
+            if ref not in looks and ref not in candidates:
+                continue
+            monthly = (looks.get(ref) or {}).get("monthly_at_stake") or (candidates.get(ref) or {}).get("monthly_on_demand")
+        subject = "license" if kind == "hybrid_benefit" else "subscription" if ref in looks and ref not in candidates else "meter"
+        moves.append({"kind": kind, "ref": ref, "subject": subject, "option": option, "monthly": monthly,
+                      # "up to" for hybrid benefit: only when the customer holds the licenses.
+                      "saving_monthly": saving, "why": str(move.get("why") or "")[:300],
+                      "risk": move.get("risk") if move.get("risk") in RISK else "medium",
+                      "risk_reason": str(move.get("risk_reason") or "")[:200]})
+    return {"summary": str(found.get("summary") or "")[:900], "moves": moves[:10],
+            "reinvest": str(found.get("reinvest") or "")[:700],
+            "questions": [str(item)[:240] for item in (found.get("questions") or [])[:4]]}
+
+
+def finops_report_messages(facts: dict) -> list[dict]:
+    return [_system(
+        "Write a short savings report for the CUSTOMER's IT and finance leads, from these findings of their own "
+        "Azure bill. Nothing about the seller, quotas, pipeline, MACC targets or pitches. Plain, specific, helpful: "
+        "commitment coverage today; the steady usage worth committing and the estimated monthly saving per option "
+        "(figures exactly as given); Azure Hybrid Benefit where license meters are billed, if they hold the "
+        "licenses; what is worth checking (as questions); where they stand on budget. Markdown with headings "
+        "'Where you stand', 'Commit to save', 'Licenses you may already own', 'Worth checking', 'Next steps'; under "
+        "350 words. A section with nothing to say is left out."),
+        {"role": "user", "content": "Findings:\n" + compass.json_block(facts)}]

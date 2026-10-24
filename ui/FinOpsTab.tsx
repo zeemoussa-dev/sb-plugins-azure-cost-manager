@@ -5,6 +5,7 @@ import {
   type Budget, type FinOps, type Growth, type SteadyCandidate, type View,
 } from './client';
 import { DrillLink, useDrillOpener } from './Drill';
+import { SavingsPlanCard, SavingsReportButton } from './FinOpsCompass';
 import { errorText, formatMoney, formatMonth } from './format';
 import { Loading } from './Loading';
 
@@ -47,6 +48,19 @@ const BUDGET_STATUS: Record<Budget['status'], string> = {
   'forecast-over': 'Forecast over budget this month',
   within: 'Within budget',
 };
+
+function RenewalCell({ renewal }: { renewal?: FinOps['renewals'][number] }) {
+  if (!renewal) return <>—</>;
+  return (
+    <>
+      {(['1y', '3y'] as const).map((term) => (
+        <span key={term} className={renewal.soon.includes(term) ? 'azure-cost-warning' : 'text-muted'}>
+          {term === '1y' ? '1-year' : '3-year'}: {formatMonth(renewal.renews_if[term])}{renewal.soon.includes(term) ? ' (soon)' : ''}<br />
+        </span>
+      ))}
+    </>
+  );
+}
 
 function percent(value: number | null | undefined): string {
   return value == null ? '—' : `${value}%`;
@@ -103,8 +117,14 @@ export function FinOpsTab({ customerId, syncedVersion, view, accounts }: {
   const currency = found.currency;
   const latest = found.coverage.latest;
   const budget = found.budget;
+  const renewalOf = new Map(found.renewals.map((item) => [item.bought, item]));
   return (
     <>
+      <div className="azure-cost-toolbar">
+        <SavingsReportButton customerId={customerId} customerName={found.customer.name} accounts={accounts} />
+      </div>
+      {view === 'account' ? <SavingsPlanCard customerId={customerId} currency={currency} accounts={accounts} /> : null}
+
       <div className="azure-cost-kpis">
         <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Commitment coverage</span>
           <strong>{percent(latest?.coverage_pct)}</strong>
@@ -192,7 +212,7 @@ export function FinOpsTab({ customerId, syncedVersion, view, accounts }: {
         <section className="card azure-cost-card">
           <h3>Commitments bought up front</h3>
           <table className="azure-cost-table">
-            <thead><tr><th>Month</th><th>Charged</th><th>Amortized</th><th>Bought up front</th></tr></thead>
+            <thead><tr><th>Month</th><th>Charged</th><th>Amortized</th><th>Bought up front</th><th>May renew</th></tr></thead>
             <tbody>
               {found.purchases.map((purchase) => (
                 <tr key={purchase.month}>
@@ -200,6 +220,55 @@ export function FinOpsTab({ customerId, syncedVersion, view, accounts }: {
                   <td>{formatMoney(purchase.charged, currency)}</td>
                   <td>{formatMoney(purchase.amortized, currency)}</td>
                   <td>{formatMoney(purchase.bought_up_front, currency)}</td>
+                  <td><RenewalCell renewal={renewalOf.get(purchase.month)} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-muted azure-cost-note">The bill does not say a commitment's term: each renews a year or three years after it was bought. Soon: within six months.</p>
+        </section>
+      ) : null}
+
+      {found.hybrid_benefit.length ? (
+        <section className="card azure-cost-card">
+          <h3>Azure Hybrid Benefit</h3>
+          <p className="text-muted azure-cost-note">
+            License meters billed over the last three closed months, a month. Hybrid Benefit takes them off where the
+            customer already holds the licenses: Windows Server or SQL Server with Software Assurance, or Red Hat and SUSE
+            subscriptions.
+          </p>
+          <table className="azure-cost-table">
+            <thead><tr><th>License</th><th>Billed / month</th><th>Largest meters</th><th>Program</th></tr></thead>
+            <tbody>
+              {found.hybrid_benefit.map((row) => (
+                <tr key={row.product}>
+                  <td>{row.product}</td>
+                  <td>{formatMoney(row.monthly, currency)}</td>
+                  <td className="text-muted">{Object.entries(row.meters).slice(0, 3)
+                    .map(([meter, cost]) => `${meter} ${formatMoney(cost, currency, true)}`).join(' · ')}</td>
+                  <td className="text-muted">{row.program}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+
+      {found.waste.length ? (
+        <section className="card azure-cost-card">
+          <h3>Worth a look</h3>
+          <p className="text-muted azure-cost-note">
+            Patterns that are often waste, to ask the customer's engineers about, not to assume: premium disks where nothing
+            is production, monitoring out of proportion, and subscriptions that only store.
+          </p>
+          <table className="azure-cost-table">
+            <thead><tr><th>Subscription</th><th>What</th><th>Monthly at stake</th></tr></thead>
+            <tbody>
+              {found.waste.map((item) => (
+                <tr key={`${item.subscription}|${item.kind}`}>
+                  <td><DrillLink kind="subscription" name={item.subscription} /></td>
+                  <td>{item.detail}</td>
+                  <td>{formatMoney(item.monthly_at_stake, currency)}</td>
                 </tr>
               ))}
             </tbody>

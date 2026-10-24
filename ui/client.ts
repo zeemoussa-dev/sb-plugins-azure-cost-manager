@@ -613,6 +613,32 @@ export interface FinOps {
   purchases: { month: string; charged: number; amortized: number; bought_up_front: number }[];
   growth: { services: Growth[]; subscriptions: Growth[] };
   budget: Budget | null;
+  /** The license meters Azure Hybrid Benefit could take off, if the customer holds the licenses. */
+  hybrid_benefit: { product: string; program: string; meters: Record<string, number>; monthly: number }[];
+  /** Each up-front purchase and when it would renew on a 1- or 3-year term. */
+  renewals: { bought: string; amount: number; renews_if: Record<'1y' | '3y', string>; soon: ('1y' | '3y')[] }[];
+  /** What looks like waste, to ask the customer's engineers about. */
+  waste: { subscription: string; kind: string; monthly_at_stake: number; detail: string }[];
+}
+
+export interface SavingsMove {
+  kind: 'reserve' | 'savings_plan' | 'hybrid_benefit' | 'keep_on_demand' | 'investigate';
+  ref: string;
+  /** Only a subscription can be drilled into. */
+  subject: 'meter' | 'license' | 'subscription';
+  option: CommitmentOption | null;
+  monthly: number | null;
+  saving_monthly: number | null;
+  why: string;
+  risk: 'low' | 'medium' | 'high';
+  risk_reason: string;
+}
+
+export interface SavingsPlan {
+  summary: string;
+  moves: SavingsMove[];
+  reinvest: string;
+  questions: string[];
 }
 
 export interface FinOpsAcrossRow {
@@ -632,6 +658,14 @@ export interface FinOpsAcrossRow {
 }
 
 export const fetchFinOps = (id: string, accounts?: string[]) => apiFetch<FinOps>(`${customer(id)}/finops${onlyAccounts(accounts)}`);
+export const fetchSavingsPlan = (id: string, accounts?: string[]) =>
+  apiFetch<Kept<SavingsPlan>>(`${customer(id)}/finops/plan${onlyAccounts(accounts)}`);
+export const writeSavingsPlan = (id: string, accounts?: string[]) =>
+  apiFetch<Kept<SavingsPlan>>(`${customer(id)}/finops/plan${onlyAccounts(accounts)}`, { method: 'POST' });
+export const fetchSavingsReport = (id: string, accounts?: string[]) =>
+  apiFetch<Kept<string>>(`${customer(id)}/finops/report${onlyAccounts(accounts)}`);
+export const writeSavingsReport = (id: string, accounts?: string[]) =>
+  apiFetch<Kept<string>>(`${customer(id)}/finops/report${onlyAccounts(accounts)}`, { method: 'POST' });
 export const fetchFinOpsAcross = () => apiFetch<FinOpsAcrossRow[]>(`${BASE}/finops`);
 export interface MonthRow {
   name: string;

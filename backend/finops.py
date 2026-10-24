@@ -19,7 +19,7 @@ import re
 from datetime import date
 from statistics import mean, pstdev
 
-from . import categories, months
+from . import categories, finops_extra, months
 
 COMMITMENT_MODELS = ("Reservation", "SavingsPlan")
 ON_DEMAND = "OnDemand"
@@ -250,6 +250,7 @@ def analyse(entries: dict[str, dict], merged: dict, trend: list[dict], commitmen
     reservable = _reservable(actual, amortized)
     candidates = with_savings(steady_candidates(actual, reservable, closed), prices or {})
     covered = coverage(amortized, reservable, closed[-12:])
+    bought = purchases(actual, amortized, closed[-12:])
     return {
         "has_meters": bool(actual),
         "has_amortized_meters": bool(amortized),
@@ -258,7 +259,9 @@ def analyse(entries: dict[str, dict], merged: dict, trend: list[dict], commitmen
         "candidates_monthly": round(sum(candidate["monthly_on_demand"] for candidate in candidates), 2),
         # Monthly, per option, over the candidates the price list could price.
         "savings_monthly": _savings_total(candidates),
-        "purchases": purchases(actual, amortized, closed[-12:]),
+        "purchases": bought,
+        "hybrid_benefit": finops_extra.hybrid_benefit(actual, closed),
+        "renewals": finops_extra.renewals(bought, current),
         "growth": {"services": growth(merged, closed, "service"), "subscriptions": growth(merged, closed, "subscription")},
         "budget": budget_status(monthly_budget(commitment, budget_override), trend, current_month_forecast),
     }

@@ -173,3 +173,18 @@ def test_a_recommended_pitch_can_be_drafted(fake_api):
     drafted = found.draft(customer_id, recommended[0]["pitch"])
 
     assert recommended[0]["solution"] == "Virtual machines (IaaS)" and drafted["title"] == "Contoso: modernise"
+
+
+def test_the_customers_report_is_never_handed_the_sellers_view(fake_api):
+    found, llm, customer_id = advisor_with(fake_api, ["## Where you stand\nCovered.",
+                                                       json.dumps({"summary": "s", "moves": [], "reinvest": "r",
+                                                                   "questions": []})])
+
+    report = found.finops_report(customer_id, write=True)
+    plan = found.finops_plan(customer_id, write=True)
+
+    customer_facts = llm.asked[0][1]["content"]
+    assert report["value"].startswith("## Where you stand") and plan["value"]["summary"] == "s"
+    assert all(key not in customer_facts for key in ('"pitches"', '"seller_says"', '"commitment"'))
+    assert '"seller_says"' in llm.asked[1][1]["content"]
+    assert found.finops_plan(customer_id)["kept"] is True and len(llm.asked) == 2

@@ -72,8 +72,13 @@ class Advisor:
         growth = {row["id"]: row for row in self._service.growth_across()}
         said = {row["id"]: self._service.memory.handed(row["id"])[-3:] for row in top
                 if self._service.memory.of(row["id"])}
+        renewing = {}
+        for row in top:
+            soon = [item for item in self._service.finops(row["id"], waste=False).get("renewals") or [] if item["soon"]]
+            if soon:
+                renewing[row["id"]] = soon
         return advisor.action_facts(portfolio, growth, self._service.quota_across(), self._pitches_by_customer(),
-                                    pipeline, ACTIONS_FOR, said)
+                                    pipeline, ACTIONS_FOR, said, renewing)
 
     def actions(self, write: bool = False) -> dict:
         facts = self._action_facts()
@@ -114,6 +119,31 @@ class Advisor:
         facts = advisor.draft_facts(self._service.brief_facts(customer_id), pitch, sizing, running.get("monthly"))
         return {**advisor.check_draft(compass.ask(self._llm, advisor.draft_messages(facts)), facts),
                 "solution": pitch["solution"]}
+
+    # -- FinOps ---------------------------------------------------------------------
+
+    def _finops_facts(self, customer_id: str, customer_view: bool, accounts: list[str] | None) -> dict:
+        found = self._service.finops(customer_id, accounts)
+        return advisor.finops_facts(found, None if customer_view else self._service.brief_facts(customer_id), customer_view)
+
+    def finops_plan(self, customer_id: str, write: bool = False, accounts: list[str] | None = None) -> dict:
+        """Compass's savings plan over the FinOps findings (operator, 2026-10-24): commit,
+        hold or investigate, the risk of each, and savings told as money to reinvest."""
+        facts = self._finops_facts(customer_id, False, accounts)
+        stamp, key = compass.fingerprint(facts), f"{customer_id}|{','.join(accounts or [])}"
+        if write:
+            plan = advisor.check_finops_plan(compass.ask(self._llm, advisor.finops_plan_messages(facts)), facts)
+            self._answers.put("finops-plan", key, stamp, plan)
+        return self._kept("finops-plan", key, stamp)
+
+    def finops_report(self, customer_id: str, write: bool = False, accounts: list[str] | None = None) -> dict:
+        """The savings report to hand the customer: their own findings only, nothing internal."""
+        facts = self._finops_facts(customer_id, True, accounts)
+        stamp, key = compass.fingerprint(facts), f"{customer_id}|{','.join(accounts or [])}"
+        if write:
+            text = compass.ask(self._llm, advisor.finops_report_messages(facts))
+            self._answers.put("finops-report", key, stamp, text.strip())
+        return self._kept("finops-report", key, stamp)
 
     # -- size a solution -----------------------------------------------------------
 
@@ -193,6 +223,22 @@ class Advisor:
                      "customers": [customer["name"] for customer in product["customers"]]}
                     for product in (services.get("saas") or {}).get("marketplace") or []
                     if words and words in f"{product['publisher']} {product['offer']} {product['plan']}".lower()][:20]
+        if call["tool"] == "savings_candidates":
+            return [{"customer": row["name"], "steady_on_demand_monthly": row["candidates_monthly"],
+                     "coverage_pct": row["coverage_pct"], "saving_monthly_by_option": row["savings_monthly"],
+                     "top_candidate": row["top_candidate"]}
+                    for row in self._service.finops_across() if row["candidates_monthly"]][:20]
+        if call["tool"] in ("hybrid_benefit", "commitment_renewals"):
+            rows = []
+            for customer in [row for row in self._service.portfolio() if not row.get("parent")][:30]:
+                found = self._service.finops(customer["id"], waste=False)
+                if call["tool"] == "hybrid_benefit" and found.get("hybrid_benefit"):
+                    rows.append({"customer": customer["name"], "licenses": [{"product": item["product"],
+                                 "monthly": item["monthly"]} for item in found["hybrid_benefit"]]})
+                if call["tool"] == "commitment_renewals" and any(item["soon"] for item in found.get("renewals") or []):
+                    rows.append({"customer": customer["name"],
+                                 "renewing": [item for item in found["renewals"] if item["soon"]]})
+            return rows
         if call["tool"] == "quota":
             found = self._service.quota_across()
             return {**{key: found.get(key) for key in ("above_projected", "gap_to_quota", "projected_pct")},

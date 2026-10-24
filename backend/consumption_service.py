@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (brief, consumption_analysis, memory, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
+from . import (brief, consumption_analysis, finops_extra, memory, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
                marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tags, this_month,
                whitespace)
@@ -602,11 +602,14 @@ class ConsumptionService:
                                  self._today(), self.prices.discounts()),
                 "pricing_region": self.prices.region()}
 
-    def finops(self, customer_id: str, shown: list[str] | None = None) -> dict:
+    def finops(self, customer_id: str, shown: list[str] | None = None, waste: bool = True) -> dict:
         """The FinOps findings for one customer (a group: with its affiliates). The
         Customer view shows the same findings: nothing here is internal."""
         customer = self._customer(customer_id)
-        return self._finops_of(customer, self._only(customer, shown))
+        found = self._finops_of(customer, self._only(customer, shown))
+        # What looks like waste, from each subscription's footprint (2026-10-24).
+        found["waste"] = finops_extra.waste(self.solutions_of(customer_id, shown)["subscriptions"]) if waste else []
+        return found
 
     def finops_across(self) -> list[dict]:
         """Every top-level customer's FinOps at a glance, the largest steady
