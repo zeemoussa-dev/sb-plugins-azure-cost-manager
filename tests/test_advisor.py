@@ -13,7 +13,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from backend import advisor, compass
+from backend import advisor, compass, use_cases
 from backend.advisor_service import Advisor
 from backend.consumption_service import ConsumptionService
 from backend.consumption_store import ConsumptionStore
@@ -188,3 +188,25 @@ def test_the_customers_report_is_never_handed_the_sellers_view(fake_api):
     assert all(key not in customer_facts for key in ('"pitches"', '"seller_says"', '"commitment"'))
     assert '"seller_says"' in llm.asked[1][1]["content"]
     assert found.finops_plan(customer_id)["kept"] is True and len(llm.asked) == 2
+
+
+USE_CASE_NOTE = {"name": "AML alert triage", "outcome": "o", "buyer": "b", "discovery_questions": []}
+
+
+def test_publishing_links_the_pitch_to_its_note(fake_api, tmp_path, monkeypatch):
+    found, _, customer_id = advisor_with(fake_api, [])
+    industry_note = tmp_path / "Banking" / "Banking.md"
+    industry_note.parent.mkdir(parents=True)
+    industry_note.write_text("", encoding="utf-8")
+    found._answers.put("pitches", customer_id, "stamp", [{"pitch": "Triage AML", "use_case": "AML alert triage"}])
+    monkeypatch.setattr(found, "use_case", lambda *args, **kwargs: {
+        "value": {"note": USE_CASE_NOTE}, "use_case_note": None, "industry": "Banking",
+        "note_markdown": use_cases.markdown(USE_CASE_NOTE, "Banking", [], "2026-10-24")})
+    monkeypatch.setattr(found._service, "industry_note_path", lambda name: str(industry_note))
+
+    published = found.publish_use_case(customer_id, "Triage AML")
+
+    assert published["use_case_note"] == "AML alert triage"
+    assert (tmp_path / "Banking" / "Use Cases" / "AML alert triage.md").exists()
+    assert found._answers.get("pitches", customer_id)["value"][0]["use_case_note"] == "AML alert triage"
+    assert found._answers.get("pitches", customer_id)["fingerprint"] == "stamp"

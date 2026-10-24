@@ -149,7 +149,7 @@ export function SolutionsTab({ customerId, syncedVersion, accounts }: {
             the subscriptions are read (FAB, 2026-10-24); the rules' pitches cannot. */}
         <section className="card azure-cost-card">
           <h3>What to pitch</h3>
-          <CompassPitches customerId={view.customer.id} />
+          <CompassPitches customerId={view.customer.id} customerName={view.customer.name} />
         </section>
       </>
     );
@@ -206,7 +206,7 @@ export function SolutionsTab({ customerId, syncedVersion, accounts }: {
             </tbody>
           </table>
         ) : <p className="text-muted">Nothing obvious missing.</p>}
-        <CompassPitches customerId={view.customer.id} />
+        <CompassPitches customerId={view.customer.id} customerName={view.customer.name} />
       </section>
       <section className="card azure-cost-card">
         <h3>Subscriptions</h3>

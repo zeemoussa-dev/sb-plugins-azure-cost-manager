@@ -1057,6 +1057,42 @@ export type KeptPitches = Kept<RecommendedPitch[]> & { industry?: string | null;
 export const fetchPitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`);
 export const writePitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`, { method: 'POST' });
 
+/** A Compass pitch's use case in detail: the note part is about the industry, the
+ *  customer part stays in the drill-down. */
+export interface UseCaseNote {
+  name: string;
+  outcome: string;
+  buyer: string;
+  summary: string;
+  business_outcome: string;
+  who_owns_it: string;
+  why_now: string;
+  how_it_is_delivered: string;
+  value_and_kpis: string;
+  discovery_questions: string[];
+  core42_angle: string;
+}
+
+export type UseCaseDetails = Kept<{
+  note: UseCaseNote;
+  for_this_customer: { why_them: string; first_step: string; questions: string[] };
+}> & {
+  industry: string | null;
+  /** The customer's industry has an Industry note to file the use case beside. */
+  industry_note: boolean;
+  /** The use-case note it is in the vault as, when it is. */
+  use_case_note: string | null;
+  solution_note: string | null;
+  /** The note as it would be filed. */
+  note_markdown: string | null;
+};
+
+const useCasePath = (id: string, pitch: string) => `${customer(id)}/use-case?pitch=${encodeURIComponent(pitch)}`;
+export const fetchUseCase = (id: string, pitch: string) => apiFetch<UseCaseDetails>(useCasePath(id, pitch));
+export const writeUseCase = (id: string, pitch: string) => apiFetch<UseCaseDetails>(useCasePath(id, pitch), { method: 'POST' });
+export const publishUseCase = (id: string, pitch: string) =>
+  apiFetch<UseCaseDetails>(`${customer(id)}/use-case/publish?pitch=${encodeURIComponent(pitch)}`, { method: 'POST' });
+
 /** Who Compass is in a feature: the editable part of its system prompt. */
 export interface Persona {
   id: string;

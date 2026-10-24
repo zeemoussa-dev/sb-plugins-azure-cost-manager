@@ -317,6 +317,9 @@ class ConsumptionService:
     def industries(self) -> list[str]:
         return self._industry_context.industries() if self._industry_context else []
 
+    def industry_note_path(self, name: str) -> str | None:
+        return self._industry_context.note_path(name) if self._industry_context else None
+
     def customer_brief(self, customer_id: str, write: bool = False) -> dict:
         """The customer's brief before a meeting (operator, 2026-10-23), written by Compass
         over the facts the reports computed. `write`: write it now, even when the facts

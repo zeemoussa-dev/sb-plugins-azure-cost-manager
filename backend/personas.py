@@ -48,7 +48,7 @@ PERSONAS: dict[str, dict] = {
     },
     "industry-solution-advisor": {
         "name": "Industry solution advisor",
-        "serves": ["What to pitch", "Draft from a pitch", "Size it"],
+        "serves": ["What to pitch", "Use-case details", "Draft from a pitch", "Size it"],
         "prompt": (
             "You are an industry solution advisor at Core42. You speak to a customer's business in its own "
             "language: a bank's compliance and customer experience, an energy company's operations and safety, a "
@@ -96,6 +96,7 @@ PERSONAS: dict[str, dict] = {
 FEATURES = {
     "brief": "account-strategist", "explain": "analyst", "actions": "pipeline-coach",
     "pitches": "industry-solution-advisor", "draft": "industry-solution-advisor", "size": "industry-solution-advisor",
+    "use-case": "industry-solution-advisor",
     "finops-plan": "finops-advisor", "tagging-plan": "governance-advisor",
     "finops-report": "customer-advisor", "tagging-guide": "customer-advisor", "ask": "data-analyst",
 }

@@ -208,6 +208,18 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def post_tagging_guide(customer_id: str, accounts: str | None = None) -> dict:
         return _compass(lambda: advisor.tagging_guide(customer_id, True, _account_list(accounts)))
 
+    @router.get("/customers/{customer_id}/use-case")
+    def get_use_case(customer_id: str, pitch: str) -> dict:
+        return _compass(lambda: advisor.use_case(customer_id, pitch))
+
+    @router.post("/customers/{customer_id}/use-case")
+    def post_use_case(customer_id: str, pitch: str) -> dict:
+        return _compass(lambda: advisor.use_case(customer_id, pitch, write=True))
+
+    @router.post("/customers/{customer_id}/use-case/publish")
+    def publish_use_case(customer_id: str, pitch: str) -> dict:
+        return _compass(lambda: advisor.publish_use_case(customer_id, pitch))
+
     @router.get("/compass/personas")
     def get_personas() -> dict:
         return advisor.personas()

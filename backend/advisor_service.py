@@ -3,7 +3,10 @@ already computes, asks Compass, and keeps what is worth keeping (`advisor`,
 `compass`). Nothing here computes a figure of its own."""
 from __future__ import annotations
 
-from . import advisor, compass, personas
+import os
+from datetime import date
+
+from . import advisor, compass, personas, use_cases
 
 ACTIONS_FOR = 30
 MARKETPLACE_BATCH = 40
@@ -110,6 +113,63 @@ class Advisor:
             self._answers.put("pitches", customer_id, stamp, found)
         return {**self._kept("pitches", customer_id, stamp), "industry": facts["industry"].get("industry"),
                 "industry_missing": facts["industry"].get("missing")}
+
+    # -- an industry use case, in detail -------------------------------------------
+
+    def _kept_pitch(self, customer_id: str, pitch_text: str) -> dict:
+        kept = (self._answers.get("pitches", customer_id) or {}).get("value") or []
+        pitch = next((item for item in kept if item["pitch"] == pitch_text), None)
+        if not pitch:
+            raise ValueError("that pitch is not one Compass recommended for this customer")
+        return pitch
+
+    def use_case(self, customer_id: str, pitch_text: str, write: bool = False) -> dict:
+        """The drill-down on a Compass pitch (operator, 2026-10-24): the use case written
+        out -- the part about the industry is what a use-case note would hold, the part
+        about this customer stays here -- kept until what it was written from changes."""
+        pitch = self._kept_pitch(customer_id, pitch_text)
+        solution = next((pattern for pattern in self._service.solution_catalog()["patterns"]
+                         if pattern["id"] == pitch.get("solution_id")), None)
+        brief_facts = self._service.brief_facts(customer_id)
+        facts = advisor.use_case_facts(brief_facts, pitch, solution)
+        key, stamp = f"{customer_id}|{pitch_text}", self._stamp("use-case", facts)
+        if write:
+            self._answers.put("use-case", key, stamp, advisor.check_use_case(
+                self._ask("use-case", advisor.use_case_messages(facts)), facts))
+        industry = (brief_facts.get("industry") or {}).get("industry")
+        kept = self._kept("use-case", key, stamp)
+        preview = None
+        if kept["value"] and industry:
+            preview = use_cases.markdown(kept["value"]["note"], industry,
+                                         [solution["note"]] if (solution or {}).get("note") else [], date.today().isoformat())
+        return {**kept, "industry": industry, "industry_note": bool(industry and self._service.industry_note_path(industry)),
+                "use_case_note": pitch.get("use_case_note"), "solution_note": (solution or {}).get("note"),
+                "note_markdown": preview}
+
+    def publish_use_case(self, customer_id: str, pitch_text: str) -> dict:
+        """Files the drafted use case as a note beside its Industry note (operator: "publish
+        to vault" on the seller's click), then links the pitch to it."""
+        found = self.use_case(customer_id, pitch_text)
+        if not found["value"]:
+            raise ValueError("write the use case first")
+        if found["use_case_note"]:
+            raise ValueError(f"this use case is already in the vault as {found['use_case_note']}")
+        industry = found["industry"]
+        path = self._service.industry_note_path(industry) if industry else None
+        if not path:
+            raise ValueError("set the customer's industry, with an Industry note in the vault, to file a use case under it"
+                             if not industry else f"there is no Industry note called {industry} to file it beside")
+        name = found["value"]["note"]["name"]
+        try:
+            written = use_cases.write_new(path, name, found["note_markdown"])
+        except use_cases.UseCaseExists as exc:
+            raise ValueError(str(exc)) from exc
+        stem = os.path.splitext(os.path.basename(written))[0]
+        # The pitch now links its note, as one matched from the vault would.
+        kept = self._answers.get("pitches", customer_id)
+        self._answers.put("pitches", customer_id, kept["fingerprint"],
+                          [{**item, "use_case_note": stem} if item["pitch"] == pitch_text else item for item in kept["value"]])
+        return {**found, "use_case_note": stem, "published": written}
 
     # -- draft from a pitch --------------------------------------------------------
 

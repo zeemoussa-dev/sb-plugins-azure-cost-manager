@@ -12,6 +12,7 @@ import { errorText, formatMoney } from './format';
 import { Loading } from './Loading';
 import { Popup, PopupRow } from './Popup';
 import { reportLink } from './ReportsHome';
+import { UseCaseButton } from './UseCase';
 
 // The seller's Compass features (operator, 2026-10-23). Every figure shown is the
 // plugin's -- Compass explains, ranks and drafts around them.
@@ -289,7 +290,7 @@ export function useMarketplaceClasses(active: boolean): [MarketplaceClasses | nu
 
 /** What Compass recommends pitching, beyond the rules (operator, 2026-10-23): a catalog
  *  solution each, with the note's sizing and the playbook to use; draftable like a rule's. */
-export function CompassPitches({ customerId }: { customerId: string }) {
+export function CompassPitches({ customerId, customerName }: { customerId: string; customerName: string }) {
   const [found, setFound] = useState<KeptPitches | null>(null);
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -319,8 +320,12 @@ export function CompassPitches({ customerId }: { customerId: string }) {
                 <tr key={item.pitch}>
                   <td>
                     {item.use_case ? (
-                      <><strong>{item.use_case_note
-                        ? <Link to={`/browse/${encodeURIComponent(item.use_case_note)}`}>{item.use_case}</Link> : item.use_case}</strong>
+                      <><strong><UseCaseButton customerId={customerId} customerName={customerName} pitch={item.pitch}
+                                               label={item.use_case}
+                                               onPublished={(stem) => setFound((kept) => kept?.value ? {
+                                                 ...kept, value: kept.value.map((other) => other.pitch === item.pitch
+                                                   ? { ...other, use_case_note: stem } : other) } : kept)} /></strong>
+                        {item.use_case_note ? <span className="text-muted"> · in the vault</span> : null}
                         {item.business_owner ? <span className="text-muted"> · for the {item.business_owner}</span> : null}
                         {item.business_outcome ? <><br />{item.business_outcome}</> : null}<br /></>
                     ) : null}

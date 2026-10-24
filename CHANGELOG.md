@@ -2,6 +2,20 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.53.0] - 2026-10-24
+
+- feat: **drill into a pitch's use case, and publish it to the vault** (operator, 2026-10-24: "a drill-down with more details ... those don't map to an existing solution, so generate a md file matching the standard ... publish to vault on the user's click ... tech or industry, your best judgement").
+  - **The drill-down:** click a use case in Compass's pitches (Solutions tab) to open it.
+    - **For the customer:** why it lands there, from its facts; the first step; and questions to ask.
+    - **The use case in full:** summary, business outcome, who owns it, why now (the industry's drivers and regulation), how it is delivered (from the Solution note's architecture), value and KPIs, discovery questions, and the Core42 angle.
+    - Written by the Industry solution advisor persona and kept until what it was written from changes; **Write again** rewrites it.
+  - **Publish to vault** files it as an industry use-case note, in the `industry-use-case` Template's shape, in a `Use Cases` folder beside the customer's Industry note (e.g. `Industries/Financial Services/Banking/Use Cases/`). It links the Solution note it is built on.
+    - **Why under the industry, not technology:** a use case is industry knowledge (an outcome, its owner, its regulation); the technology is already the Solution note it links. Filed there, the next pitch for any customer in that industry finds and links it instead of drafting it again.
+    - The note holds only the industry part: nothing about the customer goes into it.
+    - It is written only as a new file, never over an existing note, and starts as `status: draft`. The pitch then links to it, and the framework's vault index is refreshed.
+    - A customer with no industry set, or whose Industry note is missing, can see the drill-down but cannot publish it, and the popup says why.
+  - **Routes:** `GET/POST /customers/{id}/use-case?pitch=…`, `POST /customers/{id}/use-case/publish?pitch=…`.
+
 ## [0.52.2] - 2026-10-24
 
 - fix: **Compass's pitches show before a customer's subscriptions are synced** (checked on FAB, 2026-10-24). The Solutions tab showed only "not synced yet", so FAB's industry use cases (AML alert triage, the Nebras open-finance interface, IFRS 9 regulatory reporting) were written but never seen. Compass reads the consumption, MACC, pipeline and industry, so its card now shows in that state too. The rules' pitches still wait for the sync.

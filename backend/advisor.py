@@ -556,3 +556,66 @@ def tagging_guide_messages(facts: dict) -> list[dict]:
         "tags (data classification, residency), include them in the standard and say which rule they serve. "
         + INDUSTRY_RULE),
         {"role": "user", "content": "Findings:\n" + compass.json_block(facts)}]
+
+
+# -- an industry use case, in detail ---------------------------------------------------
+
+def use_case_facts(brief_facts: dict, pitch: dict, solution: dict | None) -> dict:
+    """What Compass drafts a use case from: the industry note, the Solution note the pitch
+    is built on (its pattern, architecture and sizing), and -- for the customer part only --
+    what the customer runs and what the seller said."""
+    found = brief_facts.get("industry") or {}
+    return {
+        "use_case": pitch.get("use_case") or pitch.get("pitch"), "pitch": pitch.get("pitch"),
+        "business_outcome": pitch.get("business_outcome"), "business_owner": pitch.get("business_owner"),
+        "why_compass_recommended_it": pitch.get("why"),
+        "industry": {key: found.get(key) for key in ("industry", "part_of", "what_it_is", "business_drivers",
+                                                    "typical_use_cases", "regulation", "our_positioning")
+                     if found.get(key)},
+        "solution": {"name": (solution or {}).get("name"), "note": (solution or {}).get("note"),
+                     "what_it_is": (solution or {}).get("description"),
+                     "architecture": ((solution or {}).get("architecture") or "")[:1500] or None,
+                     "sized_monthly_small_medium_large": [solution["sizing"]["totals"][size] for size in SIZES]
+                     if (solution or {}).get("sizing") else None},
+        "customer": {"name": brief_facts.get("customer"), "running": brief_facts.get("solutions"),
+                     "top_services_last_month": (brief_facts.get("consumption") or {}).get("top_services_last_month"),
+                     "commitment": brief_facts.get("commitment"), "seller_says": brief_facts.get("seller_says")},
+    }
+
+
+def use_case_messages(facts: dict) -> list[dict]:
+    return [_system(
+        "Write this industry use case out in detail, in two parts. 'note' is about the INDUSTRY, reusable for any "
+        "customer in it: never name this customer, its figures or its people there. 'for_this_customer' is why "
+        "and how it lands at this customer, from its facts. Business language first -- the outcome, who owns it, "
+        "why now (the industry's drivers and regulation) -- then how the solution delivers it, from the solution's "
+        "architecture. KPIs are the measures the business owner would track; give no numbers the facts do not "
+        "have.\n"
+        'Answer with one JSON object: {"note": {"name": <the use case, a few words>, "outcome": <one sentence>, '
+        '"buyer": <the role that owns it>, "summary": <2-3 sentences>, "business_outcome": <a short paragraph>, '
+        '"who_owns_it": <the owner, who else decides and who uses it>, "why_now": <drivers and regulation, '
+        'named>, "how_it_is_delivered": <the solution\'s building blocks and flow, a short paragraph or bullets>, '
+        '"value_and_kpis": <bullets>, "discovery_questions": [<4-6 questions>], "core42_angle": <in-country, '
+        'Compass by Core42, Azure: where it matters here>}, "for_this_customer": {"why_them": <2-4 sentences '
+        'citing its facts>, "first_step": <one concrete next step>, "questions": [<2-3 questions for this '
+        'customer>]}}. Markdown is allowed inside the strings. ' + INDUSTRY_RULE + " Nothing else."),
+        {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
+
+
+def check_use_case(reply: str, facts: dict) -> dict:
+    found = compass.json_object(reply)
+    note = found.get("note") if isinstance(found.get("note"), dict) else {}
+    mine = found.get("for_this_customer") if isinstance(found.get("for_this_customer"), dict) else {}
+
+    def text(value, limit: int) -> str:
+        return str(value or "").strip()[:limit]
+
+    return {
+        "note": {"name": text(note.get("name") or facts.get("use_case"), 120),
+                 "outcome": text(note.get("outcome"), 300), "buyer": text(note.get("buyer"), 120),
+                 **{key: text(note.get(key), 2500) for key in ("summary", "business_outcome", "who_owns_it", "why_now",
+                                                                "how_it_is_delivered", "value_and_kpis", "core42_angle")},
+                 "discovery_questions": [text(item, 300) for item in (note.get("discovery_questions") or [])[:6] if item]},
+        "for_this_customer": {"why_them": text(mine.get("why_them"), 1500), "first_step": text(mine.get("first_step"), 400),
+                              "questions": [text(item, 300) for item in (mine.get("questions") or [])[:3] if item]},
+    }

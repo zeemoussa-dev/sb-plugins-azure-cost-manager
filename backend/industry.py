@@ -81,6 +81,12 @@ class IndustryContext:
         entries = vault.entries()
         return {customer_id: self.name_of(stem, parent, entries) for customer_id, (stem, parent) in stems.items()}
 
+    def note_path(self, name: str) -> str | None:
+        """Where the Industry note called `name` is, for filing its use cases beside it."""
+        vault = self._vault()
+        note = self._entry(vault.entries(), name, INDUSTRY_TYPE) if vault else None
+        return note["path"] if note else None
+
     def industries(self) -> list[str]:
         vault = self._vault()
         if not vault:
