@@ -36,8 +36,10 @@ def test_waste_is_asked_about_never_assumed():
     rows = [{"subscription": "app-dev", "environment": "Development", "monthly": 2000.0,
              "top_services": [{"name": "Storage", "monthly": 800.0}],
              "top_meters": [{"name": "Premium SSD P30", "monthly": 600.0}]},
-            {"subscription": "logs-prod", "environment": "Production", "monthly": 5000.0,
+            {"subscription": "app-prod", "environment": "Production", "monthly": 5000.0,
              "top_services": [{"name": "Log Analytics", "monthly": 2500.0}], "top_meters": []},
+            {"subscription": "MSD-AEN-Security(ebdc0597)", "environment": "Production", "monthly": 5000.0,
+             "top_services": [{"name": "Sentinel", "monthly": 2500.0}], "top_meters": []},
             {"subscription": "archive", "environment": None, "monthly": 3000.0,
              "top_services": [{"name": "Storage", "monthly": 2000.0}, {"name": "Backup", "monthly": 1000.0}],
              "top_meters": []},
@@ -46,7 +48,7 @@ def test_waste_is_asked_about_never_assumed():
 
     found = {(item["subscription"], item["kind"]) for item in finops_extra.waste(rows)}
 
-    assert found == {("app-dev", "premium-disks-non-production"), ("logs-prod", "monitoring-share"),
+    assert found == {("app-dev", "premium-disks-non-production"), ("app-prod", "monitoring-share"),
                      ("archive", "storage-only")}
 
 

@@ -7,6 +7,7 @@ never computes them.
 from __future__ import annotations
 
 from . import months
+from .solutions import _tokens
 
 HYBRID_WINDOW = 3
 # License meters Azure Hybrid Benefit removes when the customer brings its own licenses
@@ -30,6 +31,9 @@ PREMIUM_DISKS = ("Premium SSD", "Ultra Disk", "Premium SSD v2")
 MONITORING = {"Log Analytics", "Azure Monitor", "Sentinel"}
 MONITORING_SHARE = 0.3
 MONITORING_MIN = 2000.0
+# Central logging and security live in these by design: their monitoring share is no signal.
+CENTRAL_SUBSCRIPTION = {"security", "sec", "soc", "siem", "sentinel", "management", "mgmt", "monitoring", "mon",
+                        "log", "logs", "logging", "hub", "shared", "shr", "platform", "identity", "connectivity"}
 STORAGE_ONLY = {"Storage", "Backup", "Azure NetApp Files", "Azure Files", "Bandwidth"}
 STORAGE_ONLY_MIN = 1000.0
 
@@ -87,7 +91,8 @@ def waste(subscriptions: list[dict]) -> list[dict]:
                               "monthly_at_stake": round(premium, 2),
                               "detail": f"Premium or Ultra disks in a {row['environment'].lower()} subscription"})
         watching = sum(cost for service, cost in services.items() if service in MONITORING)
-        if watching >= MONITORING_MIN and monthly and watching / monthly >= MONITORING_SHARE:
+        central = bool(_tokens(row["subscription"].split("(")[0]) & CENTRAL_SUBSCRIPTION)
+        if watching >= MONITORING_MIN and monthly and watching / monthly >= MONITORING_SHARE and not central:
             found.append({"subscription": row["subscription"], "kind": "monitoring-share",
                           "monthly_at_stake": round(watching, 2),
                           "detail": f"Monitoring and log ingestion is {round(watching / monthly * 100)}% of the subscription"})

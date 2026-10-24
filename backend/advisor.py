@@ -352,6 +352,11 @@ def finops_facts(finops: dict, brief_facts: dict | None, customer_view: bool = F
         "worth_a_look": (finops.get("waste") or [])[:10],
         "fastest_growing_services": ((finops.get("growth") or {}).get("services") or [])[:6],
         "budget": finops.get("budget"),
+        # Read on real bills (2026-10-24): both were mistaken for spend to act on.
+        "how_to_read": [
+            "'Virtual Machine Licenses' mixes Microsoft licenses with third-party software (e.g. firewalls) billed "
+            "through Marketplace; Azure Hybrid Benefit can remove only the hybrid_benefit amounts, never the rest.",
+            "'Unassigned' is reservation and savings-plan purchases, not usage: its growth is commitments bought."],
     }
     if not customer_view and brief_facts:
         facts.update(commitment=brief_facts.get("commitment"), pitches=brief_facts.get("pitches"),

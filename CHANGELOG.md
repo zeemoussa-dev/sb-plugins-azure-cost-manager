@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.50.1] - 2026-10-24
+
+- fix: **FinOps on real bills** (checked on FAB and Mubadala, 2026-10-24).
+  - **Monitoring is no longer flagged where it belongs.** "Worth a look" no longer flags a monitoring share in a subscription named for security, management, logging, a hub or shared services. Central Sentinel and Log Analytics live there by design: Mubadala's `MSD-AEN-Security` and `MSD-AEN-Management` were flagged.
+  - **Hybrid Benefit is no longer tied to the license spike.** FAB's savings plan tied it to the $3.37M "Virtual Machine Licenses" spike, which is Fortinet software billed through Marketplace. Hybrid Benefit covers only the $37K of Windows Server.
+  - **"Unassigned" growth is no longer read as usage.** Mubadala's report counted it as spend; it is commitment purchases.
+  - Compass is now told both facts about these lines.
+
 ## [0.50.0] - 2026-10-24
 
 - feat: **FinOps with Compass** (operator, 2026-10-24: "use LLM inside the FinOps tab to the max"). The plugin computes the findings, and Compass turns them into decisions.
