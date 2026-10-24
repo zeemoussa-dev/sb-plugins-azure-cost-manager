@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
-import { NoteText } from '../../pluginHost/noteText';
 import {
   fetchSavingsPlan, fetchSavingsReport, OPTION_LABELS, writeSavingsPlan, writeSavingsReport,
   type Kept, type SavingsMove, type SavingsPlan,
 } from './client';
+import { KeptTextButton, useRememberedFold } from './CompassText';
 import { DrillLink } from './Drill';
 import { errorText, formatMoney } from './format';
 import { Loading } from './Loading';
-import { Popup } from './Popup';
 
 const MOVE_LABELS: Record<SavingsMove['kind'], string> = {
   reserve: 'Reserve',
@@ -16,12 +15,6 @@ const MOVE_LABELS: Record<SavingsMove['kind'], string> = {
   keep_on_demand: 'Keep on demand',
   investigate: 'Ask about',
 };
-
-const PLAN_FOLDED_KEY = 'azure-cost-manager.savings-plan-folded';
-
-function readFolded(): boolean {
-  try { return localStorage.getItem(PLAN_FOLDED_KEY) === '1'; } catch { return false; }
-}
 
 function MoveSubject({ move }: { move: SavingsMove }) {
   return move.subject === 'subscription' ? <DrillLink kind="subscription" name={move.ref} /> : <>{move.ref}</>;
@@ -36,12 +29,7 @@ export function SavingsPlanCard({ customerId, currency, accounts }: {
   const [found, setFound] = useState<Kept<SavingsPlan> | null>(null);
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Folded or not is the viewer's choice, kept across customers and visits.
-  const [open, setOpen] = useState(() => !readFolded());
-  const fold = (nowOpen: boolean) => {
-    setOpen(nowOpen);
-    try { localStorage.setItem(PLAN_FOLDED_KEY, nowOpen ? '0' : '1'); } catch { /* storage may be blocked */ }
-  };
+  const [open, fold] = useRememberedFold('azure-cost-manager.savings-plan-folded');
   useEffect(() => {
     setFound(null);
     fetchSavingsPlan(customerId, accounts).then(setFound, (failure) => setError(errorText(failure)));
@@ -103,62 +91,15 @@ export function SavingsPlanCard({ customerId, currency, accounts }: {
   );
 }
 
-function SavingsReportBody({ customerId, accounts }: { customerId: string; accounts?: string[] }) {
-  const [found, setFound] = useState<Kept<string> | null>(null);
-  const [writing, setWriting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const write = () => {
-    setWriting(true); setError(null);
-    writeSavingsReport(customerId, accounts).then(setFound, (failure) => setError(errorText(failure))).finally(() => setWriting(false));
-  };
-  useEffect(() => {
-    fetchSavingsReport(customerId, accounts).then((kept) => {
-      setFound(kept);
-      if (!kept.kept && kept.available) write();
-    }, (failure) => setError(errorText(failure)));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId, accounts?.join(',')]);
-
-  if (error && !found?.value) return <div className="azure-cost-error">{error}</div>;
-  if (!found || writing) return <Loading label={writing ? 'Compass is writing the savings report — this can take a minute…' : 'Loading…'} />;
-  if (!found.value) {
-    return <p className="empty-state">{found.available ? 'No report yet.' : 'Compass is not available to plugins on this install.'}</p>;
-  }
-  const copy = () => {
-    try {
-      void navigator.clipboard.writeText(found.value ?? '').then(() => setCopied(true));
-    } catch { /* the clipboard may be blocked; the text is on screen */ }
-  };
-  return (
-    <>
-      <div className="azure-cost-toolbar">
-        <span className="text-muted azure-cost-note">
-          Written by Compass from this customer's own findings only — nothing about pitches, quota or pipeline. Check before you send it.
-        </span>
-        <button type="button" className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
-        <button type="button" className="btn" disabled={writing || !found.available} onClick={write}>Write again</button>
-      </div>
-      {found.stale ? <p className="azure-cost-warning">The findings have changed since. Write it again for the latest.</p> : null}
-      <div className="azure-cost-brief"><NoteText text={found.value} /></div>
-    </>
-  );
-}
-
 /** A savings report to hand the customer (operator, 2026-10-24). */
 export function SavingsReportButton({ customerId, customerName, accounts }: {
   customerId: string; customerName: string; accounts?: string[];
 }) {
-  const [open, setOpen] = useState(false);
   return (
-    <>
-      <button type="button" className="btn" onClick={() => setOpen(true)}
-              title="A savings report for the customer's IT and finance leads, written by Compass">Savings report</button>
-      {open ? (
-        <Popup kicker="Savings report for the customer" title={customerName} onClose={() => setOpen(false)} tall>
-          <SavingsReportBody customerId={customerId} accounts={accounts} />
-        </Popup>
-      ) : null}
-    </>
+    <KeptTextButton label="Savings report" kicker="Savings report for the customer" title={customerName}
+                    hint="A savings report for the customer's IT and finance leads, written by Compass"
+                    read={() => fetchSavingsReport(customerId, accounts)} write={() => writeSavingsReport(customerId, accounts)}
+                    source="Written by Compass from this customer's own findings only — nothing about pitches, quota or pipeline. Check before you send it."
+                    writingLabel="Compass is writing the savings report — this can take a minute…" />
   );
 }

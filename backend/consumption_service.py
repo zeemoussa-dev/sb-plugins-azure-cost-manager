@@ -8,7 +8,8 @@ from typing import Callable
 
 from . import (brief, consumption_analysis, finops_extra, memory, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
-               marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tags, this_month,
+               marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tag_gaps, tags,
+               this_month,
                whitespace)
 from .consumption_store import ConsumptionStore
 from .customers import CustomerBook, short_name
@@ -632,21 +633,26 @@ class ConsumptionService:
                          "budget": found["budget"]})
         return sorted(rows, key=lambda row: (-row["candidates_monthly"], row["name"].lower()))
 
-    def _tags_of(self, customer: dict, only: set[str] | None = None) -> dict:
+    def _tags_of(self, customer: dict, only: set[str] | None = None, gaps: bool = False) -> dict:
         merged, currency, entries = self._merged(customer, only=only)
         totals = {month: sum(((data.get("actual") or {}).get("service") or {}).values())
                   for month, data in merged.items()}
-        return {"customer": {"id": customer["id"], "name": customer["name"]},
-                "currency": (currency or "").strip() or None,
-                "synced": any((entry.get("tags") or {}).get("keys_fetched_at") for entry in entries.values()),
-                **tags.report(entries, totals, months.month_of(self._today()))}
+        current = months.month_of(self._today())
+        found = {"customer": {"id": customer["id"], "name": customer["name"]},
+                 "currency": (currency or "").strip() or None,
+                 "synced": any((entry.get("tags") or {}).get("keys_fetched_at") for entry in entries.values()),
+                 **tags.report(entries, totals, current)}
+        if gaps:
+            subscriptions = self._solutions_view(self._group(customer), self._patterns(), only)["subscriptions"]
+            found["gaps"] = tag_gaps.gaps(found, entries, subscriptions, current)
+        return found
 
     def tags(self, customer_id: str, shown: list[str] | None = None) -> dict:
         """A customer's cost by business tag -- Environment, Project, Application,
         Business unit, Owner, Cost centre -- with coverage and the spellings behind
         each. Nothing here is internal: the Customer view shows it all."""
         customer = self._customer(customer_id)
-        return self._tags_of(customer, self._only(customer, shown))
+        return self._tags_of(customer, self._only(customer, shown), gaps=True)
 
     def tags_across(self) -> list[dict]:
         """Every top-level customer's tag coverage, per dimension, last closed month."""

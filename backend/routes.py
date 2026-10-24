@@ -192,6 +192,22 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def post_finops_report(customer_id: str, accounts: str | None = None) -> dict:
         return _compass(lambda: advisor.finops_report(customer_id, True, _account_list(accounts)))
 
+    @router.get("/customers/{customer_id}/tags/plan")
+    def get_tagging_plan(customer_id: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.tagging_plan(customer_id, False, _account_list(accounts)))
+
+    @router.post("/customers/{customer_id}/tags/plan")
+    def post_tagging_plan(customer_id: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.tagging_plan(customer_id, True, _account_list(accounts)))
+
+    @router.get("/customers/{customer_id}/tags/guide")
+    def get_tagging_guide(customer_id: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.tagging_guide(customer_id, False, _account_list(accounts)))
+
+    @router.post("/customers/{customer_id}/tags/guide")
+    def post_tagging_guide(customer_id: str, accounts: str | None = None) -> dict:
+        return _compass(lambda: advisor.tagging_guide(customer_id, True, _account_list(accounts)))
+
     @router.get("/advisor/actions")
     def get_actions() -> dict:
         return _compass(advisor.actions)

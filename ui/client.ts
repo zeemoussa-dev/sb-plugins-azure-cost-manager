@@ -727,6 +727,8 @@ export interface TagsReport {
   synced: boolean;
   tag_keys: number;
   dimensions: TagDimension[];
+  /** Where tagging falls short against the six business dimensions. */
+  gaps?: TagGaps;
 }
 
 export interface TagsAcrossRow {
@@ -737,6 +739,57 @@ export interface TagsAcrossRow {
   coverage: Record<string, number | null>;
   spellings: Record<string, number>;
 }
+
+export interface TagGapDimension {
+  dimension: string;
+  used: boolean;
+  coverage_pct?: number | null;
+  below_target?: boolean;
+  untagged_last_month?: number;
+  last_month?: string | null;
+  coverage_trend?: { month: string; coverage_pct: number }[];
+  spellings?: string[];
+  values?: number;
+  value_drift?: { value: string; written_as: string[]; cost: number }[];
+}
+
+export interface TagGaps {
+  standard: string[];
+  coverage_target_pct: number;
+  tag_keys: number;
+  dimensions: TagGapDimension[];
+  missing: string[];
+  environment_in_subscription_names: {
+    subscriptions: number; of_subscriptions: number; monthly: number; share_pct: number | null;
+    by_environment: Record<string, number>;
+  };
+}
+
+export interface TaggingMove {
+  kind: 'adopt_key' | 'standardize_key' | 'normalize_values' | 'inherit' | 'enforce_policy' | 'backfill' | 'allocate_untagged';
+  dimension: string;
+  coverage_pct: number | null;
+  untagged_last_month: number | null;
+  detail: string;
+  why: string;
+  effort: 'low' | 'medium' | 'high';
+}
+
+export interface TaggingPlan {
+  summary: string;
+  moves: TaggingMove[];
+  offer: string;
+  questions: string[];
+}
+
+export const fetchTaggingPlan = (id: string, accounts?: string[]) =>
+  apiFetch<Kept<TaggingPlan>>(`${customer(id)}/tags/plan${onlyAccounts(accounts)}`);
+export const writeTaggingPlan = (id: string, accounts?: string[]) =>
+  apiFetch<Kept<TaggingPlan>>(`${customer(id)}/tags/plan${onlyAccounts(accounts)}`, { method: 'POST' });
+export const fetchTaggingGuide = (id: string, accounts?: string[]) =>
+  apiFetch<Kept<string>>(`${customer(id)}/tags/guide${onlyAccounts(accounts)}`);
+export const writeTaggingGuide = (id: string, accounts?: string[]) =>
+  apiFetch<Kept<string>>(`${customer(id)}/tags/guide${onlyAccounts(accounts)}`, { method: 'POST' });
 
 export const UNTAGGED = '(untagged)';
 export const fetchTags = (id: string, accounts?: string[]) => apiFetch<TagsReport>(`${customer(id)}/tags${onlyAccounts(accounts)}`);

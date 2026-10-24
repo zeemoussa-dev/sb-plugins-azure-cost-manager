@@ -215,6 +215,7 @@ TOOLS = {
     "savings_candidates": "every customer's steady on-demand spend worth committing and its estimated saving. args: {}",
     "hybrid_benefit": "customers billed for Windows Server, SQL Server, RHEL or SUSE licenses Azure Hybrid Benefit could remove. args: {}",
     "commitment_renewals": "customers whose up-front commitments may renew soon (one- or three-year terms). args: {}",
+    "tag_coverage": "every customer's tag coverage by business dimension (environment, project, application, business unit, owner, cost centre) and how many spellings each key has. args: {}",
 }
 
 
@@ -432,4 +433,85 @@ def finops_report_messages(facts: dict) -> list[dict]:
         "licenses; what is worth checking (as questions); where they stand on budget. Markdown with headings "
         "'Where you stand', 'Commit to save', 'Licenses you may already own', 'Worth checking', 'Next steps'; under "
         "350 words. A section with nothing to say is left out."),
+        {"role": "user", "content": "Findings:\n" + compass.json_block(facts)}]
+
+
+# -- tagging --------------------------------------------------------------------------
+
+TAGGING_MOVES = ("adopt_key", "standardize_key", "normalize_values", "inherit", "enforce_policy", "backfill",
+                 "allocate_untagged")
+EFFORT = ("low", "medium", "high")
+
+
+def tagging_facts(report: dict, brief_facts: dict | None, customer_view: bool = False) -> dict:
+    """What Compass reads for tagging: the gaps as computed, and -- for the seller only --
+    what the customer runs, the pitches and what the seller said."""
+    gaps = report.get("gaps") or {}
+    facts = {
+        "customer": (report.get("customer") or {}).get("name"),
+        "currency": report.get("currency"),
+        "standard_dimensions": gaps.get("standard"),
+        "coverage_target_pct": gaps.get("coverage_target_pct"),
+        "tag_keys_in_use": gaps.get("tag_keys"),
+        "dimensions": gaps.get("dimensions"),
+        "not_used_at_all": gaps.get("missing"),
+        "environment_in_subscription_names": gaps.get("environment_in_subscription_names"),
+    }
+    if not customer_view and brief_facts:
+        facts.update(running=brief_facts.get("solutions"), pitches=brief_facts.get("pitches"),
+                     seller_says=brief_facts.get("seller_says"))
+    return facts
+
+
+def tagging_plan_messages(facts: dict) -> list[dict]:
+    return [_system(
+        "Turn this customer's tagging gaps into a tagging plan for the seller. Tagging is what makes showback, "
+        "chargeback, FinOps and budgets per team possible -- the seller's way into a governance conversation. "
+        "For each gap choose a move: adopt_key (a standard dimension not used), standardize_key (one spelling "
+        "instead of several), normalize_values (one value instead of prd/prod/PROD), inherit (tag inheritance from "
+        "the subscription or resource group -- use it where subscription names already say the environment), "
+        "enforce_policy (Azure Policy: require on new resources, then Modify to add missing tags), backfill (tag "
+        "what exists), allocate_untagged (split untagged shared cost by a rule). Order by what moves coverage most "
+        "for least effort. Then one or two sentences on what the seller can offer (a governance or landing-zone "
+        "engagement, Cost Management views per team), and questions for the customer's cloud team.\n"
+        'Answer with one JSON object: {"summary": <3 sentences>, "moves": [{"kind": <one of the moves>, '
+        '"dimension": <a standard dimension, exactly as given>, "detail": <what exactly: keys, values, scope>, '
+        '"why": <one sentence>, "effort": "low"|"medium"|"high"}], "offer": <1-2 sentences>, "questions": [<up to 4>]}. '
+        "At most 8 moves. Nothing else."),
+        {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
+
+
+def check_tagging_plan(reply: str, facts: dict) -> dict:
+    """Moves about the standard dimensions only; each carries the plugin's coverage and
+    untagged spend, never the model's."""
+    found = compass.json_object(reply)
+    by_dimension = {item["dimension"]: item for item in facts.get("dimensions") or []}
+    moves = []
+    for move in found.get("moves") or []:
+        if not isinstance(move, dict) or move.get("kind") not in TAGGING_MOVES:
+            continue
+        dimension = by_dimension.get(move.get("dimension"))
+        if not dimension:
+            continue
+        moves.append({"kind": move["kind"], "dimension": dimension["dimension"],
+                      "coverage_pct": dimension.get("coverage_pct"),
+                      "untagged_last_month": dimension.get("untagged_last_month"),
+                      "detail": str(move.get("detail") or "")[:300], "why": str(move.get("why") or "")[:300],
+                      "effort": move.get("effort") if move.get("effort") in EFFORT else "medium"})
+    return {"summary": str(found.get("summary") or "")[:900], "moves": moves[:8],
+            "offer": str(found.get("offer") or "")[:500],
+            "questions": [str(item)[:240] for item in (found.get("questions") or [])[:4]]}
+
+
+def tagging_guide_messages(facts: dict) -> list[dict]:
+    return [_system(
+        "Write tagging guidance for the CUSTOMER's cloud and finance teams, from these findings of their own Azure "
+        "bill. Nothing about the seller, quotas, pipeline or pitches. Practical and specific to them: figures "
+        "exactly as given, their own key spellings and values named. Markdown with headings 'Where you stand' "
+        "(coverage per dimension, what is not used, the spellings and values that drift), 'A tagging standard' (a "
+        "table: tag key -- one spelling each, allowed values, required or optional, who owns it; keep keys they "
+        "already use where one is clearly dominant), 'Close the gaps' (inheritance from subscriptions or resource "
+        "groups where names already say the environment, backfilling, folding values), 'Enforce it' (Azure Policy: "
+        "require tags on new resource groups and resources, inherit from the subscription or resource group with "
+        "Modify, audit first then deny), 'Next steps'. Under 450 words."),
         {"role": "user", "content": "Findings:\n" + compass.json_block(facts)}]

@@ -145,6 +145,31 @@ class Advisor:
             self._answers.put("finops-report", key, stamp, text.strip())
         return self._kept("finops-report", key, stamp)
 
+    # -- tagging --------------------------------------------------------------------
+
+    def _tagging_facts(self, customer_id: str, customer_view: bool, accounts: list[str] | None) -> dict:
+        found = self._service.tags(customer_id, accounts)
+        return advisor.tagging_facts(found, None if customer_view else self._service.brief_facts(customer_id), customer_view)
+
+    def tagging_plan(self, customer_id: str, write: bool = False, accounts: list[str] | None = None) -> dict:
+        """Compass's tagging plan over the gaps (operator, 2026-10-24): which keys and values
+        to standardize, what inheritance and policy fill, in order of coverage for effort."""
+        facts = self._tagging_facts(customer_id, False, accounts)
+        stamp, key = compass.fingerprint(facts), f"{customer_id}|{','.join(accounts or [])}"
+        if write:
+            plan = advisor.check_tagging_plan(compass.ask(self._llm, advisor.tagging_plan_messages(facts)), facts)
+            self._answers.put("tagging-plan", key, stamp, plan)
+        return self._kept("tagging-plan", key, stamp)
+
+    def tagging_guide(self, customer_id: str, write: bool = False, accounts: list[str] | None = None) -> dict:
+        """Tagging guidance to hand the customer: their own gaps only, nothing internal."""
+        facts = self._tagging_facts(customer_id, True, accounts)
+        stamp, key = compass.fingerprint(facts), f"{customer_id}|{','.join(accounts or [])}"
+        if write:
+            text = compass.ask(self._llm, advisor.tagging_guide_messages(facts))
+            self._answers.put("tagging-guide", key, stamp, text.strip())
+        return self._kept("tagging-guide", key, stamp)
+
     # -- size a solution -----------------------------------------------------------
 
     def size(self, solution_id: str, answers: str, customer_id: str | None = None) -> dict:
@@ -223,6 +248,10 @@ class Advisor:
                      "customers": [customer["name"] for customer in product["customers"]]}
                     for product in (services.get("saas") or {}).get("marketplace") or []
                     if words and words in f"{product['publisher']} {product['offer']} {product['plan']}".lower()][:20]
+        if call["tool"] == "tag_coverage":
+            return [{"customer": row["name"], "tag_keys": row["tag_keys"], "coverage_pct": row["coverage"],
+                     "spellings_per_dimension": row["spellings"]}
+                    for row in self._service.tags_across() if row["synced"]][:30]
         if call["tool"] == "savings_candidates":
             return [{"customer": row["name"], "steady_on_demand_monthly": row["candidates_monthly"],
                      "coverage_pct": row["coverage_pct"], "saving_monthly_by_option": row["savings_monthly"],

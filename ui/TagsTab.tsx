@@ -4,6 +4,7 @@ import { SeriesChart } from './charts';
 import { fetchTags, startTagSync, UNTAGGED, type TagsReport, type View } from './client';
 import { errorText, formatMoney, formatMonth } from './format';
 import { Loading } from './Loading';
+import { TaggingGaps, TaggingGuideButton, TaggingPlanCard } from './TaggingCompass';
 
 // Values beyond these are added up as "Other" in the chart; the table lists them all.
 const CHARTED_VALUES = 6;
@@ -33,6 +34,15 @@ export function TagsTab({ customerId, syncedVersion, view, accounts }: {
       (failure) => setNotice(errorText(failure)))}>Sync tags</button>
   ) : null;
 
+  const compass = (
+    <>
+      {view === 'account' ? <TaggingPlanCard customerId={customerId} currency={report.currency} accounts={accounts} /> : null}
+      {report.gaps ? <TaggingGaps gaps={report.gaps} currency={report.currency} /> : null}
+    </>
+  );
+  const guide = report.synced
+    ? <TaggingGuideButton customerId={customerId} customerName={report.customer.name} accounts={accounts} /> : null;
+
   if (!report.dimensions.length) {
     return (
       <>
@@ -40,8 +50,9 @@ export function TagsTab({ customerId, syncedVersion, view, accounts }: {
           {report.synced ? 'None of the usual business tags (environment, project, application, business unit, owner, cost centre) is used on these enrollments.'
             : 'Tags not synced for this customer yet.'}
         </p>
-        <div className="azure-cost-toolbar">{syncTags}</div>
+        <div className="azure-cost-toolbar">{syncTags}{guide}</div>
         {notice ? <p className="text-muted azure-cost-note">{notice}</p> : null}
+        {report.synced ? compass : null}
       </>
     );
   }
@@ -69,8 +80,10 @@ export function TagsTab({ customerId, syncedVersion, view, accounts }: {
           ))}
         </div>
         {syncTags}
+        {guide}
       </div>
       {notice ? <p className="text-muted azure-cost-note">{notice}</p> : null}
+      {compass}
 
       <div className="azure-cost-kpis">
         <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Tagged with {dimension.dimension}</span>

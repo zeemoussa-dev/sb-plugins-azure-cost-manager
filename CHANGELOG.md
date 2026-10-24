@@ -2,6 +2,31 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.51.0] - 2026-10-24
+
+- feat: **Tagging with Compass** (operator, 2026-10-24: "tagging recommendations using Compass, and some tagging guidance and gaps for the customer"). The plugin computes the gaps; Compass turns them into a plan and a guide.
+  - **Tagging gaps** card on the Tags tab, in both views. It measures against six business tags (Environment, Project, Application, Business unit, Owner, Cost centre), with 80% of spend tagged as the target. For each tag it shows:
+    - the share tagged last month, with its trend;
+    - the untagged spend;
+    - every spelling of the key;
+    - values written several ways (`prd`, `prod`, `PROD`);
+    - whether it is not used at all.
+    The card also shows how much spend sits in subscriptions whose names already say their environment: an inherited Environment tag would cover that spend.
+  - **Tagging plan** (seller view, foldable like the savings plan): Compass orders the moves by coverage gained for effort:
+    - adopt a missing tag;
+    - use one spelling of a key, and one spelling per value;
+    - inherit from the subscription or resource group;
+    - enforce with Azure Policy;
+    - backfill;
+    - allocate untagged cost.
+    It also says what the seller can offer and what to ask the customer's cloud team.
+    - **Checked:** each move must name one of the six tags, and the coverage and untagged spend shown are the plugin's figures.
+    - Kept until the tags change; **Ask again** rewrites it.
+  - **Tagging guidance** (button, both views): a guide for the customer's cloud and finance teams, with Copy. It covers where they stand, a proposed tagging standard (one spelling per key, allowed values, required or optional, owner), how to close the gaps, and how to enforce the standard with Azure Policy. It is written only from the customer's own tags.
+  - **Ask** gains a tag-coverage report across customers.
+  - **Routes:** `GET/POST /customers/{id}/tags/plan`, `GET/POST /customers/{id}/tags/guide`. `/customers/{id}/tags` now also returns `gaps`.
+  - Internal: the savings plan and the tagging plan share one remembered fold, and the savings report and the tagging guidance share one popup.
+
 ## [0.50.2] - 2026-10-24
 
 - feat: **the savings plan folds away** (operator, 2026-10-24: "I need the generated savings plan to be collapsible"). Click its title to fold or unfold it. While folded, the title shows the number of moves and whether the plan is out of date; **Ask again** stays in the title. The choice is kept in this browser, for every customer.
