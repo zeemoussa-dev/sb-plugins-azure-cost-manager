@@ -145,6 +145,12 @@ export function SolutionsTab({ customerId, syncedVersion, accounts }: {
         <p className="empty-state">What this customer's subscriptions are used for is not synced yet. It is read with the tags.</p>
         <div className="azure-cost-toolbar">{sync}</div>
         {notice ? <p className="text-muted azure-cost-note">{notice}</p> : null}
+        {/* Compass reads the consumption, MACC, pipeline and industry, so it can pitch before
+            the subscriptions are read (FAB, 2026-10-24); the rules' pitches cannot. */}
+        <section className="card azure-cost-card">
+          <h3>What to pitch</h3>
+          <CompassPitches customerId={view.customer.id} />
+        </section>
       </>
     );
   }

@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.52.2] - 2026-10-24
+
+- fix: **Compass's pitches show before a customer's subscriptions are synced** (checked on FAB, 2026-10-24). The Solutions tab showed only "not synced yet", so FAB's industry use cases (AML alert triage, the Nebras open-finance interface, IFRS 9 regulatory reporting) were written but never seen. Compass reads the consumption, MACC, pipeline and industry, so its card now shows in that state too. The rules' pitches still wait for the sync.
+
 ## [0.52.1] - 2026-10-24
 
 - fix: **checked on FAB and Mubadala** (2026-10-24).
