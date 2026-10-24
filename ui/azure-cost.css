@@ -974,3 +974,7 @@ tr.azure-cost-affiliate td:first-child {
   font-weight: normal;
 }
 
+/* A fold whose head also holds an action, pushed to the right. */
+.azure-cost-fold-head > .btn {
+  margin-left: auto;
+}

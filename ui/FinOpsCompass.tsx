@@ -17,6 +17,12 @@ const MOVE_LABELS: Record<SavingsMove['kind'], string> = {
   investigate: 'Ask about',
 };
 
+const PLAN_FOLDED_KEY = 'azure-cost-manager.savings-plan-folded';
+
+function readFolded(): boolean {
+  try { return localStorage.getItem(PLAN_FOLDED_KEY) === '1'; } catch { return false; }
+}
+
 function MoveSubject({ move }: { move: SavingsMove }) {
   return move.subject === 'subscription' ? <DrillLink kind="subscription" name={move.ref} /> : <>{move.ref}</>;
 }
@@ -30,6 +36,12 @@ export function SavingsPlanCard({ customerId, currency, accounts }: {
   const [found, setFound] = useState<Kept<SavingsPlan> | null>(null);
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Folded or not is the viewer's choice, kept across customers and visits.
+  const [open, setOpen] = useState(() => !readFolded());
+  const fold = (nowOpen: boolean) => {
+    setOpen(nowOpen);
+    try { localStorage.setItem(PLAN_FOLDED_KEY, nowOpen ? '0' : '1'); } catch { /* storage may be blocked */ }
+  };
   useEffect(() => {
     setFound(null);
     fetchSavingsPlan(customerId, accounts).then(setFound, (failure) => setError(errorText(failure)));
@@ -42,14 +54,18 @@ export function SavingsPlanCard({ customerId, currency, accounts }: {
   if (!found) return error ? <div className="azure-cost-error">{error}</div> : null;
   const plan = found.value;
   return (
-    <section className="card azure-cost-card">
-      <div className="azure-cost-card-head">
+    <details className="card azure-cost-card azure-cost-fold" open={open}
+             onToggle={(event) => { const nowOpen = (event.target as HTMLDetailsElement).open; if (nowOpen !== open) fold(nowOpen); }}>
+      <summary className="azure-cost-fold-head">
         <h3>Savings plan</h3>
-        <button type="button" className="btn btn-primary" disabled={writing || !found.available} onClick={write}
+        {plan && !open ? <span className="text-muted">{plan.moves.length} move{plan.moves.length === 1 ? '' : 's'}{found.stale ? ' · out of date' : ''}</span> : null}
+        {/* preventDefault: a click on the button must not fold the card. */}
+        <button type="button" className="btn btn-primary" disabled={writing || !found.available}
+                onClick={(event) => { event.preventDefault(); fold(true); write(); }}
                 title={found.available ? 'Compass weighs the candidates, coverage, renewals, licenses, growth, the MACC, pitches and what you told it'
                   : 'Compass is not available to plugins on this install'}>
           {plan ? 'Ask again' : 'Ask Compass for a savings plan'}</button>
-      </div>
+      </summary>
       {error ? <div className="azure-cost-error">{error}</div> : null}
       {writing ? <Loading label="Compass is weighing what to commit, what to hold and what to reinvest…" /> : plan ? (
         <>
@@ -83,7 +99,7 @@ export function SavingsPlanCard({ customerId, currency, accounts }: {
           </p>
         </>
       ) : <p className="text-muted">Compass turns the findings below into what to commit, what to hold and how to reinvest the savings.</p>}
-    </section>
+    </details>
   );
 }
 

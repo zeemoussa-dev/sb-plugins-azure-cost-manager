@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.50.2] - 2026-10-24
+
+- feat: **the savings plan folds away** (operator, 2026-10-24: "I need the generated savings plan to be collapsible"). Click its title to fold or unfold it. While folded, the title shows the number of moves and whether the plan is out of date; **Ask again** stays in the title. The choice is kept in this browser, for every customer.
+
 ## [0.50.1] - 2026-10-24
 
 - fix: **FinOps on real bills** (checked on FAB and Mubadala, 2026-10-24).
