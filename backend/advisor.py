@@ -8,7 +8,7 @@ is one the plugin computed -- a model's number is never shown as a fact.
 """
 from __future__ import annotations
 
-from . import compass
+from . import brief, compass
 from .industry import short as industry_short
 
 RULES = (
@@ -385,10 +385,8 @@ def finops_facts(finops: dict, brief_facts: dict | None, customer_view: bool = F
         "fastest_growing_services": ((finops.get("growth") or {}).get("services") or [])[:6],
         "budget": finops.get("budget"),
         # Read on real bills (2026-10-24): both were mistaken for spend to act on.
-        "how_to_read": [
-            "'Virtual Machine Licenses' mixes Microsoft licenses with third-party software (e.g. firewalls) billed "
-            "through Marketplace; Azure Hybrid Benefit can remove only the hybrid_benefit amounts, never the rest.",
-            "'Unassigned' is reservation and savings-plan purchases, not usage: its growth is commitments bought."],
+        "how_to_read": [*brief.HOW_TO_READ,
+                        "Azure Hybrid Benefit can remove only the hybrid_benefit amounts, never the rest of the licenses."],
         # The customer's own industry: fine for the customer's report as for the seller's plan.
         "industry": industry_short(industry),
     }

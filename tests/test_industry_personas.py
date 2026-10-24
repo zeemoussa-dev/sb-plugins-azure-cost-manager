@@ -29,14 +29,16 @@ class FakeVault:
 
 def vault():
     return FakeVault([
-        {"stem": "Bankfab", "path": "Customers/Bankfab/Bankfab.md", "frontmatter": {"type": "Customer", "industry": "[[Banking]]"}},
+        {"stem": "Bankfab", "path": "Customers/Bankfab/Bankfab.md",
+         "frontmatter": {"type": "Customer", "industry": "[[Banking]]", "aliases": ["FAB"]}},
         {"stem": "Bankfab Securities", "path": "Customers/Bankfab/Affiliates/Bankfab Securities.md",
          "frontmatter": {"type": "Customer"}},
         {"stem": "Banking", "path": "Industries/Banking.md",
          "frontmatter": {"type": "Industry", "parent": "[[Financial Services]]"},
          "sections": {"Business drivers": "- **CBUAE FIT Programme** -- every bank has integration work.",
                       "Regulatory": "CBUAE Circular C 14/2021: confidential data stays in the UAE.",
-                      "Key accounts": "- [[FAB]] (Bankfab): AED 1.40tn assets.\n- [[Emirates NBD]]: AED 1.16tn."}},
+                      "Key accounts": "- [[FAB]]: AED 1.40tn assets.\n- [[Emirates NBD]]: AED 1.16tn.\n"
+                                      "- Microsoft Fabric partners."}},
         {"stem": "AML Alert Triage", "path": "Industries/Banking/Use Cases/AML Alert Triage.md",
          "frontmatter": {"type": "IndustryUseCase", "industry": "[[Banking]]", "name": "AML alert triage",
                          "outcome": "Fewer false positives per analyst", "solutions": ["[[GenAI Applications]]"]}},
@@ -55,7 +57,7 @@ def test_the_industry_is_the_customer_notes_and_an_affiliate_takes_its_parents()
     affiliate = context.of("Bankfab Securities", "FAB Securities", parent_stem="Bankfab")
 
     assert found["industry"] == "Banking" and found["part_of"] == "Financial Services"
-    assert "CBUAE" in found["regulation"] and found["this_customer_in_it"] == ["- FAB (Bankfab): AED 1.40tn assets."]
+    assert "CBUAE" in found["regulation"] and found["this_customer_in_it"] == ["- FAB: AED 1.40tn assets."]
     assert found["use_cases"][0]["solutions"] == ["GenAI Applications"]
     assert affiliate["industry"] == "Banking"
 

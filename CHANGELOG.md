@@ -2,6 +2,12 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.52.1] - 2026-10-24
+
+- fix: **checked on FAB and Mubadala** (2026-10-24).
+  - **FAB's brief misread its September.** It opened on "a $10.1M jump in Virtual Machine Licenses", which is Fortinet software billed through Marketplace. The brief now gets the same reading notes as FinOps: VM licenses mix Microsoft licenses with third-party software, and "Unassigned" is commitment purchases.
+  - **FAB's line under the Banking note's Key accounts was missed**, because the note says `[[FAB]]`, not "Bankfab". The Customer note's aliases now count, matched as whole words ("FAB" is not "Fabric").
+
 ## [0.52.0] - 2026-10-24
 
 - feat: **Compass knows the customer's industry, and speaks through personas you can edit** (operator, 2026-10-24: "personas with customer knowledge and industry-specific knowledge ... Brief me as guidance of what to look for ... industry-specific solutions instead of technical ones alone ... follow that thought into every part").

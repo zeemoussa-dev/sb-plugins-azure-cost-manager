@@ -112,9 +112,14 @@ class IndustryContext:
                 found[key] = text
         # The customer's own line in the industry's key accounts: how the industry sees it.
         accounts = vault.read_section(note["path"], "Key accounts") or ""
-        names = {item.lower() for item in (customer_stem, customer_name) if item}
-        mine = [_plain(line, 600) for line in accounts.splitlines()
-                if any(item in line.lower() for item in names)]
+        # The industry note names an account the way people do -- "[[FAB]]", not "Bankfab" --
+        # so the Customer note's aliases count, as whole words ("FAB" is not "fabric").
+        hub = self._entry(entries, customer_stem) or {}
+        aliases = (hub.get("frontmatter") or {}).get("aliases") or []
+        names = {str(item).strip() for item in (customer_stem, customer_name,
+                                                 *(aliases if isinstance(aliases, list) else [aliases])) if item}
+        pattern = re.compile(r"\b(?:" + "|".join(re.escape(item) for item in names) + r")\b", re.IGNORECASE) if names else None
+        mine = [_plain(line, 600) for line in accounts.splitlines() if pattern and pattern.search(line)]
         if mine:
             found["this_customer_in_it"] = mine[:3]
         found["use_cases"] = self.use_cases(name, parent, entries)

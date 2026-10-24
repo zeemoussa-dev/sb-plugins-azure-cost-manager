@@ -16,6 +16,12 @@ import json
 SECTIONS = ["Headline", "What to look for", "Where they stand", "What moved", "What they are building",
             "What to pitch", "Pipeline and quota", "From recent conversations", "Questions to ask", "Watch out for"]
 RECENT_MONTHS = 6
+# Read on real bills (2026-10-24): both lines were taken for usage to act on -- FAB's brief
+# opened on a "$10.1M Virtual Machine Licenses spike" that was Fortinet software.
+HOW_TO_READ = [
+    "'Virtual Machine Licenses' mixes Microsoft licenses with third-party software (e.g. firewalls) billed through "
+    "Marketplace: a jump there is usually a Marketplace purchase, not more virtual machines.",
+    "'Unassigned' is reservation and savings-plan purchases, not usage: its growth is commitments bought."]
 TOP = 8
 
 
@@ -67,6 +73,7 @@ def facts(customer: dict, analysis: dict, quota: dict | None, solutions_view: di
         "seller_says": seller_says or [],
         # The customer's industry from its Industry note (`industry`), or why there is none.
         "industry": industry or {"industry": None},
+        "how_to_read": HOW_TO_READ,
     }
 
 
