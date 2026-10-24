@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from . import (brief, consumption_analysis, finops_extra, industry, memory, personas, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
+from . import (brief, consumption_analysis, customer_profile, finops_extra, industry, memory, personas, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
                marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tag_gaps, tags,
                this_month,
@@ -68,6 +68,7 @@ class ConsumptionService:
         self._customer_context = customer_context
         self._industry_context = industry_context
         self.personas = personas.Personas(store.personas, store.save_personas)
+        self.profile = customer_profile.CustomerProfile(store.customer_context, store.save_customer_context, today)
         self.memory = memory.CustomerMemory(store.customer_memory, store.save_customer_memory, today)
         self._solution_notes = solution_notes
         self._technology_notes = technology_notes
@@ -292,7 +293,8 @@ class ConsumptionService:
                   for pattern in self._patterns() if pattern.get("sizing")}
         vault = self._customer_context.about(customer.get("entity_customer")) if self._customer_context else {}
         return brief.facts(customer, analysis, quota_found, self.solutions_of(customer_id), sizing, vault,
-                           self.memory.handed(customer_id), self.industry_of(customer_id))
+                           self.memory.handed(customer_id), self.industry_of(customer_id),
+                           self.profile.handed(customer["id"]))
 
     def industry_of(self, customer_id: str) -> dict:
         """The customer's industry and what its Industry note says (`industry`); an affiliate

@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 from datetime import date
 
-from . import advisor, compass, personas, use_cases
+from . import advisor, compass, customer_profile, personas, use_cases
 
 ACTIONS_FOR = 30
 MARKETPLACE_BATCH = 40
@@ -113,6 +113,15 @@ class Advisor:
             self._answers.put("pitches", customer_id, stamp, found)
         return {**self._kept("pitches", customer_id, stamp), "industry": facts["industry"].get("industry"),
                 "industry_missing": facts["industry"].get("missing")}
+
+    # -- where the customer stands ---------------------------------------------------
+
+    def draft_context(self, customer_id: str) -> dict:
+        """Compass's draft of the customer's context, shown for the seller to correct and
+        save -- never saved by itself."""
+        facts = advisor.context_facts(self._service.brief_facts(customer_id))
+        reply = self._ask("context", advisor.context_messages(facts, customer_profile.FIELDS))
+        return {"draft": advisor.check_context(reply, customer_profile.KEYS)}
 
     # -- an industry use case, in detail -------------------------------------------
 

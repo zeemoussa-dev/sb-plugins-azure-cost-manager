@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { apiFetch } from '../../pluginHost/api';
 import { NoteText } from '../../pluginHost/noteText';
-import { fetchUseCase, publishUseCase, writeUseCase, type UseCaseDetails } from './client';
+import { fetchUseCase, publishUseCase, remember, writeUseCase, type UseCaseDetails } from './client';
 import { errorText } from './format';
 import { Loading } from './Loading';
 import { Popup } from './Popup';
@@ -18,6 +18,7 @@ function UseCaseBody({ customerId, customerName, pitch, onPublished }: {
   const [found, setFound] = useState<UseCaseDetails | null>(null);
   const [busy, setBusy] = useState<'writing' | 'publishing' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [said, setSaid] = useState('');
   const write = () => {
     setBusy('writing'); setError(null);
     writeUseCase(customerId, pitch).then(setFound, (failure) => setError(errorText(failure))).finally(() => setBusy(null));
@@ -47,6 +48,11 @@ function UseCaseBody({ customerId, customerName, pitch, onPublished }: {
     return <p className="empty-state">{found.available ? 'Not written yet.' : 'Compass is not available to plugins on this install.'}</p>;
   }
   const mine = found.value.for_this_customer;
+  // What the seller adds goes into the customer's memory -- every feature reads it -- then this is written again.
+  const refine = () => {
+    if (!said.trim()) return;
+    remember(customerId, said, 'use case').then(() => { setSaid(''); write(); }, (failure) => setError(errorText(failure)));
+  };
   const canPublish = !found.use_case_note && found.industry_note && found.note_markdown;
   return (
     <>
@@ -77,6 +83,17 @@ function UseCaseBody({ customerId, customerName, pitch, onPublished }: {
         {mine.why_them ? <NoteText text={mine.why_them} /> : null}
         {mine.first_step ? <p><strong>First step:</strong> {mine.first_step}</p> : null}
         {mine.questions.length ? <ul>{mine.questions.map((question) => <li key={question}>{question}</li>)}</ul> : null}
+        <form className="azure-cost-explain-reply" onSubmit={(event) => { event.preventDefault(); refine(); }}>
+          <label className="field-labeled">Refine: what Compass should know
+            <textarea rows={2} value={said} onChange={(event) => setSaid(event.target.value)}
+                      placeholder="e.g. Their alert data sits in Actimize on-premises; Compliance owns the budget, not IT" />
+          </label>
+          <button type="submit" className="btn" disabled={!said.trim() || busy !== null || !found.available}>Remember and rewrite</button>
+        </form>
+        <p className="text-muted azure-cost-note">
+          Where the customer stands (digital maturity, data today, cloud, AI readiness) is set in Customer context on the
+          Solutions tab; what you add here is kept in its memory.
+        </p>
       </section>
       <h4>The use case{found.use_case_note ? '' : ', as it would be filed'}</h4>
       <div className="azure-cost-brief">

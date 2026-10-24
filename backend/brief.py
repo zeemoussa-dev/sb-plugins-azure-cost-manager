@@ -30,7 +30,8 @@ def _r(value):
 
 
 def facts(customer: dict, analysis: dict, quota: dict | None, solutions_view: dict, sizing_by_name: dict,
-          vault: dict, seller_says: list[dict] | None = None, industry: dict | None = None) -> dict:
+          vault: dict, seller_says: list[dict] | None = None, industry: dict | None = None,
+          customer_context: dict | None = None) -> dict:
     kpis = (analysis.get("dashboard") or {}).get("kpis") or {}
     commitment = analysis.get("commitment") or {}
     closed = [month for month in analysis.get("months") or [] if month["month"] <= (analysis.get("last_closed_month") or "")]
@@ -74,6 +75,8 @@ def facts(customer: dict, analysis: dict, quota: dict | None, solutions_view: di
         # The customer's industry from its Industry note (`industry`), or why there is none.
         "industry": industry or {"industry": None},
         "how_to_read": HOW_TO_READ,
+        # Where the seller says the customer stands (`customer_profile`), when they have said.
+        "customer_context": customer_context,
     }
 
 
@@ -110,7 +113,8 @@ def messages(found: dict) -> list[dict[str, str]]:
         "conversation, the MACC). Name the driver or regulation each comes from. Write 'What to pitch' and "
         "'Questions to ask' for the business owner, in the industry's language, with the technical solution "
         "second. When 'industry' has none, 'What to look for' starts with one line saying the industry is not set "
-        "on the Customer note and that setting it is recommended, then reads the facts alone."
+        "on the Customer note and that setting it is recommended, then reads the facts alone.\n"
+        "- 'customer_context' is where the seller says this customer stands -- digital maturity, its data today, cloud adoption, AI readiness, priorities, constraints: treat it as fact, above a guess from the bill, and recommend what fits that stage (data not ready: the data foundation first). Let it shape 'What to look for' and 'What to pitch'."
     )
     return [{"role": "system", "content": system},
             {"role": "user", "content": "Facts:\n```json\n" + json.dumps(found, indent=1, default=str) + "\n```"}]

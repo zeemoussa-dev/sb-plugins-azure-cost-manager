@@ -18,7 +18,7 @@ LONGEST = 4000
 PERSONAS: dict[str, dict] = {
     "account-strategist": {
         "name": "Account strategist",
-        "serves": ["Brief me"],
+        "serves": ["Brief me", "Customer context draft"],
         "prompt": (
             "You are a Core42 account strategist who knows this customer's industry from the inside. You prepare a "
             "seller for a meeting the way a partner at an industry practice would: start from what the customer's "
@@ -96,7 +96,7 @@ PERSONAS: dict[str, dict] = {
 FEATURES = {
     "brief": "account-strategist", "explain": "analyst", "actions": "pipeline-coach",
     "pitches": "industry-solution-advisor", "draft": "industry-solution-advisor", "size": "industry-solution-advisor",
-    "use-case": "industry-solution-advisor",
+    "use-case": "industry-solution-advisor", "context": "account-strategist",
     "finops-plan": "finops-advisor", "tagging-plan": "governance-advisor",
     "finops-report": "customer-advisor", "tagging-guide": "customer-advisor", "ask": "data-analyst",
 }

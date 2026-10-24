@@ -16,6 +16,7 @@ import { reportLink } from './ReportsHome';
 import { Loading } from './Loading';
 import { CompassPitches, DraftButton, SizeIt } from './Advisor';
 import { SubscriptionLabel } from './SubscriptionLabel';
+import { CustomerContextCard } from './CustomerContext';
 
 const ALL_PLAYS = 'All plays';
 // The footprint is Cost Management's actual cost, billed in USD for these agreements.
@@ -124,6 +125,8 @@ export function SolutionsTab({ customerId, syncedVersion, accounts }: {
   const [notice, setNotice] = useState<string | null>(null);
   const [play, setPlay] = useState(ALL_PLAYS);
   const [open, setOpen] = useState<string | null>(null);
+  // Saving the customer's context reloads Compass's pitches, so they show as out of date at once.
+  const [contextVersion, setContextVersion] = useState(0);
 
   useEffect(() => {
     fetchCustomerSolutions(customerId, accounts).then((found) => { setView(found); setError(null); },
@@ -147,9 +150,10 @@ export function SolutionsTab({ customerId, syncedVersion, accounts }: {
         {notice ? <p className="text-muted azure-cost-note">{notice}</p> : null}
         {/* Compass reads the consumption, MACC, pipeline and industry, so it can pitch before
             the subscriptions are read (FAB, 2026-10-24); the rules' pitches cannot. */}
+        <CustomerContextCard customerId={view.customer.id} onSaved={() => setContextVersion((value) => value + 1)} />
         <section className="card azure-cost-card">
           <h3>What to pitch</h3>
-          <CompassPitches customerId={view.customer.id} customerName={view.customer.name} />
+          <CompassPitches key={contextVersion} customerId={view.customer.id} customerName={view.customer.name} />
         </section>
       </>
     );
@@ -192,6 +196,7 @@ export function SolutionsTab({ customerId, syncedVersion, accounts }: {
           </tbody>
         </table>
       </section>
+      <CustomerContextCard customerId={view.customer.id} onSaved={() => setContextVersion((value) => value + 1)} />
       <section className="card azure-cost-card">
         <h3>What to pitch</h3>
         {pitches.length ? (
@@ -206,7 +211,7 @@ export function SolutionsTab({ customerId, syncedVersion, accounts }: {
             </tbody>
           </table>
         ) : <p className="text-muted">Nothing obvious missing.</p>}
-        <CompassPitches customerId={view.customer.id} customerName={view.customer.name} />
+        <CompassPitches key={contextVersion} customerId={view.customer.id} customerName={view.customer.name} />
       </section>
       <section className="card azure-cost-card">
         <h3>Subscriptions</h3>

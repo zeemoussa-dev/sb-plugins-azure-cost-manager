@@ -1057,6 +1057,19 @@ export type KeptPitches = Kept<RecommendedPitch[]> & { industry?: string | null;
 export const fetchPitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`);
 export const writePitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`, { method: 'POST' });
 
+/** Where the customer stands, as the seller knows it: six short fields. */
+export interface CustomerContext {
+  fields: Record<string, string>;
+  updated: string | null;
+  labels: { key: string; label: string; hint: string }[];
+}
+
+export const fetchCustomerContext = (id: string) => apiFetch<CustomerContext>(`${customer(id)}/context`);
+export const saveCustomerContext = (id: string, fields: Record<string, string>) =>
+  apiFetch<CustomerContext>(`${customer(id)}/context`, { method: 'PUT', body: JSON.stringify({ fields }) });
+export const draftCustomerContext = (id: string) =>
+  apiFetch<{ draft: Record<string, string> }>(`${customer(id)}/context/draft`, { method: 'POST' });
+
 /** A Compass pitch's use case in detail: the note part is about the industry, the
  *  customer part stays in the drill-down. */
 export interface UseCaseNote {

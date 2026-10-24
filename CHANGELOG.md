@@ -2,6 +2,22 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.54.0] - 2026-10-24
+
+- feat: **Customer context: where the customer stands, as you know it** (operator, 2026-10-24: "the option to modify where the customer is in digitalization, how the data is looking now -- a good input before recommending a solution").
+  - **A foldable card above What to pitch** on a customer's Solutions tab, with six short fields:
+    - digital maturity;
+    - their data today;
+    - cloud adoption;
+    - AI readiness;
+    - top priorities;
+    - constraints.
+  - **Draft with Compass** fills the fields from the reports and the vault (the Account strategist persona), saying how sure each field is. Nothing is saved until you correct the draft and save it.
+  - **What reads it, and how:** the brief, What to pitch, use-case drill-downs and drafts treat it as fact, above a guess from the bill, and recommend what fits the customer's stage: a customer whose data is not ready gets the data foundation first. Saving it marks their earlier answers out of date, and the pitches card shows that at once.
+  - **Refine in the use-case drill-down:** what you add there goes into the customer's memory, which every feature reads, and the use case is written again.
+  - **Storage:** kept in `Customer-Context.json`, which moves with a data export. Clearing every field forgets the customer.
+  - **Routes:** `GET/PUT /customers/{id}/context`, `POST /customers/{id}/context/draft`.
+
 ## [0.53.0] - 2026-10-24
 
 - feat: **drill into a pitch's use case, and publish it to the vault** (operator, 2026-10-24: "a drill-down with more details ... those don't map to an existing solution, so generate a md file matching the standard ... publish to vault on the user's click ... tech or industry, your best judgement").

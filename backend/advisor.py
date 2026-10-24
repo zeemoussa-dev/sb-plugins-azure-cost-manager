@@ -20,6 +20,7 @@ RULES = (
 # Every feature handed the customer's industry (`industry`) reads it this way.
 INDUSTRY_RULE = ("'industry' is what the customer's Industry note says; bring it in where the facts "
                  "meet it, never as a claim about this customer the facts do not support.")
+CONTEXT_RULE = ("'customer_context' is where the seller says this customer stands -- digital maturity, its data today, cloud adoption, AI readiness, priorities, constraints: treat it as fact, above a guess from the bill, and recommend what fits that stage (data not ready: the data foundation first).")
 SIZES = ("small", "medium", "large")
 URGENCY = ("now", "this quarter", "later")
 
@@ -144,6 +145,7 @@ def draft_facts(brief_facts: dict, pitch: dict, sizing: dict | None, solution_mo
             "seller_says": brief_facts.get("seller_says"),
             "recent_conversations": (brief_facts.get("vault") or {}).get("recent"),
             "industry": industry_short(brief_facts.get("industry")),
+            "customer_context": brief_facts.get("customer_context"),
             # A Compass pitch carries the industry use case it serves; a rule's does not.
             "use_case": pitch.get("use_case"), "business_outcome": pitch.get("business_outcome"),
             "business_owner": pitch.get("business_owner")}
@@ -161,7 +163,7 @@ def draft_messages(facts: dict) -> list[dict]:
         '[<3 short steps>], "email_subject": <subject>, "email_body": <plain text, under 150 words, to the '
         'business owner of the outcome when one is given (else the technical lead), in the language of the '
         'customer\'s industry: the business outcome first, the technical solution second; no figures from inside '
-        'Core42 such as quota or pipeline>}. ' + INDUSTRY_RULE + " Nothing else."),
+        'Core42 such as quota or pipeline>}. ' + INDUSTRY_RULE + " " + CONTEXT_RULE + " Nothing else."),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
 
 
@@ -301,6 +303,7 @@ def pitch_facts(brief_facts: dict, catalog: list[dict], playbooks: list[dict]) -
         "already_pitched_by_rules": [item.get("pitch") for item in brief_facts.get("pitches") or []],
         "pipeline": brief_facts.get("pipeline"),
         "seller_says": brief_facts.get("seller_says"),
+        "customer_context": brief_facts.get("customer_context"),
         "recent_conversations": (brief_facts.get("vault") or {}).get("recent"),
         # The industry note and its use-case notes: what to recommend in the business's language.
         "industry": brief_facts.get("industry") or {"industry": None},
@@ -319,7 +322,7 @@ def pitch_messages(facts: dict) -> list[dict]:
         "and grows, its MACC position (room to grow consumption, or a commitment running out), its pipeline, its "
         "recent conversations and what the seller told you. Recommend industry use cases, not only technology: "
         "a business outcome for this customer's industry -- from 'industry.use_cases' when one fits, else from its "
-        "typical use cases and business drivers -- delivered by a catalog solution. When the industry is not set, "
+        "typical use cases and business drivers -- delivered by a catalog solution. " + CONTEXT_RULE + " When the industry is not set, "
         "recommend from the facts alone.\n"
         'Answer with a JSON array of at most 5 objects, best first: {"solution_id": <an id from the catalog>, '
         '"use_case": <the industry use case, a few words in the business\'s language>, "business_outcome": <what '
@@ -579,7 +582,8 @@ def use_case_facts(brief_facts: dict, pitch: dict, solution: dict | None) -> dic
                      if (solution or {}).get("sizing") else None},
         "customer": {"name": brief_facts.get("customer"), "running": brief_facts.get("solutions"),
                      "top_services_last_month": (brief_facts.get("consumption") or {}).get("top_services_last_month"),
-                     "commitment": brief_facts.get("commitment"), "seller_says": brief_facts.get("seller_says")},
+                     "commitment": brief_facts.get("commitment"), "seller_says": brief_facts.get("seller_says"),
+                     "customer_context": brief_facts.get("customer_context")},
     }
 
 
@@ -598,7 +602,8 @@ def use_case_messages(facts: dict) -> list[dict]:
         '"value_and_kpis": <bullets>, "discovery_questions": [<4-6 questions>], "core42_angle": <in-country, '
         'Compass by Core42, Azure: where it matters here>}, "for_this_customer": {"why_them": <2-4 sentences '
         'citing its facts>, "first_step": <one concrete next step>, "questions": [<2-3 questions for this '
-        'customer>]}}. Markdown is allowed inside the strings. ' + INDUSTRY_RULE + " Nothing else."),
+        'customer>]}}. Markdown is allowed inside the strings. ' + INDUSTRY_RULE + " The customer's "
+        + CONTEXT_RULE + " It shapes 'for_this_customer' -- the first step fits where they are -- never the note. Nothing else."),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
 
 
@@ -619,3 +624,28 @@ def check_use_case(reply: str, facts: dict) -> dict:
         "for_this_customer": {"why_them": text(mine.get("why_them"), 1500), "first_step": text(mine.get("first_step"), 400),
                               "questions": [text(item, 300) for item in (mine.get("questions") or [])[:3] if item]},
     }
+
+
+# -- where the customer stands ----------------------------------------------------------
+
+def context_facts(brief_facts: dict) -> dict:
+    """What Compass drafts a customer's context from: the reports and the vault."""
+    return {key: brief_facts.get(key) for key in ("customer", "consumption", "commitment", "solutions", "pipeline",
+                                                  "vault", "seller_says", "how_to_read")} | {
+        "industry": industry_short(brief_facts.get("industry"))}
+
+
+def context_messages(facts: dict, fields: tuple) -> list[dict]:
+    asked = ", ".join(f'"{key}": <{label}: {hint}>' for key, label, hint in fields)
+    return [_system(
+        "Draft where this customer stands, for the seller to correct before Compass recommends anything. Read it "
+        "from what they run and grow on Azure, the solutions running, the pipeline, the vault's notes and what the "
+        "seller said. One or two plain sentences per field, saying what the facts show and how sure that is; "
+        "'Not known from the data' where they say nothing.\n"
+        "Answer with one JSON object: {" + asked + "}. Nothing else."),
+        {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
+
+
+def check_context(reply: str, keys: tuple) -> dict:
+    found = compass.json_object(reply)
+    return {key: " ".join(str(found.get(key) or "").split())[:800] for key in keys}

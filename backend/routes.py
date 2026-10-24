@@ -208,6 +208,19 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def post_tagging_guide(customer_id: str, accounts: str | None = None) -> dict:
         return _compass(lambda: advisor.tagging_guide(customer_id, True, _account_list(accounts)))
 
+    @router.get("/customers/{customer_id}/context")
+    def get_context(customer_id: str) -> dict:
+        return _answered(lambda: service.profile.of(service.customer(customer_id)["id"]))
+
+    @router.put("/customers/{customer_id}/context")
+    def put_context(customer_id: str, submitted: dict = Body(...)) -> dict:
+        """Where the customer stands, as the seller knows it (operator, 2026-10-24)."""
+        return _answered(lambda: service.profile.save(service.customer(customer_id)["id"], submitted.get("fields") or {}))
+
+    @router.post("/customers/{customer_id}/context/draft")
+    def draft_context(customer_id: str) -> dict:
+        return _compass(lambda: advisor.draft_context(service.customer(customer_id)["id"]))
+
     @router.get("/customers/{customer_id}/use-case")
     def get_use_case(customer_id: str, pitch: str) -> dict:
         return _compass(lambda: advisor.use_case(customer_id, pitch))

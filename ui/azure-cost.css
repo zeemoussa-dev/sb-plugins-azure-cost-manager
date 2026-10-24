@@ -978,3 +978,11 @@ tr.azure-cost-affiliate td:first-child {
 .azure-cost-fold-head > .btn {
   margin-left: auto;
 }
+
+/* The customer context's six fields, two to a row where there is room. */
+.azure-cost-context-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
