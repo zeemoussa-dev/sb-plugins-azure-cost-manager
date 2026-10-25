@@ -2,6 +2,7 @@
 is the only thing that does (`consumption_sync`)."""
 from __future__ import annotations
 
+import calendar
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
@@ -201,11 +202,13 @@ class ConsumptionService:
     def _quota_of(self, customer: dict, measure: dict | None, chosen: dict, only: set[str] | None = None) -> dict:
         """One customer (a group, with its affiliates) against the baseline."""
         current_month = months.month_of(self._today())
-        merged, currency, _ = self._merged(customer, only=only)
+        merged, currency, entries = self._merged(customer, only=only)
         trend = consumption_analysis.monthly_totals(merged, current_month, measure)
         pipeline = self.pipeline(customer["id"])
         automatic = forecasting.automatic(trend, self._today(), pipeline["by_month"])
-        found = quota.analyse(trend, (automatic or {}).get("series"), chosen, current_month)
+        today = self._today()
+        factor = quota.month_end_factor(entries, current_month, calendar.monthrange(today.year, today.month)[1])
+        found = quota.analyse(trend, (automatic or {}).get("series"), chosen, current_month, factor)
         return {**found, "currency": (currency or "").strip() or None,
                 "pipeline": quota.pipeline_against_actual(pipeline["opportunities"], found, current_month),
                 "pipeline_available": pipeline["available"]}

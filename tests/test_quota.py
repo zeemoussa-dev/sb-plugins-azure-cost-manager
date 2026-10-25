@@ -92,3 +92,30 @@ def test_a_period_needs_both_ends_in_order():
         with pytest.raises(ValueError):
             quota.validated(bad)
     assert quota.validated({"period_first": None, "period_last": None}) == {"period_first": None, "period_last": None}
+
+
+def test_the_running_month_is_its_billed_so_far_at_its_pace():
+    from backend import quota as quota_module
+    entries = {"a": {"months": {"2026-10": {"actual": {"service": {"VM": 2200.0}}, "fetched_at": "2026-10-23T12:00:00+00:00"}}},
+               "b": {"months": {"2026-10": {"actual": {"service": {"VM": 1000.0}}, "fetched_at": "2026-10-11T08:00:00+00:00"}}},
+               "c": {"months": {}}}
+
+    factor = quota_module.month_end_factor(entries, "2026-10", 31)
+
+    # a covers 22 days (fetched a day behind), b covers 10; weighted by what each billed.
+    assert factor == (2200 * 31 / 22 + 1000 * 31 / 10) / 3200
+    assert quota_module.month_end_factor({"c": {"months": {}}}, "2026-10", 31) is None
+
+
+def test_a_month_billing_above_the_trend_is_not_read_as_a_fall():
+    from backend import quota as quota_module
+    chosen = {"baseline_start": "2026-04", "baseline_last": "2026-06", "fy_first": "2026-07", "fy_last": "2026-12"}
+    trend = [{"month": f"2026-{m:02d}", "actual": 1000.0, "partial": False} for m in range(4, 10)]
+    trend.append({"month": "2026-10", "actual": 1100.0, "partial": True})        # 22 days billed already
+    forecast = [{"month": m, "forecast": 1000.0} for m in ("2026-10", "2026-11", "2026-12")]
+
+    found = quota_module.analyse(trend, forecast, chosen, "2026-10", 31 / 22)
+    october = next(row for row in found["months"] if row["month"] == "2026-10")
+
+    assert october["consumption"] == round(1100 * 31 / 22, 2) and october["above"] > 0
+    assert next(row for row in found["months"] if row["month"] == "2026-11")["consumption"] == 1000.0
