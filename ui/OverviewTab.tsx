@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import { BurnDownChart, Change, CommitmentGauge, SeriesChart, TrendChart } from './charts';
 import type { Analysis } from './client';
+import { useRememberedFold } from './CompassText';
 import { useDrillOpener } from './Drill';
 import { formatMoney, formatMonth } from './format';
 import { settingsLink } from './ReportsHome';
@@ -146,14 +147,19 @@ function CommitmentCard({ analysis }: { analysis: Analysis }) {
 /** How the parent's MACC is carved up: each affiliate's own MACC and its burn,
  *  and the unallocated rest, which the parent's own enrollments consume. */
 function AllocationsCard({ analysis }: { analysis: Analysis }) {
+  const [open, fold] = useRememberedFold('azure-cost-manager.allocations-folded', true);
   const allocations = analysis.allocations;
   if (!allocations) return null;
   const currency = analysis.commitment?.currency ?? analysis.currency;
   const pct = (value: number, of: number | null | undefined) => (of ? `${Math.round((value / of) * 1000) / 10}%` : '—');
   const rows = allocations.affiliates;
   return (
-    <section className="card azure-cost-card azure-cost-wide">
-      <h3>MACC allocation across the group</h3>
+    <details className="card azure-cost-card azure-cost-wide azure-cost-fold" open={open}
+             onToggle={(event) => { const nowOpen = (event.target as HTMLDetailsElement).open; if (nowOpen !== open) fold(nowOpen); }}>
+      <summary className="azure-cost-fold-head">
+        <h3>MACC allocation across the group</h3>
+        {!open ? <span className="text-muted">{rows.length} affiliate{rows.length === 1 ? '' : 's'}</span> : null}
+      </summary>
       {allocations.parent_amount == null ? (
         <p className="text-muted azure-cost-note">Enter the group's signed MACC on this customer to see what is left unallocated.</p>
       ) : null}
@@ -211,7 +217,7 @@ function AllocationsCard({ analysis }: { analysis: Analysis }) {
         Every affiliate dollar counts against its own MACC and the group's. Consumption here is since each MACC's own
         start; the group total counts from the group's start.
       </p>
-    </section>
+    </details>
   );
 }
 

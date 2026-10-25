@@ -7,9 +7,12 @@ import { Popup } from './Popup';
 
 /** Whether a card is unfolded: the viewer's choice, kept in this browser across
  *  customers and visits. */
-export function useRememberedFold(storageKey: string): [boolean, (open: boolean) => void] {
+export function useRememberedFold(storageKey: string, foldedByDefault = false): [boolean, (open: boolean) => void] {
   const [open, setOpen] = useState(() => {
-    try { return localStorage.getItem(storageKey) !== '1'; } catch { return true; }
+    try {
+      const kept = localStorage.getItem(storageKey);
+      return kept === null ? !foldedByDefault : kept !== '1';
+    } catch { return !foldedByDefault; }
   });
   const fold = (nowOpen: boolean) => {
     setOpen(nowOpen);

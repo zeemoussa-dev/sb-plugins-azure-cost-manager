@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.61.1] - 2026-10-25
+
+- change: **the MACC allocation across the group folds, and starts folded** (operator, 2026-10-25). Folded, it names how many affiliates it covers, and it remembers how it was left.
+
 ## [0.61.0] - 2026-10-25
 
 - feat: **an enrollment can be left out of the baseline.** This is for when a new MACC replaces an old enrollment (operator, 2026-10-25: Mubadala signed with Core42 in August, and its old enrollment set its line).
