@@ -243,24 +243,24 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
 
     @router.get("/pipeline/snapshots")
     def get_pipeline_snapshots() -> dict:
-        """The weeks snapshotted; opening it takes the last closed week's when missing."""
+        """The months snapshotted; opening it takes (or refreshes) the running month's."""
         return _answered(lambda: service.pipeline_snapshots())
 
     @router.get("/pipeline/review")
-    def get_pipeline_review(level: str = "all", week: str | None = None) -> dict:
-        """The weekly pipeline review at a level: all, am:<key>, segment:<name>, pss:<key>, customer:<id>."""
-        return _answered(lambda: service.pipeline_review_report(level, week))
+    def get_pipeline_review(level: str = "all", month: str | None = None) -> dict:
+        """The monthly pipeline review at a level: all, am:<key>, segment:<name>, pss:<key>, customer:<id>."""
+        return _answered(lambda: service.pipeline_review_report(level, month))
 
-    @router.get("/pipeline/snapshots/{week}")
-    def get_pipeline_snapshot(week: str) -> dict:
-        return _answered(lambda: service.pipeline_snapshot_of(week))
+    @router.get("/pipeline/snapshots/{month}")
+    def get_pipeline_snapshot(month: str) -> dict:
+        return _answered(lambda: service.pipeline_snapshot_of(month))
 
     @router.post("/pipeline/snapshot")
     def post_pipeline_snapshot(force: bool = False) -> dict:
-        """For a Hermes cron job on Sunday night, and Settings' "Take snapshot now"
-        (`force`: take this week's again)."""
+        """For a Hermes cron job at each month's end, and Settings' "Take snapshot now"
+        (`force`: retake the running month's now)."""
         found = service.pipeline_snapshot(force=force)
-        return {key: found.get(key) for key in ("week_end", "taken_at", "taken_late", "fitted_through", "gaps")} | {
+        return {key: found.get(key) for key in ("month", "taken_at", "fitted_through", "gaps")} | {
             "opportunities": len(found.get("opportunities") or [])}
 
     @router.get("/compass/personas")

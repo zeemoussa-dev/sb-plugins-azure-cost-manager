@@ -332,7 +332,15 @@ what was meant.
 - **Already there:** `measure.billing_day` and `consumption_analysis.report_date` (the
   closed-month rule), which the report keeps at the 1st.
 
-## Pipeline review: the weekly meeting as a report (planned 2026-10-25, not built)
+## Pipeline review: the pipeline meeting as a report (planned 2026-10-25; releases 1–2 built)
+
+> **Changed 2026-10-25, after the first page was seen (operator):**
+> - **Monthly, not weekly** ("the whole concept of weekly is wrong"). Consumption settles by the month, so there is one snapshot per month. The running month's is live, refreshed when the report opens, and stays as it last was once the month is over. "This week" became **"This month"**: the changes since last month's snapshot.
+> - **The quota period, months gone included** ("we are in H2, so the months before need to be visible as they affect the quota"). The calendar and the comparison span the quota period, July–December this year.
+> - **Plan against customer growth** ("compare the size of the opportunity with the customer's growth in H2"). Section 3 sets each customer's opportunities' plan against its consumption above the **quota baseline**: actual for the closed months, the automatic forecast after. This is the forecast workbook's "net new" measure. A per-opportunity scope measurement was tried and dropped; scope and frozen baselines stay for team impact (release 3).
+> - **The unit is the customer an account manager owns.** An affiliate with its own account manager (DGE's entities) is measured on its own enrollments; its parent's group leaves it out.
+>
+> Where the text below says week or weekly, read month or monthly.
 
 **What it replaces.** The manager meets each account manager and the team every week to
 go through the Azure opportunities they forecast, then waits for month-end to see the
@@ -354,9 +362,9 @@ every level (operator, 2026-10-25), and an account manager is a grouping, never 
 | Visibility | Everyone sees everything, for now. |
 | Customer → account manager | An optional `account_manager: "[[<email>\|<Name>]]"` on the Customer note, linking the Person note (named by email, as the vault's meeting attendees are). An affiliate without one takes its parent's (the same rule as `industry`). Customers with none go under "No account manager". Filled for 72 customers from the team's H2 forecast workbook on 2026-10-25, together with `segment` (Strategic, Major, or Scale Accounts & ISVs), and with `pss: ["[[<email>\|<Name>]]", …]` where the workbook names a PSS. The review can group and filter by segment and by PSS as well as by account manager. |
 | Stage weights | Identified 10%, Qualified 25%, Proposed 50%, Committed 80%, Won 100%. Editable in Settings. |
-| Week | Closes Sunday night. Monday's report shows the week just ended. |
+| Month | One snapshot per month, the running one live, a past one as it last was. (Was "week, closing Sunday night" until 2026-10-25.) |
 | Attribution | **Strict.** An opportunity's influence counts only in the services or solution it names, above that scope's own natural trend. Growth above trend with no opportunity behind it is **unexplained**, and is shown, never credited to the team. |
-| Snapshots | One per week, kept in plugin data. It holds the pipeline and each scope's natural trend as they were then. |
+| Snapshots | One per month, kept in plugin data for three years. It holds the pipeline and each customer's natural trend as they were then; each opportunity's baseline is frozen at its first sighting. |
 
 ### Why snapshots are the foundation
 

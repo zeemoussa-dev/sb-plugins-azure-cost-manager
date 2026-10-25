@@ -2,6 +2,23 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.57.0] - 2026-10-25
+
+- feat: **Pipeline review: monthly, over the quota period, the plan against each customer's growth.** These are the operator's three changes after seeing the first page (PLAN.md records them).
+  - **Monthly, not weekly:**
+    - one snapshot per month;
+    - the running month's is live, refreshed when the report opens if older than six hours, and stays as it last was once the month is over;
+    - "This week" became **This month**: changes since last month's snapshot. In the first month, the opportunities opened that month.
+    - The weekly snapshot taken first counts as October's. Frozen baselines are untouched.
+    - `POST /pipeline/snapshot` is now for a month-end cron job, and routes take `month=` (`/pipeline/snapshots/{month}`).
+  - **The whole quota period, months gone included:** the chart and every figure span the quota period (July–December this year).
+  - **Plan against growth.** Per customer, the opportunities' plan is set against the consumption above the **quota baseline**, the forecast workbook's "net new": actual in the closed months, the automatic forecast after. Each customer gets planned and growth figures, to date and for the period, and a verdict: landed, over, short, not growing, or growing without opportunities. It rolls up by account manager and for everyone.
+    - The chart: planned bars by stage, raw or weighted, against the growth line, actual then forecast.
+    - Coverage: the weighted plan still to come against the gap to quota.
+    - One customer's view shows it month by month.
+  - **The unit is the customer an account manager owns.** An affiliate with an account manager of its own (DGE's entities) is measured on its own enrollments, and its parent's group leaves those out.
+  - The per-opportunity scope measurement is gone from the page. Scope and frozen baselines stay for the team-impact release.
+
 ## [0.56.1] - 2026-10-25
 
 - fix: **an opportunity with no technologies is no longer measured on the whole customer** (checked on real data, 2026-10-25). FAB's "Sentinel project" read $13.5M "added", which was September's Fortinet licence purchase, and such swings drove plan accuracy to 0%. Under the strict rule, an unscoped opportunity is listed as **no scope (add its technologies)**, never measured, and left out of accuracy.

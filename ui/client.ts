@@ -1057,7 +1057,7 @@ export type KeptPitches = Kept<RecommendedPitch[]> & { industry?: string | null;
 export const fetchPitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`);
 export const writePitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`, { method: 'POST' });
 
-/** The weekly pipeline review (PLAN.md): what changed, when it lands, whether it landed. */
+/** The monthly pipeline review (PLAN.md): what changed, when it lands, and each customer's plan against its growth. */
 export interface ReviewChange {
   kind: 'new' | 'won' | 'lost' | 'status' | 'stage up' | 'stage down' | 'slipped' | 'pulled in' | 'start set' | 'amount' | 'removed';
   id: string;
@@ -1070,19 +1070,19 @@ export interface ReviewChange {
   monthly: number;
 }
 
-export interface ReviewChecked {
+export interface GrowthRow {
   id: string;
-  stem: string | null;
-  title: string;
-  customer_id: string | null;
-  customer: string;
+  name: string;
   account_manager: string | null;
-  months: string[];
-  planned: number;
-  added: number | null;
-  verdict: 'landed' | 'short' | 'over' | 'late' | 'no plan' | 'no scope' | 'no trend';
-  against: string;
-  estimated: boolean;
+  opportunities: number;
+  baseline: number | null;
+  months: { month: string; kind: 'actual' | 'forecast'; growth: number; planned: number; weighted: number }[];
+  growth_to_date: number;
+  planned_to_date: number;
+  growth_period: number;
+  planned_period: number;
+  weighted_period: number;
+  verdict: string;
 }
 
 export interface ReviewRow {
@@ -1091,22 +1091,27 @@ export interface ReviewRow {
   drill: string | null;
   stem: string | null;
   opportunities: number;
-  raw: number;
-  weighted: number;
-  verdicts: Record<string, number>;
-  accuracy: number | null;
+  stage?: string;
+  status?: string;
+  planned_period: number;
+  weighted_period: number;
+  planned_to_date: number;
+  growth_to_date: number | null;
+  growth_period: number | null;
+  verdict: string | null;
   slipped_months: number;
 }
 
 export interface PipelineReview {
-  week_end: string;
+  month: string;
   taken_at: string | null;
-  taken_late: boolean;
-  weeks: string[];
+  live: boolean;
+  months: string[];
   level: string;
   label: string;
   opportunities: number;
   settings: { stage_weights: Record<string, number>; won_weight: number; tolerance_pct: number; horizon_months: number };
+  period: { first: string; last: string; label: string | null; months: string[]; closed: string[] };
   levels: {
     managers: { level: string; name: string; customers: number }[];
     segments: string[];
@@ -1118,15 +1123,25 @@ export interface PipelineReview {
     months: Record<string, { raw: number; weighted: number; by_stage: Record<string, number> }>;
     raw: number;
     weighted: number;
-    coverage: { gap_to_quota: number | null; weighted_in_period: number; period_last: string | null; ratio: number | null } | null;
+    coverage: { quota: number; gap_to_quota: number; weighted_ahead: number; ratio: number | null } | null;
   };
-  planned_vs_actual: { rows: ReviewChecked[]; counts: Record<string, number>; planned: number; added: number; accuracy: number | null };
+  growth: {
+    rows: GrowthRow[];
+    counts: Record<string, number>;
+    months: Record<string, { growth: number; planned: number; weighted: number; kind: 'actual' | 'forecast' | null }>;
+    growth_to_date: number;
+    planned_to_date: number;
+    growth_period: number;
+    planned_period: number;
+    weighted_period: number;
+    verdict: string;
+  };
   rollup: ReviewRow[];
   gaps: Record<string, string[]>;
 }
 
-export const fetchPipelineReview = (level: string, week?: string) =>
-  apiFetch<PipelineReview>(`${BASE}/pipeline/review?level=${encodeURIComponent(level)}${week ? `&week=${week}` : ''}`);
+export const fetchPipelineReview = (level: string, month?: string) =>
+  apiFetch<PipelineReview>(`${BASE}/pipeline/review?level=${encodeURIComponent(level)}${month ? `&month=${month}` : ''}`);
 
 /** Where the customer stands, as the seller knows it: six short fields. */
 export interface CustomerContext {

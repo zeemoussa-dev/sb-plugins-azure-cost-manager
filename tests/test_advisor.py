@@ -240,7 +240,7 @@ def test_a_snapshot_freezes_a_baseline_before_the_opportunity_could_move_anythin
     snapshot = service.pipeline_snapshot()
     baseline = store.pipeline_snapshots()["baselines"]["o1"]
 
-    assert snapshot["week_end"] == "2026-10-18" and snapshot["taken_late"] and snapshot["fitted_through"] == "2026-09"
+    assert snapshot["month"] == "2026-10" and snapshot["fitted_through"] == "2026-09"
     assert snapshot["opportunities"][0]["customer_id"] == book.list()[0]["id"]
     assert snapshot["opportunities"][0]["scope"] == ["VM"]
     assert baseline["fitted_through"] == "2026-06" and baseline["estimated"]
@@ -250,8 +250,8 @@ def test_a_snapshot_freezes_a_baseline_before_the_opportunity_could_move_anythin
     assert store.pipeline_snapshots()["baselines"]["o1"] == baseline        # a baseline is never recomputed
 
     report = service.pipeline_review_report("all")
-    checked = report["planned_vs_actual"]["rows"][0]
-    # VM kept to its trend after June: the July plan added nothing above it.
-    assert checked["against"] == "scope" and checked["months"] == ["2026-07"] and checked["verdict"] == "late"
+    growth = report["growth"]["rows"][0]
+    # The plan set against the customer's growth above the quota baseline, over the quota period.
+    assert growth["planned_period"] == 500.0 and report["period"]["months"][0] <= "2026-07"
     assert report["rollup"][0]["label"] == "No account manager" and report["movement"]["first_snapshot"]
     assert service.pipeline_review_report(f"customer:{book.list()[0]['id']}")["opportunities"] == 1

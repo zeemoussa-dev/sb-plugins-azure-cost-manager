@@ -3,53 +3,67 @@ import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { useUrlState } from '../../pluginHost/state';
 import { SeriesChart } from './charts';
-import { fetchPipelineReview, type PipelineReview, type ReviewChecked, type ReviewRow } from './client';
+import { fetchPipelineReview, type GrowthRow, type PipelineReview, type ReviewRow } from './client';
 import { useRememberedFold } from './CompassText';
 import { errorText, formatMoney, formatMonth } from './format';
 import { Loading } from './Loading';
 
 const STAGE_ORDER = ['Identified', 'Qualified', 'Proposed', 'Committed', 'Closed', 'Won'];
-const VERDICTS: { key: ReviewChecked['verdict']; label: string }[] = [
-  { key: 'landed', label: 'Landed' }, { key: 'over', label: 'Over' }, { key: 'short', label: 'Short' },
-  { key: 'late', label: 'Late' }, { key: 'no scope', label: 'No scope' }, { key: 'no trend', label: 'No trend' },
-];
 const GAP_LABELS: Record<string, string> = {
   customers_without_account_manager: 'Customers with no account manager',
   opportunities_without_start: 'Opportunities with no start',
   opportunities_without_amount: 'Opportunities with no amount or plan',
-  opportunities_unscoped: 'Opportunities with no technologies (no scope: their impact cannot be counted)',
 };
+const WARNED = new Set(['short', 'not growing']);
 
 const money = (value: number | null | undefined) => (value == null ? '—' : formatMoney(value, 'USD', true));
-const percent = (value: number | null | undefined) => (value == null ? '—' : `${Math.round(value * 100)}%`);
 
 function Note({ stem, title }: { stem: string | null; title: string }) {
   return stem ? <Link to={`/browse/${encodeURIComponent(stem)}`}>{title}</Link> : <>{title}</>;
 }
 
-function Verdicts({ counts }: { counts: Record<string, number> }) {
-  const shown = VERDICTS.filter(({ key }) => counts[key]);
-  return shown.length ? <>{shown.map(({ key, label }) => `${counts[key]} ${label.toLowerCase()}`).join(' · ')}</> : <>—</>;
+function Verdict({ value }: { value: string | null }) {
+  return value ? <span className={WARNED.has(value) ? 'azure-cost-warning' : undefined}>{value}</span> : <>—</>;
 }
 
 function Rollup({ rows, level, onDrill }: { rows: ReviewRow[]; level: string; onDrill: (level: string) => void }) {
   const kind = level.split(':')[0];
-  const first = kind === 'all' ? 'Account manager' : kind === 'customer' ? 'Opportunity' : 'Customer';
+  const byOpportunity = kind === 'customer';
+  const first = kind === 'all' ? 'Account manager' : byOpportunity ? 'Opportunity' : 'Customer';
   return (
     <table className="azure-cost-table">
-      <thead><tr><th>{first}</th><th>Opportunities</th><th>Next 12 months, raw</th><th>Weighted</th>
-        <th>Planned vs actual</th><th>Plan accuracy</th><th>Months slipped</th></tr></thead>
+      <thead><tr><th>{first}</th>{byOpportunity ? <th>Stage</th> : <th>Opportunities</th>}<th>Planned, period</th><th>Weighted</th>
+        <th>Planned to date</th>{byOpportunity ? null : <><th>Growth to date</th><th>Plan vs growth</th><th>Growth, period</th></>}
+        <th>Months slipped</th></tr></thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.key || row.label}>
             <td>{row.drill ? <button type="button" className="azure-cost-link-button" onClick={() => onDrill(row.drill!)}>{row.label}</button>
               : <Note stem={row.stem} title={row.label} />}</td>
-            <td>{row.opportunities}</td>
-            <td>{money(row.raw)}</td>
-            <td>{money(row.weighted)}</td>
-            <td className="text-muted"><Verdicts counts={row.verdicts} /></td>
-            <td>{percent(row.accuracy)}</td>
+            <td>{byOpportunity ? `${row.stage ?? '—'}${row.status && row.status !== 'Open' ? ` · ${row.status}` : ''}` : row.opportunities}</td>
+            <td>{money(row.planned_period)}</td>
+            <td>{money(row.weighted_period)}</td>
+            <td>{money(row.planned_to_date)}</td>
+            {byOpportunity ? null : <><td>{money(row.growth_to_date)}</td><td><Verdict value={row.verdict} /></td><td>{money(row.growth_period)}</td></>}
             <td>{row.slipped_months || '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function CustomerMonths({ row, closed }: { row: GrowthRow; closed: Set<string> }) {
+  return (
+    <table className="azure-cost-table">
+      <thead><tr><th>Month</th><th>Growth above baseline</th><th>Planned</th><th>Weighted</th></tr></thead>
+      <tbody>
+        {row.months.map((month) => (
+          <tr key={month.month}>
+            <td>{formatMonth(month.month, true)}{closed.has(month.month) ? '' : <span className="text-muted"> · forecast</span>}</td>
+            <td>{money(month.growth)}</td>
+            <td>{money(month.planned)}</td>
+            <td>{money(month.weighted)}</td>
           </tr>
         ))}
       </tbody>
@@ -65,9 +79,9 @@ function Gaps({ gaps }: { gaps: Record<string, string[]> }) {
     <details className="card azure-cost-card azure-cost-fold" open={open}
              onToggle={(event) => { const nowOpen = (event.target as HTMLDetailsElement).open; if (nowOpen !== open) fold(nowOpen); }}>
       <summary className="azure-cost-fold-head"><h3>What weakens this review</h3>
-        <span className="text-muted">{filled.map(([key, items]) => `${items.length} ${GAP_LABELS[key]?.split(' (')[0].toLowerCase() ?? key}`).join(' · ')}</span>
+        <span className="text-muted">{filled.map(([key, items]) => `${items.length} ${(GAP_LABELS[key] ?? key).toLowerCase()}`).join(' · ')}</span>
       </summary>
-      <p className="text-muted azure-cost-note">Fix these in the vault notes; the next snapshot picks them up.</p>
+      <p className="text-muted azure-cost-note">Fix these in the vault notes; the review picks them up the next time it is opened.</p>
       {filled.map(([key, items]) => (
         <div key={key}><h4>{GAP_LABELS[key] ?? key}</h4><p className="text-muted">{items.join(' · ')}</p></div>
       ))}
@@ -75,24 +89,28 @@ function Gaps({ gaps }: { gaps: Record<string, string[]> }) {
   );
 }
 
-/** The weekly pipeline review (PLAN.md, release 2): what changed this week, when the
- *  pipeline lands, and whether what was planned landed -- for all customers, an account
- *  manager, a segment, a PSS or one customer. Everyone sees every level. */
+/** The monthly pipeline review (PLAN.md; operator, 2026-10-25): what changed this month,
+ *  and over the quota period -- months gone included, they count -- each customer's
+ *  opportunities against its growth above the quota baseline. For all customers, an
+ *  account manager, a segment, a PSS or one customer; everyone sees every level. */
 export function PipelineReviewPage() {
   const [level, setLevel] = useUrlState<string>('level', 'all');
-  const [week, setWeek] = useUrlState<string>('week', '');
+  const [month, setMonth] = useUrlState<string>('month', '');
   const [found, setFound] = useState<PipelineReview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [weighted, setWeighted] = useState(true);
+  const [weighted, setWeighted] = useState(false);
 
   useEffect(() => {
     setFound(null); setError(null);
-    fetchPipelineReview(level, week || undefined).then(setFound, (failure) => setError(errorText(failure)));
-  }, [level, week]);
+    fetchPipelineReview(level, month || undefined).then(setFound, (failure) => setError(errorText(failure)));
+  }, [level, month]);
 
-  const months = found ? Object.keys(found.landing.months).sort() : [];
-  const stages = found ? STAGE_ORDER.filter((stage) => months.some((month) => found.landing.months[month].by_stage[stage])) : [];
-  const checked = found?.planned_vs_actual;
+  const span = found?.period.months ?? [];
+  const closed = new Set(found?.period.closed ?? []);
+  const lastClosed = [...closed].sort().pop();
+  const stages = found ? STAGE_ORDER.filter((stage) => span.some((m) => found.landing.months[m]?.by_stage[stage])) : [];
+  const growth = found?.growth;
+  const single = level.startsWith('customer:') ? growth?.rows[0] : undefined;
   return (
     <div className="page azure-cost-page">
       <Breadcrumbs items={[{ label: 'Azure Customer 360', to: '/azure-cost-manager' }, { label: 'Pipeline review' }]} />
@@ -100,7 +118,7 @@ export function PipelineReviewPage() {
         <h1>Pipeline review{found && level !== 'all' ? `: ${found.label}` : ''}</h1>
       </header>
       {error ? <div className="azure-cost-error">{error}</div> : null}
-      {!found ? (error ? null : <Loading label="Reading the week's snapshot and what each opportunity added…" />) : (
+      {!found || !growth ? (error ? null : <Loading label="Reading the month's pipeline and each customer's growth above its baseline…" />) : (
         <>
           <div className="azure-cost-toolbar">
             <label className="field-labeled">Showing
@@ -120,48 +138,106 @@ export function PipelineReviewPage() {
                 </optgroup>
               </select>
             </label>
-            <label className="field-labeled">Week ending
-              <select value={week || found.week_end} onChange={(event) => setWeek(event.target.value)}>
-                {[...found.weeks].reverse().map((value) => <option key={value} value={value}>{value}</option>)}
+            <label className="field-labeled">Month
+              <select value={month || found.month} onChange={(event) => setMonth(event.target.value)}>
+                {[...found.months].reverse().map((value) => <option key={value} value={value}>{formatMonth(value)}</option>)}
               </select>
             </label>
             {level !== 'all' ? <button type="button" className="btn" onClick={() => setLevel('all')}>All customers</button> : null}
           </div>
           <p className="text-muted azure-cost-note">
-            Snapshot of the week ending {found.week_end}{found.taken_late ? `, taken late (${(found.taken_at ?? '').slice(0, 10)})` : ''}.
-            {' '}{found.opportunities} open, won and other opportunities at this level. Weights:
-            {' '}{Object.entries(found.settings.stage_weights).map(([stage, weight]) => `${stage} ${Math.round(weight * 100)}%`).join(', ')}.
+            {formatMonth(found.month)}{found.live ? ` — live, refreshed ${(found.taken_at ?? '').slice(0, 16).replace('T', ' ')}` : ', as it stood when the month ended'}.
+            {' '}Quota period {found.period.label ?? ''} ({formatMonth(found.period.first, true)}–{formatMonth(found.period.last, true)}):
+            growth is consumption above each customer's quota baseline, actual for the months closed and forecast after.
           </p>
 
           <div className="azure-cost-kpis">
-            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Weighted pipeline</span>
-              <strong>{money(found.landing.weighted)}</strong>
-              <span className="azure-cost-kpi-detail">next {found.settings.horizon_months} months · {money(found.landing.raw)} raw</span></div>
+            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Planned in the period</span>
+              <strong>{money(growth.planned_period)}</strong>
+              <span className="azure-cost-kpi-detail">{money(growth.weighted_period)} weighted by stage · {found.opportunities} opportunities</span></div>
+            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Growth to date</span>
+              <strong>{money(growth.growth_to_date)}</strong>
+              <span className="azure-cost-kpi-detail">against {money(growth.planned_to_date)} planned · <Verdict value={growth.verdict} /></span></div>
+            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Growth in the period</span>
+              <strong>{money(growth.growth_period)}</strong>
+              <span className="azure-cost-kpi-detail">to date plus the forecast for the rest</span></div>
             {found.landing.coverage ? (
               <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Coverage of the quota gap</span>
                 <strong>{found.landing.coverage.ratio == null ? '—' : `${found.landing.coverage.ratio}×`}</strong>
-                <span className="azure-cost-kpi-detail">{money(found.landing.coverage.weighted_in_period)} weighted against
-                  {' '}{money(found.landing.coverage.gap_to_quota)} to go{found.landing.coverage.period_last ? ` by ${formatMonth(found.landing.coverage.period_last, true)}` : ''}</span></div>
+                <span className="azure-cost-kpi-detail">{money(found.landing.coverage.weighted_ahead)} weighted still to come against
+                  {' '}{money(found.landing.coverage.gap_to_quota)} short of the {money(found.landing.coverage.quota)} quota</span></div>
             ) : null}
-            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">This week</span>
-              <strong>{found.movement.changes.length}</strong>
-              <span className="azure-cost-kpi-detail">{found.movement.first_snapshot ? 'first snapshot: opened this week' : `changes since ${found.movement.compared_with}`}</span></div>
-            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Plan accuracy</span>
-              <strong>{percent(checked?.accuracy)}</strong>
-              <span className="azure-cost-kpi-detail">{checked ? <Verdicts counts={checked.counts} /> : null}</span></div>
           </div>
 
           <section className="card azure-cost-card">
-            <h3>{level === 'all' ? 'By account manager' : level.startsWith('customer:') ? 'Opportunities' : 'By customer'}</h3>
-            <Rollup rows={found.rollup} level={level} onDrill={setLevel} />
+            <div className="azure-cost-card-head">
+              <h3>The plan against the growth</h3>
+              <label className="azure-cost-checkbox"><input type="checkbox" checked={weighted} onChange={(event) => setWeighted(event.target.checked)} /> Weight the plan by stage</label>
+            </div>
+            <SeriesChart label="Plan against growth" currency="USD" height={300}
+                         categories={span} categoryLabel={(value) => formatMonth(value, true)}
+                         series={[
+                           ...stages.map((stage, index) => ({
+                             name: stage, stack: 'p', color: index,
+                             data: span.map((value) => {
+                               const amount = found.landing.months[value]?.by_stage[stage] ?? 0;
+                               const weight = stage === 'Won' ? found.settings.won_weight : found.settings.stage_weights[stage] ?? 0;
+                               return (weighted ? amount * weight : amount) || null;
+                             }),
+                           })),
+                           { name: 'Growth above baseline', kind: 'line' as const, color: 'other' as const,
+                             data: span.map((value) => (closed.has(value) ? growth.months[value]?.growth ?? null : null)) },
+                           { name: 'Growth, forecast', kind: 'line' as const, color: 'other' as const, dashed: true,
+                             // From the last closed month on, so the forecast continues the actual line.
+                             data: span.map((value) => (!closed.has(value) || value === lastClosed
+                               ? growth.months[value]?.growth ?? null : null)) },
+                         ]} />
+            <p className="text-muted azure-cost-note">Bars: what the opportunities planned each month, by stage. Lines: how much the customers
+              grew above their quota baseline — actual in the months closed, then the automatic forecast.</p>
           </section>
 
           <section className="card azure-cost-card">
-            <h3>This week</h3>
+            <h3>{level === 'all' ? 'By account manager' : single ? 'Opportunities' : 'By customer'}</h3>
+            <Rollup rows={found.rollup} level={level} onDrill={setLevel} />
+          </section>
+
+          {single ? (
+            <section className="card azure-cost-card">
+              <h3>{single.name}: month by month</h3>
+              <p className="text-muted azure-cost-note">Baseline {money(single.baseline)} a month (the quota's). <Verdict value={single.verdict} /> to date.</p>
+              <CustomerMonths row={single} closed={closed} />
+            </section>
+          ) : level !== 'all' ? null : (
+            <section className="card azure-cost-card">
+              <h3>Customers: plan against growth</h3>
+              <p className="text-muted azure-cost-note">Each customer (an affiliate with its own account manager on its own), its plan
+                to date against its growth above baseline. Within ±{found.settings.tolerance_pct}% is landed.</p>
+              <table className="azure-cost-table">
+                <thead><tr><th>Customer</th><th>Account manager</th><th>Planned to date</th><th>Growth to date</th><th>Plan vs growth</th>
+                  <th>Planned, period</th><th>Growth, period</th></tr></thead>
+                <tbody>
+                  {growth.rows.filter((row) => row.planned_period || row.growth_period).map((row) => (
+                    <tr key={row.id}>
+                      <td><button type="button" className="azure-cost-link-button" onClick={() => setLevel(`customer:${row.id}`)}>{row.name}</button></td>
+                      <td>{row.account_manager ?? '—'}</td>
+                      <td>{money(row.planned_to_date)}</td>
+                      <td>{money(row.growth_to_date)}</td>
+                      <td><Verdict value={row.verdict} /></td>
+                      <td>{money(row.planned_period)}</td>
+                      <td>{money(row.growth_period)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          <section className="card azure-cost-card">
+            <h3>This month</h3>
             {found.movement.first_snapshot ? (
-              <p className="text-muted azure-cost-note">This is the first snapshot, so there is no last week to compare with: shown are the
-                opportunities opened during the week. From next week, every new, won, lost, re-staged, slipped and re-sized one shows here.</p>
-            ) : null}
+              <p className="text-muted azure-cost-note">The first month the review has kept, so there is no last month to compare with: shown are the
+                opportunities opened this month. From next month, every new, won, lost, re-staged, slipped and re-sized one shows here.</p>
+            ) : <p className="text-muted azure-cost-note">Changes since {formatMonth(found.movement.compared_with ?? '')}.</p>}
             {found.movement.changes.length ? (
               <table className="azure-cost-table">
                 <thead><tr><th>Change</th><th>Opportunity</th><th>Customer</th><th>Account manager</th><th>What</th><th>A month</th></tr></thead>
@@ -179,56 +255,7 @@ export function PipelineReviewPage() {
                   ))}
                 </tbody>
               </table>
-            ) : <p className="text-muted">Nothing changed this week.</p>}
-          </section>
-
-          <section className="card azure-cost-card">
-            <div className="azure-cost-card-head">
-              <h3>When it lands</h3>
-              <label className="azure-cost-checkbox"><input type="checkbox" checked={weighted} onChange={(event) => setWeighted(event.target.checked)} /> Weighted by stage</label>
-            </div>
-            <SeriesChart label="Pipeline by month" currency="USD" height={300}
-                         categories={months} categoryLabel={(month) => formatMonth(month, true)}
-                         series={[
-                           ...stages.map((stage, index) => ({
-                             name: stage, stack: 'p', color: index,
-                             data: months.map((month) => {
-                               const value = found.landing.months[month].by_stage[stage] ?? 0;
-                               const weight = stage === 'Won' ? found.settings.won_weight : found.settings.stage_weights[stage] ?? 0;
-                               return (weighted ? value * weight : value) || null;
-                             }),
-                           })),
-                         ]} />
-            <p className="text-muted azure-cost-note">Each open or won opportunity's plan by month, from the month of the snapshot; its stage's weight applied when weighted.</p>
-          </section>
-
-          <section className="card azure-cost-card">
-            <h3>Planned against what landed</h3>
-            <p className="text-muted azure-cost-note">
-              Each opportunity whose consumption has started: its plan in the closed months against what it added above its
-              natural trend, frozen before it could move anything. Within ±{found.settings.tolerance_pct}% is landed. One with no technologies
-              has no scope and is not measured: a whole customer's swings (a licence purchase, a migration) are not its doing. Estimated
-              means the trend was fitted from history after the fact.
-            </p>
-            {checked && checked.rows.length ? (
-              <table className="azure-cost-table">
-                <thead><tr><th>Opportunity</th><th>Customer</th><th>Account manager</th><th>Months</th><th>Planned</th><th>Added</th><th>Verdict</th><th>Against</th></tr></thead>
-                <tbody>
-                  {checked.rows.map((row) => (
-                    <tr key={row.id}>
-                      <td><Note stem={row.stem} title={row.title} /></td>
-                      <td>{row.customer}</td>
-                      <td>{row.account_manager ?? '—'}</td>
-                      <td className="text-muted">{row.months.length ? `${formatMonth(row.months[0], true)}–${formatMonth(row.months[row.months.length - 1], true)}` : '—'}</td>
-                      <td>{money(row.planned)}</td>
-                      <td>{money(row.added)}</td>
-                      <td className={row.verdict === 'short' || row.verdict === 'late' ? 'azure-cost-warning' : undefined}>{row.verdict}</td>
-                      <td className="text-muted">{row.against}{row.estimated ? ' · estimated' : ''}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : <p className="text-muted">No opportunity at this level has started consuming yet.</p>}
+            ) : <p className="text-muted">Nothing changed this month.</p>}
           </section>
 
           <Gaps gaps={found.gaps} />

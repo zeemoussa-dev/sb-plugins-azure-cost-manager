@@ -342,42 +342,42 @@ class ConsumptionService:
         return self.pipeline_review_settings()
 
     def pipeline_snapshots(self, ensure: bool = True) -> dict:
-        """The weeks snapshotted, newest last. `ensure`: take the last closed week's when
-        it is missing -- the first open after a week closes (PLAN.md)."""
+        """The months snapshotted, newest last. `ensure`: take (or refresh) the running
+        month's when it is missing or stale -- opening the report keeps it current."""
         if ensure:
             self.pipeline_snapshot()
         state = self._store.pipeline_snapshots()
-        rows = state.get("snapshots") or []
+        rows = pipeline_review.normalized(state.get("snapshots") or [])
         latest = rows[-1] if rows else None
         return {"settings": self.pipeline_review_settings(),
-                "weeks": [{key: row.get(key) for key in ("week_end", "taken_at", "taken_late")}
-                          | {"opportunities": len(row.get("opportunities") or [])} for row in rows],
+                "months": [{key: row.get(key) for key in ("month", "taken_at")}
+                           | {"opportunities": len(row.get("opportunities") or [])} for row in rows],
                 "baselines": len(state.get("baselines") or {}),
                 "estimated_baselines": sum(1 for row in (state.get("baselines") or {}).values() if row.get("estimated")),
                 "gaps": (latest or {}).get("gaps")}
 
-    def pipeline_snapshot_of(self, week: str) -> dict:
-        found = next((row for row in self._store.pipeline_snapshots().get("snapshots") or [] if row["week_end"] == week), None)
+    def pipeline_snapshot_of(self, month: str) -> dict:
+        found = next((row for row in pipeline_review.normalized(self._store.pipeline_snapshots().get("snapshots") or [])
+                      if row["month"] == month), None)
         if not found:
-            raise ValueError(f"no snapshot for the week ending {week}")
+            raise ValueError(f"no snapshot for {month}")
         return found
 
     def pipeline_snapshot(self, force: bool = False) -> dict:
-        """The last closed week's snapshot, taking it when it is missing (or, `force`,
-        again). Every opportunity of every customer as it stands, each customer's natural
-        trend fitted on the months closed by then, and a frozen baseline for each
-        opportunity seen for the first time."""
+        """The running month's snapshot, taken when missing and retaken when stale (or,
+        `force`, now): every opportunity of every customer as it stands, each customer's
+        natural trend fitted on the months closed by then, and a frozen baseline for each
+        opportunity seen for the first time. A past month's snapshot is never retaken."""
         today, now = self._today(), self._now()
-        week = pipeline_review.week_end(today)
+        month = months.month_of(today)
         state = self._store.pipeline_snapshots()
-        snapshots, baselines = list(state.get("snapshots") or []), dict(state.get("baselines") or {})
-        existing = next((row for row in snapshots if row["week_end"] == week.isoformat()), None)
-        if existing and not force:
+        snapshots, baselines = pipeline_review.normalized(state.get("snapshots") or []), dict(state.get("baselines") or {})
+        existing = next((row for row in snapshots if row["month"] == month), None)
+        if existing and not force and not pipeline_review.stale(existing, now):
             return existing
         horizon = self.pipeline_review_settings()["horizon_months"]
-        current_month = months.month_of(today)
-        fitted_through = months.shift(months.month_of(week), -1)
-        first_week = snapshots[0]["week_end"] if snapshots else week.isoformat()
+        fitted_through = months.shift(month, -1)
+        first_month = snapshots[0]["month"] if snapshots else month
         everyone = {customer["id"]: customer for customer in self._book.list()}
         by_stem = {customer["entity_customer"].lower(): customer for customer in everyone.values()
                    if customer.get("entity_customer")}
@@ -427,53 +427,51 @@ class ConsumptionService:
             # started -- an opportunity entered today for consumption since July (the H2
             # forecast, 2026-10-25) must not have July to September in its natural trend.
             candidates = [fitted_through]
-            if created_month and (row.get("created") or "") < first_week:
+            if created_month and created_month < first_month:
                 candidates.append(months.shift(created_month, -1))
             if start:
                 candidates.append(months.shift(start, -1))
             through = min(candidates)
-            estimated = through != fitted_through or not row.get("created")
-            trend = consumption_analysis.monthly_totals(merged(owner["id"]), current_month)
+            trend = consumption_analysis.monthly_totals(merged(owner["id"]), month)
             baselines[key] = {
-                "customer_id": owner["id"], "scope": scope, "fitted_through": through, "estimated": estimated,
-                "taken": week.isoformat(),
+                "customer_id": owner["id"], "scope": scope, "fitted_through": through,
+                "estimated": through != fitted_through or not row.get("created"), "taken": month,
                 "customer_natural": pipeline_review.natural(trend, through, horizon),
                 "scope_natural": pipeline_review.natural(
-                    pipeline_review.scope_trend(merged(owner["id"]), scope, current_month), through, horizon)
+                    pipeline_review.scope_trend(merged(owner["id"]), scope, month), through, horizon)
                 if scope else None}
 
         customers = {}
         for customer_id, customer in everyone.items():
             found = covering.get(customer_id) or {}
-            trend = consumption_analysis.monthly_totals(merged(customer_id), current_month)
+            trend = consumption_analysis.monthly_totals(merged(customer_id), month)
             customers[customer_id] = {"name": customer["name"], "parent": customer.get("parent"),
                                       "account_manager": found.get("account_manager"), "segment": found.get("segment"),
                                       "pss": found.get("pss") or [], "inherited": found.get("inherited") or [],
                                       "natural": pipeline_review.natural(trend, fitted_through, horizon)}
-        snapshot = {"week_end": week.isoformat(), "taken_at": now.isoformat(),
-                    "taken_late": pipeline_review.taken_late(week, now), "fitted_through": fitted_through,
+        snapshot = {"month": month, "taken_at": now.isoformat(), "fitted_through": fitted_through,
                     "opportunities": sorted(rows, key=lambda item: (item["customer"] or "", item["title"] or "")),
                     "customers": customers,
                     "gaps": pipeline_review.gaps(rows, {key: value for key, value in customers.items() if not value["parent"]})}
         self._store.save_pipeline_snapshots({"snapshots": pipeline_review.kept(snapshots, snapshot), "baselines": baselines})
         return snapshot
 
-    def pipeline_review_report(self, level: str = "all", week: str | None = None) -> dict:
+    def pipeline_review_report(self, level: str = "all", month: str | None = None) -> dict:
         """The pipeline review at a level (`all`, `am:<key>`, `segment:<name>`, `pss:<key>`,
-        `customer:<id>`) for a week: what changed, when the pipeline lands, and whether what
-        was planned landed (PLAN.md, release 2)."""
+        `customer:<id>`) for a month: what changed since last month, when the pipeline lands
+        over the quota period, and each customer's plan against its growth above the quota
+        baseline (operator, 2026-10-25: "compare the size of the opportunity with the
+        customer's growth in H2"; the months gone count, they are in the quota)."""
         self.pipeline_snapshot()
-        stored = self._store.pipeline_snapshots()
-        snapshots, baselines = stored.get("snapshots") or [], stored.get("baselines") or {}
+        snapshots = pipeline_review.normalized(self._store.pipeline_snapshots().get("snapshots") or [])
         if not snapshots:
             raise ValueError("no snapshot has been taken yet")
-        index = len(snapshots) - 1 if not week else next(
-            (position for position, row in enumerate(snapshots) if row["week_end"] == week), None)
+        index = len(snapshots) - 1 if not month else next(
+            (position for position, row in enumerate(snapshots) if row["month"] == month), None)
         if index is None:
-            raise ValueError(f"no snapshot for the week ending {week}")
+            raise ValueError(f"no snapshot for {month}")
         current, previous = snapshots[index], (snapshots[index - 1] if index else None)
-        chosen = self.pipeline_review_settings()
-        horizon, customers = chosen["horizon_months"], current["customers"]
+        chosen, customers = self.pipeline_review_settings(), current["customers"]
 
         def within(snapshot: dict | None) -> dict | None:
             if snapshot is None:
@@ -483,60 +481,47 @@ class ConsumptionService:
 
         here = within(current)
         rows = here["opportunities"]
-        first_month = months.month_of(date.fromisoformat(current["week_end"]))
-        last_closed = months.shift(months.month_of(self._today()), -1)
+        quota_chosen = self.quota_settings()
+        span = months.span(quota_chosen["fy_first"], quota_chosen["fy_last"])
         everyone = {customer["id"]: customer for customer in self._book.list()}
-        current_month = months.month_of(self._today())
-        merged_of: dict[str, dict] = {}
+        units = {row["id"]: pipeline_review.unit_of(row.get("customer_id"), customers) for row in rows}
+        candidates = {customer_id for customer_id in customers
+                      if pipeline_review.unit_of(customer_id, customers) == customer_id}
+        in_view = sorted(unit for unit in candidates if unit in everyone
+                         and pipeline_review.in_level(unit, customers, level))
+        carved = {unit for unit in candidates if customers[unit].get("parent")}
 
-        def merged(customer_id: str) -> dict:
-            if customer_id not in merged_of:
-                merged_of[customer_id] = self._merged(everyone[customer_id], rolled_up=False)[0]
-            return merged_of[customer_id]
+        groups = {}
+        for unit in in_view:
+            customer = everyone[unit]
+            only = None
+            if not customer.get("parent"):
+                # A parent's unit leaves out the affiliates measured on their own.
+                mine = [child for child in carved if customers[child].get("parent") == unit and child in everyone]
+                if mine:
+                    taken = {account["name"] for child in mine for account in everyone[child]["accounts"]}
+                    only = {account["name"] for member in self._group(customer) for account in member["accounts"]} - taken
+            found = self._quota_of(customer, None, quota_chosen, only)
+            groups[unit] = {"name": customers[unit]["name"], "months": found["months"], "baseline": found["baseline"]}
+        growth = pipeline_review.growth_against_plan(groups, rows, units, customers, chosen, span, chosen["tolerance_pct"])
+        closed = {month for month, value in growth["months"].items() if value.get("kind") == "actual"}
 
-        measured = {}
-        for row in rows:
-            started = sorted(month for month in pipeline_review.planned_by_month(row) if month <= last_closed)
-            baseline = baselines.get(row["id"])
-            if not started or not baseline or row.get("customer_id") not in everyone:
-                continue
-            # Strict (PLAN.md): an opportunity is measured on the services it names, never on the
-            # whole customer -- FAB's "Sentinel project" read $13.5M "added" from a Fortinet
-            # licence purchase (2026-10-25). Unscoped, it is listed but not measured.
-            if not row.get("scope"):
-                measured[row["id"]] = {"months": started, "estimated": baseline.get("estimated", False),
-                                       "against": "no scope: add its technologies", "added": None, "unscoped": True}
-                continue
-            natural = baseline.get("scope_natural")
-            entry = {"months": started, "estimated": baseline.get("estimated", False), "against": "scope", "added": None}
-            if natural:
-                trend = pipeline_review.scope_trend(merged(row["customer_id"]), row["scope"], current_month)
-                actual = {point["month"]: point["actual"] for point in trend}
-                entry["months"] = [month for month in started if month in natural["by_month"]]
-                entry["added"] = {month: actual.get(month, 0.0) - natural["by_month"][month] for month in entry["months"]}
-            measured[row["id"]] = entry
-        checked = pipeline_review.planned_vs_actual(rows, measured, chosen["tolerance_pct"])
         top = {customer_id: row for customer_id, row in customers.items() if not row.get("parent")}
-
         managers: dict[str, dict] = {}
-        for row in top.values():
-            person = row.get("account_manager") or {}
+        for unit in candidates:
+            person = customers[unit].get("account_manager") or {}
             entry = managers.setdefault(person.get("key") or "", {"level": f"am:{person.get('key') or ''}",
                                                                   "name": person.get("name") or pipeline_review.NO_MANAGER,
                                                                   "customers": 0})
             entry["customers"] += 1
-        specialists = {person["key"]: person["name"] for row in top.values() for person in row.get("pss") or []}
+        specialists = {person["key"]: person["name"] for row in customers.values() for person in row.get("pss") or []}
+        landing = pipeline_review.landing(rows, chosen, span)
         coverage = None
-        if level == "all":
-            try:
-                gap = (self.quota_across() or {}).get("gap_to_quota")
-                period_last = self.quota_settings().get("fy_last")
-                ahead = sum(value["weighted"] for month, value in pipeline_review.landing(
-                    rows, chosen, first_month, horizon)["months"].items() if not period_last or month <= period_last)
-                coverage = {"gap_to_quota": gap, "weighted_in_period": round(ahead, 2), "period_last": period_last,
-                            "ratio": round(ahead / gap, 2) if gap and gap > 0 else None}
-            except (ValueError, KeyError):
-                coverage = None
+        if level == "all" and quota_chosen.get("quota"):
+            gap = quota_chosen["quota"] - sum(row["growth_period"] for row in growth["rows"])
+            ahead = sum(value["weighted"] for month, value in landing["months"].items() if month not in closed)
+            coverage = {"quota": quota_chosen["quota"], "gap_to_quota": round(gap, 2), "weighted_ahead": round(ahead, 2),
+                        "ratio": round(ahead / gap, 2) if gap > 0 else None}
         kind, _, value = level.partition(":")
         label = {"all": "All customers"}.get(level) or (
             (managers.get(value) or {}).get("name") if kind == "am" else
@@ -545,22 +530,24 @@ class ConsumptionService:
         listed = {row["title"] for row in rows}
         gaps = current.get("gaps") or {}
         return {
-            "week_end": current["week_end"], "taken_at": current.get("taken_at"), "taken_late": current.get("taken_late"),
-            "weeks": [row["week_end"] for row in snapshots], "level": level, "label": label, "settings": chosen,
+            "month": current["month"], "taken_at": current.get("taken_at"), "live": index == len(snapshots) - 1,
+            "months": [row["month"] for row in snapshots], "level": level, "label": label, "settings": chosen,
+            "period": {"first": quota_chosen["fy_first"], "last": quota_chosen["fy_last"], "label": quota_chosen.get("fy"),
+                       "months": span, "closed": sorted(closed)},
             "levels": {"managers": sorted(managers.values(), key=lambda row: row["name"]),
-                       "segments": sorted({row["segment"] for row in top.values() if row.get("segment")}),
+                       "segments": sorted({row["segment"] for row in customers.values() if row.get("segment")}),
                        "pss": [{"level": f"pss:{key}", "name": name} for key, name in sorted(specialists.items(), key=lambda item: item[1])],
                        "customers": sorted(({"level": f"customer:{customer_id}", "name": row["name"]} for customer_id, row in top.items()),
                                            key=lambda row: row["name"].lower())},
             "movement": pipeline_review.movement(within(previous), here),
-            "landing": {**pipeline_review.landing(rows, chosen, first_month, horizon), "coverage": coverage},
-            "planned_vs_actual": checked,
-            "rollup": pipeline_review.rollup(rows, checked["rows"], customers, level, chosen, first_month, horizon,
-                                             pipeline_review.slips(snapshots[:index + 1])),
+            "landing": {**landing, "coverage": coverage},
+            "growth": growth,
+            "rollup": pipeline_review.rollup(rows, growth, units, customers, level, chosen, span, closed,
+                                             pipeline_review.slips(snapshots[:index + 1]), chosen["tolerance_pct"]),
             "gaps": {"customers_without_account_manager": [name for name in gaps.get("customers_without_account_manager") or []
                                                            if level == "all"],
                      **{key: [title for title in gaps.get(key) or [] if title in listed]
-                        for key in ("opportunities_without_start", "opportunities_without_amount", "opportunities_unscoped")}},
+                        for key in ("opportunities_without_start", "opportunities_without_amount")}},
             "opportunities": len(rows),
         }
 
