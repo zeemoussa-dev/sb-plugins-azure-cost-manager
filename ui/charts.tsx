@@ -177,7 +177,7 @@ export function SharesPie({ slices, currency, label, height = 280, most = 8 }: {
     <h4 className="azure-cost-pie-title">{label}</h4>
     <Chart label={label} height={height} option={{
       backgroundColor: option.backgroundColor, textStyle: option.textStyle,
-      color: shown.map((slice, index) => (rest > 0 && index === shown.length - 1 ? colors.other
+      color: shown.map((_slice, index) => (rest > 0 && index === shown.length - 1 ? colors.other
         : colors.series[index % colors.series.length])),
       legend: { type: 'scroll', bottom: 0, left: 'center', textStyle: { color: colors.muted }, icon: 'circle',
         itemWidth: 8, itemHeight: 8 },
