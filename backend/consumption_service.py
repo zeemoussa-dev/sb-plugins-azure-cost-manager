@@ -458,6 +458,108 @@ class ConsumptionService:
         self._store.save_pipeline_snapshots({"snapshots": pipeline_review.kept(snapshots, snapshot), "baselines": baselines})
         return snapshot
 
+    def pipeline_review_report(self, level: str = "all", week: str | None = None) -> dict:
+        """The pipeline review at a level (`all`, `am:<key>`, `segment:<name>`, `pss:<key>`,
+        `customer:<id>`) for a week: what changed, when the pipeline lands, and whether what
+        was planned landed (PLAN.md, release 2)."""
+        self.pipeline_snapshot()
+        stored = self._store.pipeline_snapshots()
+        snapshots, baselines = stored.get("snapshots") or [], stored.get("baselines") or {}
+        if not snapshots:
+            raise ValueError("no snapshot has been taken yet")
+        index = len(snapshots) - 1 if not week else next(
+            (position for position, row in enumerate(snapshots) if row["week_end"] == week), None)
+        if index is None:
+            raise ValueError(f"no snapshot for the week ending {week}")
+        current, previous = snapshots[index], (snapshots[index - 1] if index else None)
+        chosen = self.pipeline_review_settings()
+        horizon, customers = chosen["horizon_months"], current["customers"]
+
+        def within(snapshot: dict | None) -> dict | None:
+            if snapshot is None:
+                return None
+            return {**snapshot, "opportunities": [row for row in snapshot["opportunities"]
+                                                  if pipeline_review.in_level(row.get("customer_id"), customers, level)]}
+
+        here = within(current)
+        rows = here["opportunities"]
+        first_month = months.month_of(date.fromisoformat(current["week_end"]))
+        last_closed = months.shift(months.month_of(self._today()), -1)
+        everyone = {customer["id"]: customer for customer in self._book.list()}
+        current_month = months.month_of(self._today())
+        merged_of: dict[str, dict] = {}
+
+        def merged(customer_id: str) -> dict:
+            if customer_id not in merged_of:
+                merged_of[customer_id] = self._merged(everyone[customer_id], rolled_up=False)[0]
+            return merged_of[customer_id]
+
+        measured = {}
+        for row in rows:
+            started = sorted(month for month in pipeline_review.planned_by_month(row) if month <= last_closed)
+            baseline = baselines.get(row["id"])
+            if not started or not baseline or row.get("customer_id") not in everyone:
+                continue
+            scoped = bool(row.get("scope") and baseline.get("scope_natural"))
+            natural = baseline["scope_natural"] if scoped else baseline.get("customer_natural")
+            entry = {"months": started, "estimated": baseline.get("estimated", False),
+                     "against": "scope" if scoped else "whole customer (no scope)", "added": None}
+            if natural:
+                trend = pipeline_review.scope_trend(merged(row["customer_id"]), row["scope"], current_month) if scoped \
+                    else consumption_analysis.monthly_totals(merged(row["customer_id"]), current_month)
+                actual = {point["month"]: point["actual"] for point in trend}
+                entry["months"] = [month for month in started if month in natural["by_month"]]
+                entry["added"] = {month: actual.get(month, 0.0) - natural["by_month"][month] for month in entry["months"]}
+            measured[row["id"]] = entry
+        checked = pipeline_review.planned_vs_actual(rows, measured, chosen["tolerance_pct"])
+        top = {customer_id: row for customer_id, row in customers.items() if not row.get("parent")}
+
+        managers: dict[str, dict] = {}
+        for row in top.values():
+            person = row.get("account_manager") or {}
+            entry = managers.setdefault(person.get("key") or "", {"level": f"am:{person.get('key') or ''}",
+                                                                  "name": person.get("name") or pipeline_review.NO_MANAGER,
+                                                                  "customers": 0})
+            entry["customers"] += 1
+        specialists = {person["key"]: person["name"] for row in top.values() for person in row.get("pss") or []}
+        coverage = None
+        if level == "all":
+            try:
+                gap = (self.quota_across() or {}).get("gap_to_quota")
+                period_last = self.quota_settings().get("period_last")
+                ahead = sum(value["weighted"] for month, value in pipeline_review.landing(
+                    rows, chosen, first_month, horizon)["months"].items() if not period_last or month <= period_last)
+                coverage = {"gap_to_quota": gap, "weighted_in_period": round(ahead, 2), "period_last": period_last,
+                            "ratio": round(ahead / gap, 2) if gap and gap > 0 else None}
+            except (ValueError, KeyError):
+                coverage = None
+        kind, _, value = level.partition(":")
+        label = {"all": "All customers"}.get(level) or (
+            (managers.get(value) or {}).get("name") if kind == "am" else
+            value if kind == "segment" else specialists.get(value, value) if kind == "pss" else
+            (customers.get(value) or {}).get("name", value))
+        listed = {row["title"] for row in rows}
+        gaps = current.get("gaps") or {}
+        return {
+            "week_end": current["week_end"], "taken_at": current.get("taken_at"), "taken_late": current.get("taken_late"),
+            "weeks": [row["week_end"] for row in snapshots], "level": level, "label": label, "settings": chosen,
+            "levels": {"managers": sorted(managers.values(), key=lambda row: row["name"]),
+                       "segments": sorted({row["segment"] for row in top.values() if row.get("segment")}),
+                       "pss": [{"level": f"pss:{key}", "name": name} for key, name in sorted(specialists.items(), key=lambda item: item[1])],
+                       "customers": sorted(({"level": f"customer:{customer_id}", "name": row["name"]} for customer_id, row in top.items()),
+                                           key=lambda row: row["name"].lower())},
+            "movement": pipeline_review.movement(within(previous), here),
+            "landing": {**pipeline_review.landing(rows, chosen, first_month, horizon), "coverage": coverage},
+            "planned_vs_actual": checked,
+            "rollup": pipeline_review.rollup(rows, checked["rows"], customers, level, chosen, first_month, horizon,
+                                             pipeline_review.slips(snapshots[:index + 1])),
+            "gaps": {"customers_without_account_manager": [name for name in gaps.get("customers_without_account_manager") or []
+                                                           if level == "all"],
+                     **{key: [title for title in gaps.get(key) or [] if title in listed]
+                        for key in ("opportunities_without_start", "opportunities_without_amount", "opportunities_unscoped")}},
+            "opportunities": len(rows),
+        }
+
     def industries(self) -> list[str]:
         return self._industry_context.industries() if self._industry_context else []
 

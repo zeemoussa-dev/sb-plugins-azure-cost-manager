@@ -79,3 +79,74 @@ def test_gaps_name_what_weakens_the_review():
 
     assert found["customers_without_account_manager"] == ["Contoso"]
     assert found["opportunities_without_start"] == ["B"] and found["opportunities_unscoped"] == ["A"]
+
+
+def _snapshot(week, rows):
+    return {"week_end": week, "opportunities": rows}
+
+
+def _row(key, **fields):
+    return {"id": key, "title": key, "stem": key, "customer_id": "c1", "customer": "Contoso", "status": "Open",
+            "stage": "Qualified", "consumption_start": "2026-11", "expected_monthly_usd": 1000, "plan": {},
+            "created": "2026-10-20", "account_manager": {"key": "a@x", "name": "Ajay"}, **fields}
+
+
+def test_movement_between_two_weeks():
+    before = _snapshot("2026-10-18", [_row("moved"), _row("gone"), _row("won")])
+    after = _snapshot("2026-10-25", [_row("moved", stage="Proposed", consumption_start="2027-01", expected_monthly_usd=2000),
+                                     _row("won", status="Won"), _row("fresh")])
+
+    kinds = sorted((change["kind"], change["id"]) for change in pipeline_review.movement(before, after)["changes"])
+
+    assert kinds == [("amount", "moved"), ("new", "fresh"), ("removed", "gone"), ("slipped", "moved"),
+                     ("stage up", "moved"), ("won", "won")]
+
+
+def test_the_first_snapshot_reads_new_from_opened_dates():
+    found = pipeline_review.movement(None, _snapshot("2026-10-18", [_row("in", created="2026-10-14"),
+                                                                     _row("out", created="2026-10-01")]))
+
+    assert found["first_snapshot"] and [change["id"] for change in found["changes"]] == ["in"]
+
+
+def test_landing_is_raw_and_weighted_by_stage():
+    chosen = pipeline_review.settings(None)
+    rows = [_row("a", plan={"2026-11": 1000.0}), _row("b", stage="Committed", plan={"2026-11": 1000.0}),
+            _row("c", status="Lost", plan={"2026-11": 5000.0})]
+
+    found = pipeline_review.landing(rows, chosen, "2026-10", 3)
+
+    assert found["months"]["2026-11"]["raw"] == 2000.0 and found["months"]["2026-11"]["weighted"] == 1050.0
+    assert found["months"]["2026-10"]["raw"] == 0.0
+
+
+def test_verdicts_at_the_tolerance_edges():
+    assert pipeline_review.verdict(1000, 30, 20) == "late"
+    assert pipeline_review.verdict(1000, 790, 20) == "short"
+    assert pipeline_review.verdict(1000, 800, 20) == "landed"
+    assert pipeline_review.verdict(1000, 1200, 20) == "landed"
+    assert pipeline_review.verdict(1000, 1210, 20) == "over"
+
+
+def test_planned_vs_actual_and_its_accuracy():
+    rows = [_row("a", plan={"2026-08": 1000.0, "2026-09": 1000.0}), _row("b", plan={"2026-09": 500.0})]
+    measured = {"a": {"months": ["2026-08", "2026-09"], "added": {"2026-08": 900.0, "2026-09": 1100.0}, "against": "scope"},
+                "b": {"months": ["2026-09"], "added": None, "against": "whole customer (no scope)"}}
+
+    found = pipeline_review.planned_vs_actual(rows, measured, 20)
+
+    assert [(row["id"], row["verdict"]) for row in found["rows"]] == [("a", "landed"), ("b", "no trend")]
+    assert found["accuracy"] == 0.9
+
+
+def test_levels_and_the_rollup_drill_down():
+    customers = {"c1": {"name": "Contoso", "parent": None, "account_manager": {"key": "a@x", "name": "Ajay"},
+                        "segment": "Strategic Accounts", "pss": [{"key": "d@x", "name": "Dalbir"}]},
+                 "c2": {"name": "Contoso Labs", "parent": "c1", "account_manager": None}}
+    assert pipeline_review.in_level("c2", customers, "customer:c1")
+    assert pipeline_review.in_level("c1", customers, "pss:d@x") and pipeline_review.in_level("c2", customers, "am:")
+    rows = [_row("a", plan={"2026-11": 1000.0}), _row("b", customer_id="c2", account_manager=None, plan={"2026-11": 100.0})]
+
+    managers = pipeline_review.rollup(rows, [], customers, "all", pipeline_review.settings(None), "2026-10", 3, {})
+
+    assert [(row["label"], row["drill"]) for row in managers] == [("Ajay", "am:a@x"), ("No account manager", "am:")]

@@ -2,6 +2,19 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.56.0] - 2026-10-25
+
+- feat: **Pipeline review, release 2: the page** (PLAN.md; on the Azure Customer 360 home, under Quota and forecast).
+  - **Levels:** all customers, one account manager, one segment, one PSS, or one customer (a group, with its affiliates). There are no visibility rules. A level and a week are in the address, so a view can be shared.
+  - **The rollup:**
+    - for all customers, one row per account manager; for a manager, segment or PSS, one per customer; for a customer, one per opportunity;
+    - each row has its opportunities, the next 12 months raw and weighted, its verdicts, plan accuracy and months slipped, and drills into the next level.
+  - **This week:** new, won and lost opportunities, stage moves, starts slipped or pulled in, amounts changed, and opportunities no longer listed, each with its monthly impact. It compares two weekly snapshots. In the first week, the opportunities opened that week stand in, and the page says so.
+  - **When it lands:** the pipeline's plan by month, stacked by stage, raw or weighted. Across all customers, the weighted pipeline in the quota period is set against the gap to quota.
+  - **Planned against what landed:** each opportunity whose consumption has started. Its plan in the closed months is set against what it added above its frozen natural trend: its scope's when its technologies name one, else the whole customer's, which is marked as weaker. The verdict is landed (within ±tolerance), over, short, late, or no trend. Plan accuracy is one minus the month-by-month miss as a share of the plan, so a short month is not made good by an over one after it.
+  - **What weakens this review** (foldable): customers with no account manager, and opportunities with no start, no amount or no technologies.
+  - **Route:** `GET /pipeline/review?level=&week=`.
+
 ## [0.55.0] - 2026-10-25
 
 - feat: **Pipeline review, release 1: its foundations** (PLAN.md, "Pipeline review"; operator, 2026-10-25). There is no screen yet; releases 2–4 add the report.

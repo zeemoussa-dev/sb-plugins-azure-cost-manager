@@ -1057,6 +1057,77 @@ export type KeptPitches = Kept<RecommendedPitch[]> & { industry?: string | null;
 export const fetchPitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`);
 export const writePitches = (id: string) => apiFetch<KeptPitches>(`${customer(id)}/pitches`, { method: 'POST' });
 
+/** The weekly pipeline review (PLAN.md): what changed, when it lands, whether it landed. */
+export interface ReviewChange {
+  kind: 'new' | 'won' | 'lost' | 'status' | 'stage up' | 'stage down' | 'slipped' | 'pulled in' | 'start set' | 'amount' | 'removed';
+  id: string;
+  stem: string | null;
+  title: string;
+  customer_id: string | null;
+  customer: string;
+  account_manager: string | null;
+  detail: string;
+  monthly: number;
+}
+
+export interface ReviewChecked {
+  id: string;
+  stem: string | null;
+  title: string;
+  customer_id: string | null;
+  customer: string;
+  account_manager: string | null;
+  months: string[];
+  planned: number;
+  added: number | null;
+  verdict: 'landed' | 'short' | 'over' | 'late' | 'no plan' | 'no trend';
+  against: string;
+  estimated: boolean;
+}
+
+export interface ReviewRow {
+  key: string;
+  label: string;
+  drill: string | null;
+  stem: string | null;
+  opportunities: number;
+  raw: number;
+  weighted: number;
+  verdicts: Record<string, number>;
+  accuracy: number | null;
+  slipped_months: number;
+}
+
+export interface PipelineReview {
+  week_end: string;
+  taken_at: string | null;
+  taken_late: boolean;
+  weeks: string[];
+  level: string;
+  label: string;
+  opportunities: number;
+  settings: { stage_weights: Record<string, number>; won_weight: number; tolerance_pct: number; horizon_months: number };
+  levels: {
+    managers: { level: string; name: string; customers: number }[];
+    segments: string[];
+    pss: { level: string; name: string }[];
+    customers: { level: string; name: string }[];
+  };
+  movement: { compared_with: string | null; first_snapshot: boolean; changes: ReviewChange[] };
+  landing: {
+    months: Record<string, { raw: number; weighted: number; by_stage: Record<string, number> }>;
+    raw: number;
+    weighted: number;
+    coverage: { gap_to_quota: number | null; weighted_in_period: number; period_last: string | null; ratio: number | null } | null;
+  };
+  planned_vs_actual: { rows: ReviewChecked[]; counts: Record<string, number>; planned: number; added: number; accuracy: number | null };
+  rollup: ReviewRow[];
+  gaps: Record<string, string[]>;
+}
+
+export const fetchPipelineReview = (level: string, week?: string) =>
+  apiFetch<PipelineReview>(`${BASE}/pipeline/review?level=${encodeURIComponent(level)}${week ? `&week=${week}` : ''}`);
+
 /** Where the customer stands, as the seller knows it: six short fields. */
 export interface CustomerContext {
   fields: Record<string, string>;

@@ -248,3 +248,10 @@ def test_a_snapshot_freezes_a_baseline_before_the_opportunity_could_move_anythin
     assert service.pipeline_snapshot() is not None and len(store.pipeline_snapshots()["snapshots"]) == 1
     service.pipeline_snapshot(force=True)
     assert store.pipeline_snapshots()["baselines"]["o1"] == baseline        # a baseline is never recomputed
+
+    report = service.pipeline_review_report("all")
+    checked = report["planned_vs_actual"]["rows"][0]
+    # VM kept to its trend after June: the July plan added nothing above it.
+    assert checked["against"] == "scope" and checked["months"] == ["2026-07"] and checked["verdict"] == "late"
+    assert report["rollup"][0]["label"] == "No account manager" and report["movement"]["first_snapshot"]
+    assert service.pipeline_review_report(f"customer:{book.list()[0]['id']}")["opportunities"] == 1

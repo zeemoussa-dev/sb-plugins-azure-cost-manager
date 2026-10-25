@@ -34,6 +34,8 @@ const THEMES: { title: string; items: ThemeItem[] }[] = [
       summary: 'Who is growing and who is falling away: three and twelve months against the ones before, services that stopped or started, and each solution play\'s move.' },
   ] },
   { title: 'Quota and forecast', items: [
+    { to: '/azure-cost-manager/pipeline-review', title: 'Pipeline review',
+      summary: 'The weekly pipeline meeting as a report: what changed this week, when the pipeline lands, and whether what was planned landed -- by account manager, segment, PSS or customer.' },
     { report: 'Quota' },
     { to: '/azure-cost-manager/quota', title: 'Baseline and quota',
       summary: 'Every customer above its baseline and your quota\'s attainment — to date, projected and with the pipeline — and the opportunities that missed their forecast.' },

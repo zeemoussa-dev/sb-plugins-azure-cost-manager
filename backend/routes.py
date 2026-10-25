@@ -246,6 +246,11 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         """The weeks snapshotted; opening it takes the last closed week's when missing."""
         return _answered(lambda: service.pipeline_snapshots())
 
+    @router.get("/pipeline/review")
+    def get_pipeline_review(level: str = "all", week: str | None = None) -> dict:
+        """The weekly pipeline review at a level: all, am:<key>, segment:<name>, pss:<key>, customer:<id>."""
+        return _answered(lambda: service.pipeline_review_report(level, week))
+
     @router.get("/pipeline/snapshots/{week}")
     def get_pipeline_snapshot(week: str) -> dict:
         return _answered(lambda: service.pipeline_snapshot_of(week))

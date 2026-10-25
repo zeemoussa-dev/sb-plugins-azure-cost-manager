@@ -10,6 +10,7 @@ import { MarketplaceWhitespacePage } from './MarketplaceWhitespacePage';
 import { HygienePage } from './HygienePage';
 import { RenewalsPage } from './RenewalsPage';
 import { QuotaPage } from './Quota';
+import { PipelineReviewPage } from './PipelineReviewPage';
 import { MarketplacePage } from './MarketplacePage';
 import { ReportsHome } from './ReportsHome';
 import { SettingsPage } from './SettingsPage';
@@ -32,6 +33,7 @@ const ui: PluginUi = {
     { path: '/azure-cost-manager/hygiene', component: HygienePage },
     { path: '/azure-cost-manager/renewals', component: RenewalsPage },
     { path: '/azure-cost-manager/quota', component: QuotaPage },
+    { path: '/azure-cost-manager/pipeline-review', component: PipelineReviewPage },
   ],
   nav: [{ to: '/azure-cost-manager', label: 'Azure Customer 360', icon: '☁' },
     { to: '/azure-cost-manager/guide', label: 'Solutions Guide', icon: '📘' }],
