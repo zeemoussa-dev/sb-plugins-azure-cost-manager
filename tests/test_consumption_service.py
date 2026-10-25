@@ -295,7 +295,8 @@ def test_one_enrollment_failing_unexpectedly_does_not_stop_the_others(fake_api):
 
 
 def test_a_forecasts_only_sync_stores_the_whole_bill_and_the_usage_forecast(fake_api):
-    """2026-10-25: the first run stopped at once -- its progress was a name, not a step."""
+    """2026-10-25: the first run stopped at once -- its progress was a name, not a step; the
+    running month's billing is fetched with the forecast, which starts today."""
     from backend.consumption_store import ConsumptionStore
     from backend.consumption_sync import ConsumptionSync
     from backend.customers import AccountDirectory
@@ -303,6 +304,13 @@ def test_a_forecasts_only_sync_stores_the_whole_bill_and_the_usage_forecast(fake
     class Azure:
         def forecast_monthly(self, account, first, last, azure_only=False):
             return [{"month": "2026-12", "cost": 3500.0 if azure_only else 15000.0}]
+
+        def query_monthly_cost(self, account, cost_type, first, last):
+            assert (first, last) == ("2026-10", "2026-10")   # the running month only
+            return [{"month": "2026-10", "service": "VM", "subscription": "s", "cost": 25.0, "currency": "USD"}]
+
+        def query_monthly_meters(self, account, first, last, cost_type="ActualCost"):
+            return []
 
     store = ConsumptionStore(fake_api)
     store.save_account("1", {"months": {"2026-10": {"actual": {"service": {"VM": 10.0}}}}})
@@ -314,3 +322,5 @@ def test_a_forecasts_only_sync_stores_the_whole_bill_and_the_usage_forecast(fake
     entry = store.account("1")
     assert entry["forecast"] == [{"month": "2026-12", "cost": 15000.0}]
     assert entry["forecast_usage"] == [{"month": "2026-12", "cost": 3500.0}]
+    # ...and the running month's billing with it, so both reach the same day.
+    assert entry["months"]["2026-10"]["fetched_at"]

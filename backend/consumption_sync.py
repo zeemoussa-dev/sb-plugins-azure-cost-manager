@@ -225,18 +225,17 @@ class ConsumptionSync:
                      or customer["id"] == customer_id or customer.get("parent") == customer_id]
         accounts = sorted({name for customer in customers for name in customer["accounts"]})
         current_month = months.month_of(self._today())
+        visible = self._directory.by_name()
         self._set(accounts_done=0, accounts_total=len(accounts))
         client = self._client_factory()
         for done, account in enumerate(accounts, start=1):
-            self._set(current={**self._named(account), "forecasts": True})
-            entry = self._store.account(account)
-            if entry.get("months"):
-                errors: dict[str, str] = {}
-                entry["forecast"] = self._forecast(client, account, entry, current_month, errors)
-                entry["forecast_usage"] = self._forecast(client, account, entry, current_month, errors, azure_only=True)
-                for key, message in errors.items():
-                    self._record_error(account, f"{key}: {message}")
-                self._store.save_account(account, entry)
+            if self._store.account(account).get("months"):
+                # The running month's billing comes with its forecast: Azure forecasts from today,
+                # so a forecast newer than the billing left the days between counted nowhere
+                # (2026-10-25: ADNOC's October fell $1.8M, below its baseline).
+                self._one_enrollment(account, lambda: self._sync_account(client, account, current_month,
+                                                                         visible.get(account) or {}))
+                self._store.flush()
             self._set(accounts_done=done)
 
     def start_this_month(self, customer_id: str | None = None) -> dict:

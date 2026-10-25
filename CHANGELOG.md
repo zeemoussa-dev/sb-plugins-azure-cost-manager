@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.60.1] - 2026-10-25
+
+- fix: **the forecasts-only sync no longer leaves days out of the running month.** Azure forecasts from today, while the running month's billing was whatever the last full sync fetched, so the days between were counted nowhere. ADNOC's October fell from $6.6M to $4.8M, below its quota baseline, and its growth went negative (operator, 2026-10-25). That sync now fetches the running month's billing together with the forecast.
+
 ## [0.60.0] - 2026-10-25
 
 - feat: **the Pipeline review shows Azure's forecast to the end of the period** (operator, 2026-10-25: "a number for the Azure total forecast till end of year, so I can compare").
