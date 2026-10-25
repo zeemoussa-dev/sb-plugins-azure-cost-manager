@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.57.2] - 2026-10-25
+
+- change: **the months after the current one carry its pace forward** (operator, 2026-10-25: "forecast the months after the current one from the current month's pace, not the trend x seasonality model"). Once the running month has billed anything, each later month of the quota period is that month's projected amount. FAB no longer dips to $2.23M in November and jumps to $5.08M in December next to an October running at $3.49M. Before anything is billed in a month, the trend model still applies. The Pipeline review and the Quota reports read the same.
+
 ## [0.57.1] - 2026-10-25
 
 - fix: **the running month is projected at its pace, not read as a fall** (operator, 2026-10-25: "the forecast line is very wrong, it is always a drop in the current month"). The current month used the trend's full-month figure, which can sit below what is already billed: FAB's October read $2.29M with about $2.48M billed after 22 days. It is now the amount billed so far, scaled to the whole month by the days each enrollment's figures cover (fetched a day behind, as Cost Management lags), weighted by what each has billed. The trend forecast applies only while nothing is billed. This changes the Pipeline review's growth line and the Quota reports' projection alike.

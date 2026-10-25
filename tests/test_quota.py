@@ -118,4 +118,7 @@ def test_a_month_billing_above_the_trend_is_not_read_as_a_fall():
     october = next(row for row in found["months"] if row["month"] == "2026-10")
 
     assert october["consumption"] == round(1100 * 31 / 22, 2) and october["above"] > 0
-    assert next(row for row in found["months"] if row["month"] == "2026-11")["consumption"] == 1000.0
+    # The months after carry the pace forward, not the model's 1000.
+    assert next(row for row in found["months"] if row["month"] == "2026-11")["consumption"] == round(1100 * 31 / 22, 2)
+    model_only = quota_module.analyse(trend[:-1] + [{**trend[-1], "actual": 0.0}], forecast, chosen, "2026-10", None)
+    assert next(row for row in model_only["months"] if row["month"] == "2026-11")["consumption"] == 1000.0

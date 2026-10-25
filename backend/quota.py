@@ -141,9 +141,12 @@ def analyse(trend: list[dict], forecast_series: list[dict] | None, chosen: dict,
 
     The running month is what it has billed so far at its pace (`month_end_factor`), not
     the trend's figure: the trend read a month already billing more than it predicted as
-    a fall (operator, 2026-10-25: "always a drop in the current month")."""
+    a fall (operator, 2026-10-25: "always a drop in the current month"). The months after
+    it carry that pace forward -- the run rate, not the trend x seasonality model
+    (operator, same day). Before anything is billed in the month, the model applies."""
     actual = {row["month"]: row["actual"] for row in trend if not row["partial"]}
     billed_now = next((row["actual"] for row in trend if row["month"] == current_month), 0.0)
+    pace = billed_now * month_end_factor if billed_now > 0 and month_end_factor else None
     baseline_months = months.span(chosen["baseline_start"], chosen["baseline_last"])
     baseline = sum(actual.get(month, 0.0) for month in baseline_months) / len(baseline_months)
     forecast = {row["month"]: row for row in forecast_series or [] if row.get("forecast") is not None}
@@ -156,9 +159,7 @@ def analyse(trend: list[dict], forecast_series: list[dict] | None, chosen: dict,
         else:
             projected = forecast.get(month) or {}
             # No forecast (too little history): the line itself, adding nothing.
-            value = projected.get("forecast", baseline)
-            if month == current_month and billed_now > 0 and month_end_factor:
-                value = billed_now * month_end_factor
+            value = pace if pace is not None else projected.get("forecast", baseline)
             kind, pipeline = "forecast", projected.get("pipeline", 0.0) or 0.0
         rows.append({"month": month, "kind": kind, "consumption": round(value, 2), "baseline": round(baseline, 2),
                      "above": round(value - baseline, 2), "pipeline": round(pipeline, 2)})
