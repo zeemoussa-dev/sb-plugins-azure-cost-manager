@@ -57,7 +57,7 @@ class FakeAzure:
         return [cost_row("2026-09", 900, "VM", "Prod"), cost_row("2026-09", 100, "Storage", "Dev"),
                 cost_row("2026-10", 300, "VM", "Prod")]
 
-    def forecast_monthly(self, account_name, first_month, last_month):
+    def forecast_monthly(self, account_name, first_month, last_month, azure_only=False):
         return [{"month": "2026-11", "cost": 950}]
 
     def query_monthly_meters(self, account_name, first_month, last_month, cost_type="ActualCost"):

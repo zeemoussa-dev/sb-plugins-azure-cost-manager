@@ -159,12 +159,24 @@ def measured_total(parts: dict, measure: dict | None = None) -> float:
     return parts.get("usage", 0.0) + marketplace - (parts.get("credits", 0.0) if measure["credits"] else 0.0)
 
 
-def merge_forecasts(entries: dict[str, dict]) -> list[dict] | None:
+def merge_forecasts(entries: dict[str, dict], usage_only: bool = False) -> list[dict] | None:
+    """Azure's forecast across enrollments: the whole bill's, or (`usage_only`) Azure's own
+    services' -- None when an enrollment Azure forecasts has no usage forecast yet, so a
+    total is never part one and part the other (the run rate stands in)."""
+    key = "forecast_usage" if usage_only else "forecast"
+    if usage_only and any(entry.get("forecast") and entry.get(key) is None for entry in entries.values()):
+        return None
     totals: dict[str, float] = {}
     for entry in entries.values():
-        for row in entry.get("forecast") or []:
+        for row in entry.get(key) or []:
             _add(totals, row["month"], row["cost"])
     return [{"month": month, "cost": cost} for month, cost in sorted(totals.items())] or None
+
+
+# Quota and the Pipeline review count Core42's revenue, not MACC consumption (operator,
+# 2026-10-25: "Marketplace and SaaS are not part of the numbers"; "the pipeline review
+# without any MACC, only Core42"): Azure usage and Core42's own Marketplace offers, less credits.
+QUOTA_MEASURE = {"marketplace": "core42", "credits": True}
 
 
 def _total(merged: dict, month: str, kind: str = "actual") -> float:

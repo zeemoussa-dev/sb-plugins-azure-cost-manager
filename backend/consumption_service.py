@@ -201,11 +201,12 @@ class ConsumptionService:
     def _quota_of(self, customer: dict, measure: dict | None, chosen: dict, only: set[str] | None = None) -> dict:
         """One customer (a group, with its affiliates) against the baseline."""
         current_month = months.month_of(self._today())
+        measure = measure if measure is not None else consumption_analysis.QUOTA_MEASURE
         merged, currency, entries = self._merged(customer, only=only)
         trend = consumption_analysis.monthly_totals(merged, current_month, measure)
         pipeline = self.pipeline(customer["id"])
-        found = quota.analyse(trend, self.standard_forecast(trend, entries, chosen["fy_last"]), chosen, current_month,
-                              pipeline["by_month"])
+        found = quota.analyse(trend, self.standard_forecast(trend, entries, chosen["fy_last"], measure), chosen,
+                              current_month, pipeline["by_month"])
         return {**found, "currency": (currency or "").strip() or None,
                 "pipeline": quota.pipeline_against_actual(pipeline["opportunities"], found, current_month),
                 "pipeline_available": pipeline["available"]}
@@ -845,7 +846,8 @@ class ConsumptionService:
             "errors": {account: entry.get("errors") for account, entry in entries.items() if entry.get("errors")},
             "pipeline": pipeline,
             **consumption_analysis.analyse(merged, currency, customer.get("commitment"),
-                                           consumption_analysis.merge_forecasts(entries), as_of,
+                                           consumption_analysis.merge_forecasts(
+                                               entries, (measure or {}).get("marketplace") in (False, "core42")), as_of,
                                            measure=measure, scenario=customer.get("scenario"),
                                            pipeline=pipeline["by_month"],
                                            burn_merged=burn_merged),
@@ -987,10 +989,16 @@ class ConsumptionService:
                            "accounts": sorted(group["accounts"], key=lambda account: account["display_name"].lower())})
         return sorted(listed, key=lambda group: (-group["last_twelve_months"], group["name"].lower()))
 
-    def standard_forecast(self, trend: list[dict], entries: dict[str, dict], through: str | None = None) -> dict[str, float]:
+    def standard_forecast(self, trend: list[dict], entries: dict[str, dict], through: str | None = None,
+                          measure: dict | None = None) -> dict[str, float]:
         """Month -> cost from the running month to `through`: the plugin's one forecast
-        (`consumption_analysis.forecast`, the Overview's)."""
-        found = consumption_analysis.forecast(trend, consumption_analysis.merge_forecasts(entries), self._today(), through)
+        (`consumption_analysis.forecast`, the Overview's). A measure without Marketplace
+        (or with Core42's only) reads Azure's usage forecast, so a one-off third-party
+        purchase is not forecast again."""
+        # Core42's own offers are a sliver Azure's forecast cannot tell apart: usage's forecast stands for them.
+        usage_only = (measure or {}).get("marketplace") in (False, "core42")
+        found = consumption_analysis.forecast(trend, consumption_analysis.merge_forecasts(entries, usage_only),
+                                              self._today(), through)
         return {row["month"]: row["cost"] for row in found["months"]}
 
     def own_entries(self, customer: str | dict) -> dict[str, dict]:

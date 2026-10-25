@@ -2,6 +2,18 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.59.0] - 2026-10-25
+
+- change: **Quota and the Pipeline review count Core42 revenue, not MACC consumption** (operator, 2026-10-25: "Marketplace and SaaS are not part of the numbers"; "the pipeline review without any MACC, only Core42").
+  - **What counts:** Azure usage plus Core42's own Marketplace offers, less credits. That is the "Core42's only" measure.
+  - **FAB's September**, in this measure, is $3.60M of usage, not $13.92M with the third-party Fortinet purchase.
+  - **Where it applies:** the Pipeline review always. The Quota page defaults to it, with its own remembered filter, while the customer reports keep MACC consumed as theirs.
+- feat: **Azure's usage-only forecast.** Azure's forecast is now also fetched for Azure's own services alone, without Marketplace and SaaS (`PublisherType = Azure`).
+  - **Why:** the whole-bill forecast had extrapolated FAB's one-off $10.3M purchase into a $15.3M December.
+  - **Who reads it:** any measure without third-party Marketplace (Core42's only, or None): Quota, the Pipeline review, and the Overview with that filter. Core42's own offers are too small for Azure's forecast to tell apart, so the usage forecast stands for them.
+  - **Until an enrollment has a usage forecast,** the run rate stands in for that customer. A total is never part one forecast and part the other.
+  - **How it is fetched:** the full sync fetches both from now on. `POST /sync/forecasts` fetches only the forecasts, without a full sync.
+
 ## [0.58.0] - 2026-10-25
 
 - change: **one standard forecast everywhere, the Overview's** (operator, 2026-10-25: "can we have a standard forecasting model -- the Overview is more accurate based on my data"). ADNOC's October read $6.62M in the Overview, $7.34M in This month and $7.20M in Quota.

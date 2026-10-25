@@ -109,3 +109,16 @@ def test_the_standard_forecast_is_billed_plus_azures_rest_then_azure_then_the_ru
     # October: billed plus Azure's forecast of the unbilled rest (ADNOC: $6.62M, not month-to-date x days).
     assert found["2026-10"] == (6615.0, "azure") and found["2026-11"] == (5531.0, "azure")
     assert found["2026-12"][1] == "run-rate" and "2027-01" in found          # the quota period may run past December
+
+
+def test_the_quota_counts_core42_revenue_with_azures_usage_forecast():
+    from backend import consumption_analysis
+    with_usage = {"a": {"forecast": [{"month": "2026-12", "cost": 15000.0}], "forecast_usage": [{"month": "2026-12", "cost": 3500.0}]}}
+    without = {"a": {"forecast": [{"month": "2026-12", "cost": 15000.0}]}, "b": {"forecast": None}}
+
+    assert consumption_analysis.QUOTA_MEASURE["marketplace"] == "core42"
+    # The usage forecast: a one-off third-party purchase is not forecast again (FAB's December).
+    assert consumption_analysis.merge_forecasts(with_usage, usage_only=True) == [{"month": "2026-12", "cost": 3500.0}]
+    # An enrollment with no usage forecast yet: none at all, so the run rate stands in -- never a mix.
+    assert consumption_analysis.merge_forecasts(without, usage_only=True) is None
+    assert consumption_analysis.merge_forecasts(with_usage) == [{"month": "2026-12", "cost": 15000.0}]

@@ -386,14 +386,19 @@ class BillingClient:
             "currency": properties.get("currency"),
         }
 
-    def forecast_monthly(self, account_name: str, first_month: str, last_month: str) -> list[dict]:
-        """`[{month, cost}]` -- Azure's own forecast for months not yet billed."""
+    def forecast_monthly(self, account_name: str, first_month: str, last_month: str,
+                         azure_only: bool = False) -> list[dict]:
+        """`[{month, cost}]` -- Azure's own forecast for months not yet billed. `azure_only`:
+        Azure's own services, without Marketplace and SaaS -- the unfiltered forecast
+        extrapolated FAB's one-off $10.3M Fortinet purchase into a $15.3M December."""
+        dataset = {"granularity": "Monthly", "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}}}
+        if azure_only:
+            dataset["filter"] = {"dimensions": {"name": "PublisherType", "operator": "In", "values": ["Azure"]}}
         body = {
             "type": "ActualCost",
             "timeframe": "Custom",
             "timePeriod": _time_period(first_month, last_month),
-            "dataset": {"granularity": "Monthly",
-                        "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}}},
+            "dataset": dataset,
             "includeActualCost": False,
             "includeFreshPartialCost": False,
         }

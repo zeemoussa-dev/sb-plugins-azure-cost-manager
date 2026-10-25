@@ -148,7 +148,8 @@ export function PipelineReviewPage() {
           <p className="text-muted azure-cost-note">
             {formatMonth(found.month)}{found.live ? ` — live, refreshed ${(found.taken_at ?? '').slice(0, 16).replace('T', ' ')}` : ', as it stood when the month ended'}.
             {' '}Quota period {found.period.label ?? ''} ({formatMonth(found.period.first, true)}–{formatMonth(found.period.last, true)}):
-            growth is consumption above each customer's quota baseline, actual for the months closed and forecast after.
+            growth is Core42 revenue — Azure usage and Core42's own Marketplace offers, not third-party Marketplace or SaaS — above
+            each customer's quota baseline, actual for the months closed and Azure's usage forecast after.
           </p>
 
           <div className="azure-cost-kpis">

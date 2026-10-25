@@ -205,6 +205,40 @@ class ConsumptionSync:
                          name="azure-cost-manager-tags").start()
         return {"started": True, **self.status()}
 
+    def start_forecasts(self, customer_id: str | None = None) -> dict:
+        """Azure's forecasts only -- the whole bill's and Azure usage's -- in the background,
+        without a full sync (2026-10-25: the usage forecast is new)."""
+        with self._lock:
+            if self._status["running"]:
+                return {"started": False, "reason": "a sync is already running", **self._status}
+            self._status.update(running=True, started_at=self._now().isoformat(), finished_at=None,
+                                scope=f"{customer_id or 'all'}:forecasts", current=None, accounts_done=0,
+                                accounts_total=0, errors=[])
+        if self._log:
+            self._log.begin(self._status["scope"])
+        threading.Thread(target=self._run_and_finish, args=(customer_id, "forecasts"), daemon=True,
+                         name="azure-cost-manager-forecasts").start()
+        return {"started": True, **self.status()}
+
+    def run_forecasts(self, customer_id: str | None = None) -> None:
+        customers = [customer for customer in self._customers() if not customer_id
+                     or customer["id"] == customer_id or customer.get("parent") == customer_id]
+        accounts = sorted({name for customer in customers for name in customer["accounts"]})
+        current_month = months.month_of(self._today())
+        self._set(accounts_done=0, accounts_total=len(accounts))
+        client = self._client_factory()
+        for done, account in enumerate(accounts, start=1):
+            self._set(current=account)
+            entry = self._store.account(account)
+            if entry.get("months"):
+                errors: dict[str, str] = {}
+                entry["forecast"] = self._forecast(client, account, entry, current_month, errors)
+                entry["forecast_usage"] = self._forecast(client, account, entry, current_month, errors, azure_only=True)
+                for key, message in errors.items():
+                    self._record_error(account, f"{key}: {message}")
+                self._store.save_account(account, entry)
+            self._set(accounts_done=done)
+
     def start_this_month(self, customer_id: str | None = None) -> dict:
         """This month and last, by day, in the background -- only when asked
         (operator, 2026-10-18: on demand, no scheduled job)."""
@@ -241,6 +275,8 @@ class ConsumptionSync:
             return self.start_tags(customer_id)
         if kind == "this-month":
             return self.start_this_month(customer_id)
+        if kind == "forecasts":
+            return self.start_forecasts(customer_id)
         if scope == "profiles":
             return self.start(None, "only")
         if base.endswith("+profiles"):
@@ -341,6 +377,9 @@ class ConsumptionSync:
             return
         if profiles == "tags":
             self.run_tags(customer_id)
+            return
+        if profiles == "forecasts":
+            self.run_forecasts(customer_id)
             return
         if profiles != "only":
             self.run(customer_id)
@@ -634,6 +673,8 @@ class ConsumptionSync:
             self._sync_marketplace(client, account, entry, wanted, errors)
 
         entry["forecast"] = self._forecast(client, account, entry, current_month, errors)
+        # Azure's own services only: what the quota and the pipeline review count.
+        entry["forecast_usage"] = self._forecast(client, account, entry, current_month, errors, azure_only=True)
         entry["synced_at"] = self._now().isoformat()
         entry["light"] = False  # a customer's account now: fully synced
         entry["errors"] = errors
@@ -709,13 +750,13 @@ class ConsumptionSync:
         self._store.save_account(account, entry)
 
     def _forecast(self, client: BillingClient, account: str, entry: dict, current_month: str,
-                  errors: dict[str, str]) -> list[dict] | None:
+                  errors: dict[str, str], azure_only: bool = False) -> list[dict] | None:
         recent = [months.shift(current_month, -offset) for offset in range(0, 4)]
         if not any((entry["months"].get(month) or {}).get("actual", {}).get("service") for month in recent):
             return None  # an enrollment that stopped billing has nothing to forecast from
         try:
             return self._query(lambda: client.forecast_monthly(account, current_month,
-                                                               f"{self._today().year:04d}-12"), account)
+                                                               f"{self._today().year:04d}-12", azure_only), account)
         except AzureApiError as exc:
-            errors["forecast"] = str(exc)
+            errors["forecast_usage" if azure_only else "forecast"] = str(exc)
             return None

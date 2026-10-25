@@ -372,12 +372,12 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return _answered(lambda: service.save_quota_settings(changes))
 
     @router.get("/quota")
-    def get_quota(marketplace: str = "true", credits: bool = True) -> dict:
+    def get_quota(marketplace: str = "core42", credits: bool = True) -> dict:
         """Every customer above the baseline, and the quota's attainment."""
         return _answered(lambda: service.quota_across(measure(marketplace, credits)))
 
     @router.get("/customers/{customer_id}/quota")
-    def get_customer_quota(customer_id: str, marketplace: str = "true", credits: bool = True,
+    def get_customer_quota(customer_id: str, marketplace: str = "core42", credits: bool = True,
                            accounts: str | None = None) -> dict:
         return _answered(lambda: service.quota_customer(customer_id, measure(marketplace, credits), _account_list(accounts)))
 
@@ -498,6 +498,11 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     @router.get("/tags")
     def get_tags_across() -> list[dict]:
         return service.tags_across()
+
+    @router.post("/sync/forecasts")
+    def post_sync_forecasts(customer: str | None = None) -> dict:
+        """Azure's forecasts only -- the whole bill's and Azure usage's -- without a full sync."""
+        return sync.start_forecasts(customer)
 
     @router.post("/sync/tags")
     def post_sync_tags(customer: str | None = None) -> dict:

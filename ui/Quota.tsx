@@ -217,7 +217,9 @@ export function QuotaPage() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
-  const [measure, setMeasure] = useRememberedState<Measure>('azure-cost-manager.measure', { marketplace: true, credits: true });
+  // Its own, Core42 revenue by default: quota counts Core42's revenue, not MACC consumption
+  // (operator, 2026-10-25) -- while the customer reports keep MACC consumed as theirs.
+  const [measure, setMeasure] = useRememberedState<Measure>('azure-cost-manager.quota-measure', { marketplace: 'core42', credits: true });
 
   useEffect(() => {
     setReport(null);

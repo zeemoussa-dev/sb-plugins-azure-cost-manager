@@ -132,7 +132,7 @@ def test_syncing_a_parent_brings_its_affiliates(fake_api):
         def query_monthly_meters(self, account, first, last, cost_type="ActualCost"):
             return []
 
-        def forecast_monthly(self, account, first, last):
+        def forecast_monthly(self, account, first, last, azure_only=False):
             return []
 
     store = ConsumptionStore(fake_api)
