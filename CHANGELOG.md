@@ -2,6 +2,12 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.64.0] - 2026-10-25
+
+- change: **a parent whose affiliates signed their own MACCs is reported on its own share** (operator, 2026-10-25: Mubadala's figures were the group's while its MACC was HQ's -- "need consistency").
+  - **What changes:** the Overview, its KPIs, trend and forecast now count the parent's enrollments plus its affiliates without a MACC. That is what its signed share is burned by.
+  - **The group's total** is in the MACC allocation card. Ticking every enrollment in the enrollment picker still shows the whole group.
+
 ## [0.63.0] - 2026-10-25
 
 - feat: **a Compass pitch's use case names its expected services and how to pitch it** (operator, 2026-10-25: "what is the expected services in that solution, so later when we do sizing or pitching it will be a great added value, and how to pitch the solution to the customer").

@@ -156,8 +156,10 @@ def test_a_parent_whose_affiliates_signed_their_own_is_burned_by_its_own_enrollm
 
     result = service.analysis("holding")
 
-    # The group is still shown (operator, 2026-10-18: "only the total consumption is affected")...
-    assert result["months"][0]["actual"] == 1_750_000
+    # The report is the parent's own share, as its MACC is (operator, 2026-10-25: "need consistency");
+    # asking for every enrollment still shows the group.
+    assert result["months"][0]["actual"] == 1_000_000 and result["own_share_only"] is True
+    assert service.analysis("holding", accounts=["1", "2", "3"])["months"][0]["actual"] == 1_750_000
     # ...but only the parent's own enrollments burn its MACC, and each affiliate's own MACC is its
     # part of the pie (operator, 2026-10-25: "HQ has 51 - 7 left").
     assert result["commitment"]["consumed"] == 9 * 1_000_000

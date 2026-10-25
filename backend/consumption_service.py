@@ -756,6 +756,19 @@ class ConsumptionService:
         workbook = export_xlsx.build_marketplace(report, self._today())
         return f"Azure Marketplace - all customers - {self._today().isoformat()}.xlsx", workbook
 
+    def _own_share(self, customer_id: str) -> list[str] | None:
+        """An "own" parent whose affiliates carved MACCs out of its own is reported on its
+        share: its enrollments and those of affiliates without a MACC, the ones its signed
+        amount is burned by (operator, 2026-10-25: Mubadala's figures were the group's while
+        its MACC was HQ's -- "need consistency"). None for any other customer."""
+        customer = self._customer(customer_id)
+        members = self._group(customer)
+        commitment = customer.get("commitment")
+        if (len(members) < 2 or consumption_analysis.affiliates_roll_up(commitment)
+                or not any(member.get("commitment") for member in members[1:])):
+            return None
+        return sorted(self._remainder_accounts(members))
+
     @staticmethod
     def _remainder_accounts(members: list[dict]) -> set[str]:
         """The enrollments that burn an "own" parent's remainder: its own, and those of every
@@ -843,7 +856,8 @@ class ConsumptionService:
         "select some of them to display their data"); None or empty shows them all."""
         if view not in VIEWS:
             raise ValueError("view is account or customer")
-        found = self._analysis(customer_id, measure, accounts)
+        own_share = None if accounts else self._own_share(customer_id)
+        found = {**self._analysis(customer_id, measure, own_share or accounts), "own_share_only": bool(own_share)}
         if view == "customer":
             # Left out on the server, so nothing the Customer view hides reaches the browser.
             return {**found, "scenarios": None, "customer": {**found["customer"], "scenario": None},

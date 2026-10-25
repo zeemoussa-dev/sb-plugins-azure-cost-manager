@@ -324,6 +324,8 @@ export interface Analysis {
   customer: Customer;
   group: GroupInfo;
   allocations: Allocations | null;
+  /** An "own" parent shown on its share: its enrollments and affiliates without a MACC; the group is in the allocation card. */
+  own_share_only?: boolean;
   synced_at: string | null;
   stale: boolean;
   errors: Record<string, Record<string, string>>;

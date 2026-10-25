@@ -225,6 +225,14 @@ function AllocationsCard({ analysis }: { analysis: Analysis }) {
 
 function GroupBanner({ analysis }: { analysis: Analysis }) {
   const parent = analysis.group.parent;
+  if (analysis.own_share_only) {
+    return (
+      <p className="azure-cost-group-banner">
+        {analysis.customer.name}'s own share: its enrollments and its affiliates without a MACC of their own, matching the
+        MACC it burns. Affiliates with their own MACC, and the group's total, are in the MACC allocation card below.
+      </p>
+    );
+  }
   if (!parent) return null;
   return (
     <p className="azure-cost-group-banner">
