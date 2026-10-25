@@ -332,6 +332,192 @@ what was meant.
 - **Already there:** `measure.billing_day` and `consumption_analysis.report_date` (the
   closed-month rule), which the report keeps at the 1st.
 
+## Pipeline review: the weekly meeting as a report (planned 2026-10-25, not built)
+
+**What it replaces.** The manager meets each account manager and the team every week to
+go through the Azure opportunities they forecast, then waits for month-end to see the
+numbers. Instead, the report answers four questions on its own:
+
+1. **What changed this week?** New, won and lost opportunities, stage moves, date slips and amount changes.
+2. **When will the pipeline consume, and how much?** By month, raw and weighted by stage.
+3. **Did what we said would land, land?** Each opportunity's plan against what the customer actually added.
+4. **Is the team the difference?** Above-baseline growth split into organic, opportunity-influenced and unexplained.
+
+It is shown at three levels: **customer**, **account manager** (the customers they own) and
+**all customers**, each drilling into the next. There are no visibility rules: everyone sees
+every level (operator, 2026-10-25), and an account manager is a grouping, never a permission.
+
+### Decisions (operator, 2026-10-25)
+
+| Topic | Decision |
+|---|---|
+| Visibility | Everyone sees everything, for now. |
+| Customer → account manager | An optional `account_manager: "[[<email>\|<Name>]]"` on the Customer note, linking the Person note (named by email, as the vault's meeting attendees are). An affiliate without one takes its parent's (the same rule as `industry`). Customers with none go under "No account manager". Filled for 72 customers from the team's H2 forecast workbook on 2026-10-25, together with `segment` (Strategic, Major, or Scale Accounts & ISVs), and with `pss: ["[[<email>\|<Name>]]", …]` where the workbook names a PSS. The review can group and filter by segment and by PSS as well as by account manager. |
+| Stage weights | Identified 10%, Qualified 25%, Proposed 50%, Committed 80%, Won 100%. Editable in Settings. |
+| Week | Closes Sunday night. Monday's report shows the week just ended. |
+| Attribution | **Strict.** An opportunity's influence counts only in the services or solution it names, above that scope's own natural trend. Growth above trend with no opportunity behind it is **unexplained**, and is shown, never credited to the team. |
+| Snapshots | One per week, kept in plugin data. It holds the pipeline and each scope's natural trend as they were then. |
+
+### Why snapshots are the foundation
+
+A natural trend recomputed today has already absorbed the growth the team drove, so the
+team's impact would vanish. The trend has to be **frozen** at the time it was the honest
+expectation. Each weekly snapshot freezes it, and the same snapshots give "what changed
+since last week" by comparing one week with the one before. That beats parsing an
+opportunity's History note: its lines are free text, and opportunities are also edited by
+hand and by agents.
+
+For opportunities that predate the first snapshot, the natural trend is fitted on the months
+before each one's `created` date. This is recomputed once, kept, and labelled **estimated**
+wherever it is shown.
+
+### The data
+
+**Already there:**
+- Opportunity notes (Entities, read through `entities.opportunities`): `created`, `updated`,
+  `status`, `stage`, `consumption_start`, `expected_monthly_usd`, the month-by-month
+  consumption plan, `technologies` and `product`.
+- The quota baseline (`quota.py`).
+- The automatic forecast (`forecasting.py`: trend × seasonality, with R² and MAPE).
+- Merged monthly actuals by service and by subscription.
+
+**New:**
+- **`account_manager`** on the Customer note. Documentation only in the Entities template
+  (an optional key, so no version bump: Entities `MEMORY.md`, 2026-10-17). It is read through
+  the vault index the way `industry.IndustryContext` reads `industry`; that reader is
+  generalised to one hub-frontmatter key reader used by both.
+- **`Pipeline-Snapshots.json`** (a data file, so it moves with an export). One entry per week
+  (`week_end`, `taken_at`, `taken_late`), each holding:
+  - every opportunity: id, stem, customer, account manager, title, status, stage, start,
+    monthly figure, plan, `created` and scope;
+  - for each opportunity scope, its natural trend for the next 12 months, with `fitted_through`.
+
+  Two years are kept.
+- **`Pipeline-Review.json`**: stage weights, the plan tolerance (±20% by default) and the
+  horizon (12 months).
+
+**An opportunity's scope**, for strict attribution, is taken in this order:
+1. its `technologies` matched to Azure service names;
+2. else the solution it was drafted from (a Compass or rule pitch), whose pattern names its services;
+3. else **unscoped**.
+
+An unscoped opportunity is still shown in sections 1–3. In section 4 it influences nothing,
+and the report says "add its technologies to count its impact". This pushes data quality
+without claiming growth the opportunity may not have driven.
+
+### How snapshots are taken
+
+- **On open:** the first time the report is opened after a week closes, it takes the missing
+  snapshot. If the week closed more than a day earlier, the snapshot is marked `taken_late`.
+- **`POST /pipeline/snapshot`:** for a Hermes cron job on Sunday night, as the weekly sync
+  already runs. This is the reliable path, because "on open" misses weeks nobody opened.
+- **"Take snapshot now"** in Settings.
+
+### The report: what each section computes (pure functions in `pipeline_review.py`)
+
+1. **`movement(previous, current)`:** new, won, lost, stage moved (with direction), start
+   date slipped (by how many months) and amount changed. Each change carries its monthly
+   impact. Until two snapshots exist, "new" is read from `created` within the week, and the
+   section says so.
+2. **`landing(snapshot, weights, horizon)`:** the pipeline's planned consumption by month,
+   from each opportunity's plan (or its start and monthly figure), raw and weighted, stacked
+   by stage. Coverage is weighted pipeline against the gap to quota (`quota.py`).
+3. **`planned_vs_actual(opportunities, actuals)`:** for each opportunity whose start has
+   passed, its plan per closed month against what its scope added above that scope's natural
+   trend. The verdict is:
+   - **landed:** within tolerance;
+   - **late:** nothing yet;
+   - **short** or **over**.
+
+   Rolled up per account manager, this gives **plan accuracy** and **slip rate** (the average
+   number of months starts moved).
+4. **`impact(customer, period)`:** per month, the baseline, the natural trend (frozen) and
+   the actual. Above-baseline growth splits into:
+   - **organic:** natural trend minus baseline;
+   - **influenced:** actual minus natural trend, inside the scopes of opportunities planned for
+     that month. It is capped at what was planned plus tolerance, so a lucky month is not
+     credited in full.
+   - **unexplained:** the rest above trend.
+
+   Each figure carries the R² of the trend it rests on. A trend that fits poorly (R² < 0.5)
+   shows its figures as low confidence.
+
+**The rollup:** customer → account manager → all customers, summed, with each level's rows
+drilling into the one below.
+
+### Compass
+
+A **"three things to discuss this week"** summary at the top, per level and week, from the
+Pipeline coach persona. It draws on:
+- the biggest slips;
+- opportunities that landed short;
+- customers growing above trend with no opportunity;
+- weighted pipeline against the gap to quota.
+
+The checks: every item must name an opportunity or customer in the facts, and the figures
+shown are the report's own. It is kept until the facts change, like the other Compass features.
+
+### Screens
+
+- **Pipeline review** (a new page on the Azure Customer 360 home, under "all customers"):
+  - a level switch (All / an account manager / a customer) and a week picker (the snapshots);
+  - the Compass summary card, foldable;
+  - the four sections. A customer row drills into that customer; an opportunity row opens
+    its note.
+- **A customer's Pipeline tab** gains its section 4: the three lines and the split.
+- **Settings → Pipeline review:** stage weights, tolerance, snapshot status and "Take snapshot now".
+- **Export:** an Excel workbook with one sheet per section, for the level and week shown.
+
+### Routes
+
+- `GET /pipeline/review?level=all|am:<stem>|customer:<id>&week=<week_end>`
+- `GET|POST /pipeline/review/summary?level=&week=` (Compass)
+- `GET /pipeline/review.xlsx?level=&week=`
+- `POST /pipeline/snapshot`
+- `GET|PUT /pipeline/settings`
+
+### Releases, in order
+
+1. **Foundations:**
+   - the `account_manager` key (Entities docs, and reading it here);
+   - pipeline settings;
+   - snapshots (on open, the endpoint, and the one-time backfill of estimated trends);
+   - "No account manager" bucket counts.
+2. **Sections 1–3** and the Pipeline review page at all three levels.
+3. **Section 4 (team impact)**, also on a customer's Pipeline tab.
+4. **The Compass summary**, the Excel export and the Settings card.
+
+Each release is tested and installed on its own, and checked on real data before the next.
+
+### Before it is useful (the operator's data, not code)
+
+- Set `account_manager` on the Customer notes; the report lists the customers missing one.
+- Give opportunities a `consumption_start`, an `expected_monthly_usd` (or a plan) and their
+  `technologies`. The report lists the opportunities missing them, because each gap weakens a section.
+- Add a Hermes cron job calling `POST /pipeline/snapshot` on Sunday night.
+
+### Tests to pin
+
+- The movement between two snapshots: new, won, lost, a stage moved, a start slipped, an amount changed.
+- The landing calendar's weights.
+- The planned-vs-actual verdicts at the tolerance edges.
+- Impact sums to above-baseline. Influenced growth is capped by the plan and never
+  credited outside the opportunity's scope. An unscoped opportunity influences nothing.
+- A late snapshot is marked. A backfilled trend is labelled estimated.
+- An affiliate takes its parent's account manager.
+- Compass's summary keeps only items in the facts.
+
+### Risks
+
+- **Attribution is correlation, not proof.** The words on screen say "influenced by an
+  opportunity", never "caused". A poorly fitting trend is flagged.
+- **Service names.** `technologies` written freely won't always match Azure service names.
+  An unmatched one is shown so it can be fixed.
+- **Missed snapshots** if neither the cron job nor anyone opens the report. Gaps are shown,
+  never interpolated.
+- **Load.** One trend per opportunity scope, computed once per week and kept in the
+  snapshot, never on every page view.
+
 ## Framework work this needs (in `second_brain`, not here)
 
 1. **Plugin API: Hermes-content layer** — ADR-022 promised plugins could carry
