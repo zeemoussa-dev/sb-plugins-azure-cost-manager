@@ -563,11 +563,16 @@ def tagging_guide_messages(facts: dict) -> list[dict]:
 
 # -- an industry use case, in detail ---------------------------------------------------
 
-def use_case_facts(brief_facts: dict, pitch: dict, solution: dict | None) -> dict:
+def use_case_facts(brief_facts: dict, pitch: dict, solution: dict | None,
+                   services_running: list[str] | None = None) -> dict:
     """What Compass drafts a use case from: the industry note, the Solution note the pitch
     is built on (its pattern, architecture and sizing), and -- for the customer part only --
-    what the customer runs and what the seller said."""
+    what the customer runs and what the seller said. `services_running`: the services on
+    the customer's bill, so the expected services can be named as the bill names them."""
     found = brief_facts.get("industry") or {}
+    signals = [signal.split(":", 1)[1] for group in (solution or {}).get("requires") or [] for signal in group
+               if signal.startswith("service:")]
+    signals += [signal.split(":", 1)[1] for signal in (solution or {}).get("supports") or [] if signal.startswith("service:")]
     return {
         "use_case": pitch.get("use_case") or pitch.get("pitch"), "pitch": pitch.get("pitch"),
         "business_outcome": pitch.get("business_outcome"), "business_owner": pitch.get("business_owner"),
@@ -579,8 +584,12 @@ def use_case_facts(brief_facts: dict, pitch: dict, solution: dict | None) -> dic
                      "what_it_is": (solution or {}).get("description"),
                      "architecture": ((solution or {}).get("architecture") or "")[:1500] or None,
                      "sized_monthly_small_medium_large": [solution["sizing"]["totals"][size] for size in SIZES]
-                     if (solution or {}).get("sizing") else None},
+                     if (solution or {}).get("sizing") else None,
+                     "building_blocks": [{"block": row.get("block"), "service": row.get("service")}
+                                         for row in ((solution or {}).get("sizing") or {}).get("rows") or []],
+                     "service_names_it_is_recognised_by": sorted(set(signals))},
         "customer": {"name": brief_facts.get("customer"), "running": brief_facts.get("solutions"),
+                     "services_on_the_bill": services_running or [],
                      "top_services_last_month": (brief_facts.get("consumption") or {}).get("top_services_last_month"),
                      "commitment": brief_facts.get("commitment"), "seller_says": brief_facts.get("seller_says"),
                      "customer_context": brief_facts.get("customer_context")},
@@ -600,9 +609,18 @@ def use_case_messages(facts: dict) -> list[dict]:
         '"who_owns_it": <the owner, who else decides and who uses it>, "why_now": <drivers and regulation, '
         'named>, "how_it_is_delivered": <the solution\'s building blocks and flow, a short paragraph or bullets>, '
         '"value_and_kpis": <bullets>, "discovery_questions": [<4-6 questions>], "core42_angle": <in-country, '
-        'Compass by Core42, Azure: where it matters here>}, "for_this_customer": {"why_them": <2-4 sentences '
-        'citing its facts>, "first_step": <one concrete next step>, "questions": [<2-3 questions for this '
-        'customer>]}}. Markdown is allowed inside the strings. ' + INDUSTRY_RULE + " The customer's "
+        'Compass by Core42, Azure: where it matters here>, "expected_services": [<5-10 objects: {"service": '
+        '<an Azure or Core42 service, named as in the solution\'s building blocks or the bill when one fits>, '
+        '"role": <what it does in this use case, a few words>, "core": <true when the use case needs it, false '
+        'when it is an add-on>}>], "how_to_pitch": {"opening": <the first line to the business owner, an outcome '
+        'not a product>, "talk_track": [<3-5 points, business first then how>], "objections": [<2-4 objects: '
+        '{"objection": <what the customer says>, "answer": <the reply>}>], "proof_points": [<2-3 points: '
+        'patterns, references or numbers only when the facts give them>]}}, "for_this_customer": {"why_them": '
+        '<2-4 sentences citing its facts>, "how_to_pitch_them": <2-4 sentences: the angle for this customer, '
+        'from what it already runs and where it stands>, "first_step": <one concrete next step>, "questions": '
+        '[<2-3 questions for this customer>]}}. The expected services are what a seller sizes and positions: '
+        'the solution\'s building blocks first, then what this use case adds. Markdown is allowed inside the '
+        'strings. ' + INDUSTRY_RULE + " The customer's "
         + CONTEXT_RULE + " It shapes 'for_this_customer' -- the first step fits where they are -- never the note. Nothing else."),
         {"role": "user", "content": "Facts:\n" + compass.json_block(facts)}]
 
@@ -615,13 +633,30 @@ def check_use_case(reply: str, facts: dict) -> dict:
     def text(value, limit: int) -> str:
         return str(value or "").strip()[:limit]
 
+    services, seen = [], set()
+    for item in note.get("expected_services") or []:
+        name = text(item.get("service"), 120) if isinstance(item, dict) else ""
+        if name and name.lower() not in seen:
+            seen.add(name.lower())
+            services.append({"service": name, "role": text(item.get("role"), 200), "core": item.get("core") is not False})
+    pitch = note.get("how_to_pitch") if isinstance(note.get("how_to_pitch"), dict) else {}
     return {
         "note": {"name": text(note.get("name") or facts.get("use_case"), 120),
                  "outcome": text(note.get("outcome"), 300), "buyer": text(note.get("buyer"), 120),
                  **{key: text(note.get(key), 2500) for key in ("summary", "business_outcome", "who_owns_it", "why_now",
                                                                 "how_it_is_delivered", "value_and_kpis", "core42_angle")},
-                 "discovery_questions": [text(item, 300) for item in (note.get("discovery_questions") or [])[:6] if item]},
-        "for_this_customer": {"why_them": text(mine.get("why_them"), 1500), "first_step": text(mine.get("first_step"), 400),
+                 "discovery_questions": [text(item, 300) for item in (note.get("discovery_questions") or [])[:6] if item],
+                 "expected_services": services[:12],
+                 "how_to_pitch": {
+                     "opening": text(pitch.get("opening"), 400),
+                     "talk_track": [text(item, 400) for item in (pitch.get("talk_track") or [])[:6] if item],
+                     "objections": [{"objection": text(item.get("objection"), 300), "answer": text(item.get("answer"), 600)}
+                                    for item in (pitch.get("objections") or [])[:4]
+                                    if isinstance(item, dict) and item.get("objection") and item.get("answer")],
+                     "proof_points": [text(item, 400) for item in (pitch.get("proof_points") or [])[:4] if item]}},
+        "for_this_customer": {"why_them": text(mine.get("why_them"), 1500),
+                              "how_to_pitch_them": text(mine.get("how_to_pitch_them"), 1500),
+                              "first_step": text(mine.get("first_step"), 400),
                               "questions": [text(item, 300) for item in (mine.get("questions") or [])[:3] if item]},
     }
 

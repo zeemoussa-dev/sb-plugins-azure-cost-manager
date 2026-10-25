@@ -2,6 +2,18 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.63.0] - 2026-10-25
+
+- feat: **a Compass pitch's use case names its expected services and how to pitch it** (operator, 2026-10-25: "what is the expected services in that solution, so later when we do sizing or pitching it will be a great added value, and how to pitch the solution to the customer").
+  - **Expected services:** each service, its role, and whether it is core or an add-on. Compass is handed the Solution note's building blocks and the customer's bill, so it names services the way the bill does.
+  - **How to pitch:** an opening, a talk track, objections with answers, and proof points.
+  - **Publish to vault** adds both as sections of the use-case note (`industry-use-case` Template v2).
+- feat: **the drill-down reads the expected services against the customer's bill.** Each one is "running" or "not seen", never "missing", because a service can run under another name. A line on how to pitch to this customer sits beside it.
+- feat: **an opportunity drafted from a Compass pitch carries the customer's view** (operator: "the customer view needs to be part of the opportunity if the seller converts it").
+  - **Summary:** the use case, why them, how to pitch them, the expected services against their bill, and the questions for them.
+  - **Actions:** the next steps.
+  - **Needs:** Entities 1.14.
+
 ## [0.62.1] - 2026-10-25
 
 - change: **an affiliate with no MACC of its own burns the parent's remainder** (operator, 2026-10-25: Mubadala's Business Management Solutions, ADIC and Masdar City Services consume HQ's $40.8M).

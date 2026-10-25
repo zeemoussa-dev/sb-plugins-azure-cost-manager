@@ -415,7 +415,8 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def post_opportunity(customer_id: str, opportunity: dict = Body(...)) -> dict:
         found = _answered(lambda: pipeline.create(
             service.customer(customer_id), opportunity.get("owner_stem") or service.customer(customer_id)["entity_customer"],
-            (opportunity.get("title") or "").strip(), opportunity.get("fields") or {}, opportunity.get("plan") or []))
+            (opportunity.get("title") or "").strip(), opportunity.get("fields") or {}, opportunity.get("plan") or [],
+            opportunity.get("sections")))
         service.pipeline_changed()
         return found
 

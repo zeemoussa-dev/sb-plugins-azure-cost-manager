@@ -19,8 +19,8 @@ import os
 import re
 
 FOLDER = "Use Cases"
-SECTIONS = ("Summary", "Business outcome", "Who owns it", "Why now", "How it is delivered", "Value and KPIs",
-            "Discovery questions", "Core42 angle", "Sources")
+SECTIONS = ("Summary", "Business outcome", "Who owns it", "Why now", "How it is delivered", "Expected services",
+            "How to pitch", "Value and KPIs", "Discovery questions", "Core42 angle", "Sources")
 _UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
@@ -56,6 +56,7 @@ def markdown(note: dict, industry: str, solutions: list[str], today: str) -> str
         ("tags", "[" + ", ".join(_quoted(tag) for tag in ("kind/industry-use-case", f"industry/{_tag(industry)}")) + "]"),
     ]
     questions = "\n".join(f"- {item}" for item in note.get("discovery_questions") or [])
+    services = services_table(note.get("expected_services") or [])
     built_on = ", ".join(f"[[{name}]]" for name in solutions)
     body = {
         "Summary": note.get("summary"),
@@ -64,6 +65,8 @@ def markdown(note: dict, industry: str, solutions: list[str], today: str) -> str
         "Why now": note.get("why_now"),
         "How it is delivered": "\n\n".join(part for part in (
             note.get("how_it_is_delivered"), f"Built on: {built_on}." if built_on else None) if part),
+        "Expected services": services,
+        "How to pitch": pitch_text(note.get("how_to_pitch") or {}),
         "Value and KPIs": note.get("value_and_kpis"),
         "Discovery questions": questions,
         "Core42 angle": note.get("core42_angle"),
@@ -75,6 +78,71 @@ def markdown(note: dict, industry: str, solutions: list[str], today: str) -> str
     for section in SECTIONS:
         lines += [f"## {section}", "", (body.get(section) or "").strip(), ""]
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _cell(text: str) -> str:
+    return str(text or "").replace("|", "/").replace("\n", " ").strip()
+
+
+def services_table(services: list[dict], status: dict[str, str] | None = None) -> str:
+    """The expected services as a table; `status`: service -> what the customer's bill
+    says of it, for the customer's own copy."""
+    if not services:
+        return ""
+    head = "| Service | Role | Core |" + (" On the bill |" if status is not None else "")
+    rule = "|---|---|---|" + ("---|" if status is not None else "")
+    rows = [f"| {_cell(item['service'])} | {_cell(item.get('role'))} | {'core' if item.get('core', True) else 'add-on'} |"
+            + (f" {status.get(item['service'], '')} |" if status is not None else "") for item in services]
+    return "\n".join([head, rule, *rows])
+
+
+def pitch_text(pitch: dict) -> str:
+    """How to pitch it: the opening, the talk track, objections and their answers, proof points."""
+    parts = []
+    if pitch.get("opening"):
+        parts.append(f"**Opening:** {pitch['opening']}")
+    if pitch.get("talk_track"):
+        parts.append("**Talk track**\n\n" + "\n".join(f"- {item}" for item in pitch["talk_track"]))
+    if pitch.get("objections"):
+        parts.append("**Objections**\n\n" + "\n".join(f"- *{item['objection']}* -- {item['answer']}"
+                                                         for item in pitch["objections"]))
+    if pitch.get("proof_points"):
+        parts.append("**Proof points**\n\n" + "\n".join(f"- {item}" for item in pitch["proof_points"]))
+    return "\n\n".join(parts)
+
+
+def _normal(name: str) -> str:
+    words = re.sub(r"[^a-z0-9 ]", " ", str(name).lower()).split()
+    return " ".join(word for word in words if word not in ("azure", "microsoft", "v2", "service", "services"))
+
+
+def on_the_bill(services: list[dict], running: dict[str, float]) -> dict[str, str]:
+    """Each expected service against the customer's bill: "running" when a billed service
+    is it (one name inside the other, without "Azure"/"Microsoft"), else "not seen" -- a
+    service can run under another name, so never "missing"."""
+    billed = {_normal(name): name for name, monthly in running.items() if monthly}
+    found = {}
+    for item in services:
+        wanted = _normal(item["service"])
+        match = next((name for key, name in billed.items() if wanted and key and (wanted in key or key in wanted)), None)
+        found[item["service"]] = "running" if match else "not seen"
+    return found
+
+
+def customer_view(use_case: dict, status: dict[str, str], customer: str) -> str:
+    """What an opportunity drafted from the pitch carries in its Summary: the customer's
+    side of the use case and the expected services against its bill."""
+    mine, note = use_case.get("for_this_customer") or {}, use_case.get("note") or {}
+    parts = [f"**Use case:** {note.get('name')}" + (f" -- {note['outcome']}" if note.get("outcome") else "")]
+    if mine.get("why_them"):
+        parts.append(f"**Why {customer}:** {mine['why_them']}")
+    if mine.get("how_to_pitch_them"):
+        parts.append(f"**How to pitch them:** {mine['how_to_pitch_them']}")
+    if note.get("expected_services"):
+        parts.append("**Expected services**\n\n" + services_table(note["expected_services"], status))
+    if mine.get("questions"):
+        parts.append("**Questions for them**\n\n" + "\n".join(f"- {item}" for item in mine["questions"]))
+    return "\n\n".join(parts)
 
 
 def _long(path: str) -> str:

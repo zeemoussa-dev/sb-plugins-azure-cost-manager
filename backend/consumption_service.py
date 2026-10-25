@@ -283,6 +283,19 @@ class ConsumptionService:
         return {"customer": {"id": customer["id"], "name": customer["name"]},
                 **self._solutions_view(self._group(customer), catalog, self._only(customer, shown))}
 
+    def services_running(self, customer_id: str, closed_months: int = 3) -> dict[str, float]:
+        """Each service on the customer's (group's) bill, its average a month over the last
+        closed months: what a use case's expected services are checked against."""
+        customer = self._customer(customer_id)
+        merged, _, _ = self._merged(customer)
+        current_month = months.month_of(self._today())
+        closed = [month for month in sorted(merged) if month < current_month][-closed_months:]
+        totals: dict[str, float] = {}
+        for month in closed:
+            for name, cost in ((merged[month].get("actual") or {}).get("service") or {}).items():
+                totals[name] = totals.get(name, 0.0) + cost
+        return {name: round(cost / len(closed), 2) for name, cost in totals.items() if cost > 0} if closed else {}
+
     def solutions_across(self) -> dict:
         everyone = self._book.list()
         catalog = self._patterns()

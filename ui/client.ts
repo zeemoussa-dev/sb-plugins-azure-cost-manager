@@ -819,9 +819,9 @@ export const fetchEntityCustomers = () =>
     `${BASE}/entity-customers`);
 
 export const createOpportunity = (id: string, ownerStem: string, title: string,
-  fields: Partial<Opportunity>, plan: PlanMonth[]) =>
+  fields: Partial<Opportunity>, plan: PlanMonth[], sections?: { Summary?: string; Actions?: string }) =>
   apiFetch<Opportunity>(`${customer(id)}/opportunities`, {
-    method: 'POST', body: JSON.stringify({ owner_stem: ownerStem, title, fields, plan }),
+    method: 'POST', body: JSON.stringify({ owner_stem: ownerStem, title, fields, plan, ...(sections ? { sections } : {}) }),
   });
 
 export const updateOpportunity = (opportunityId: string, fields: Partial<Opportunity>, plan: PlanMonth[] | null) =>
@@ -993,6 +993,8 @@ export interface DraftOpportunity {
   email_subject: string;
   email_body: string;
   solution: string;
+  /** The customer's side of the pitch's use case, when one was written: the opportunity's summary carries it. */
+  customer_view: string | null;
 }
 
 export interface SizedSolution {
@@ -1180,11 +1182,15 @@ export interface UseCaseNote {
   value_and_kpis: string;
   discovery_questions: string[];
   core42_angle: string;
+  /** What a seller sizes and positions: each service, its role, core or an add-on. */
+  expected_services?: { service: string; role: string; core: boolean }[];
+  how_to_pitch?: { opening: string; talk_track: string[]; objections: { objection: string; answer: string }[];
+    proof_points: string[] };
 }
 
 export type UseCaseDetails = Kept<{
   note: UseCaseNote;
-  for_this_customer: { why_them: string; first_step: string; questions: string[] };
+  for_this_customer: { why_them: string; how_to_pitch_them?: string; first_step: string; questions: string[] };
 }> & {
   industry: string | null;
   /** The customer's industry has an Industry note to file the use case beside. */
@@ -1194,6 +1200,8 @@ export type UseCaseDetails = Kept<{
   solution_note: string | null;
   /** The note as it would be filed. */
   note_markdown: string | null;
+  /** Each expected service against the customer's bill: "running" or "not seen". */
+  on_the_bill: Record<string, 'running' | 'not seen'>;
 };
 
 const useCasePath = (id: string, pitch: string) => `${customer(id)}/use-case?pitch=${encodeURIComponent(pitch)}`;

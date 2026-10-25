@@ -50,3 +50,40 @@ def test_the_customer_part_stays_out_of_the_note():
     assert "FAB" not in use_cases.markdown(found["note"], "Banking", [], "2026-10-24")
     assert found["for_this_customer"]["why_them"].startswith("FAB")
 
+
+def test_the_expected_services_and_how_to_pitch_go_into_the_note():
+    """2026-10-25: a seller sizes and positions from the services a use case needs."""
+    reply = json.dumps({"note": {**NOTE, "expected_services": [
+        {"service": "Azure OpenAI", "role": "drafts the triage", "core": True},
+        {"service": "azure openai", "role": "dup"},
+        {"service": "Azure AI Search", "role": "retrieval over cases", "core": False}],
+        "how_to_pitch": {"opening": "Cut false positives.", "talk_track": ["Outcome first"],
+                         "objections": [{"objection": "Data residency?", "answer": "In-country."}, {"objection": "x"}],
+                         "proof_points": ["p"]}},
+        "for_this_customer": {"why_them": "w", "how_to_pitch_them": "Start from their Foundry use."}})
+
+    found = advisor.check_use_case(reply, {"use_case": "AML alert triage"})
+    text = use_cases.markdown(found["note"], "Banking", [], "2026-10-24")
+
+    assert [item["service"] for item in found["note"]["expected_services"]] == ["Azure OpenAI", "Azure AI Search"]
+    assert found["note"]["expected_services"][1]["core"] is False
+    assert found["note"]["how_to_pitch"]["objections"] == [{"objection": "Data residency?", "answer": "In-country."}]
+    assert "| Azure AI Search | retrieval over cases | add-on |" in text
+    assert "**Opening:** Cut false positives." in text and "- *Data residency?* -- In-country." in text
+    assert found["for_this_customer"]["how_to_pitch_them"] == "Start from their Foundry use."
+
+
+def test_expected_services_are_read_against_the_bill_and_go_into_the_opportunity():
+    services = [{"service": "Azure Data Factory", "role": "ingest", "core": True},
+                {"service": "Microsoft Purview", "role": "govern", "core": False}]
+
+    status = use_cases.on_the_bill(services, {"Azure Data Factory v2": 1200.0, "Storage": 80.0})
+    view = use_cases.customer_view({"note": {"name": "Lakehouse", "outcome": "One version of the numbers",
+                                             "expected_services": services},
+                                    "for_this_customer": {"why_them": "w", "how_to_pitch_them": "h", "questions": ["q"]}},
+                                   status, "FAB")
+
+    # Never "missing": a service can run under a name the rule does not know.
+    assert status == {"Azure Data Factory": "running", "Microsoft Purview": "not seen"}
+    assert "**Why FAB:** w" in view and "**How to pitch them:** h" in view
+    assert "| Microsoft Purview | govern | add-on | not seen |" in view

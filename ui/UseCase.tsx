@@ -81,6 +81,22 @@ function UseCaseBody({ customerId, customerName, pitch, onPublished }: {
       <section className="azure-cost-memory">
         <h4>For {customerName}</h4>
         {mine.why_them ? <NoteText text={mine.why_them} /> : null}
+        {mine.how_to_pitch_them ? <p><strong>How to pitch them:</strong> {mine.how_to_pitch_them}</p> : null}
+        {found.value.note.expected_services?.length ? (
+          <table className="azure-cost-table">
+            <thead><tr><th>Expected service</th><th>Role</th><th /><th>On {customerName}'s bill</th></tr></thead>
+            <tbody>
+              {found.value.note.expected_services.map((item) => (
+                <tr key={item.service}>
+                  <td>{item.service}</td><td>{item.role}</td>
+                  <td className="text-muted">{item.core ? 'core' : 'add-on'}</td>
+                  <td className={found.on_the_bill?.[item.service] === 'running' ? undefined : 'text-muted'}>
+                    {found.on_the_bill?.[item.service] ?? ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
         {mine.first_step ? <p><strong>First step:</strong> {mine.first_step}</p> : null}
         {mine.questions.length ? <ul>{mine.questions.map((question) => <li key={question}>{question}</li>)}</ul> : null}
         <form className="azure-cost-explain-reply" onSubmit={(event) => { event.preventDefault(); refine(); }}>

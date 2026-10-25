@@ -1,7 +1,7 @@
 {
   "id": "industry-use-case",
   "schema_version": 2,
-  "version": 1,
+  "version": 2,
   "identity": {
     "strategy": "id"
   },
@@ -49,6 +49,14 @@
       },
       {
         "name": "How it is delivered",
+        "access": "machine_write"
+      },
+      {
+        "name": "Expected services",
+        "access": "machine_write"
+      },
+      {
+        "name": "How to pitch",
         "access": "machine_write"
       },
       {

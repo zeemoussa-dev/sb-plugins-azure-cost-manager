@@ -150,8 +150,12 @@ export function DraftButton({ customerId, pitch }: { customerId: string; pitch: 
   const create = () => {
     if (!draft) return;
     setState('creating');
+    // The opportunity carries the customer's side of the use case, when one was written (2026-10-25).
+    const summary = [draft.summary, draft.customer_view].filter(Boolean).join('\n\n');
+    const actions = draft.next_steps.map((step) => `- ${step}`).join('\n');
     createOpportunity(customerId, '', draft.title.trim(),
-      { status: 'Open', stage: 'Identified', ...(draft.expected_monthly != null ? { expected_monthly_usd: draft.expected_monthly } : {}) }, [])
+      { status: 'Open', stage: 'Identified', ...(draft.expected_monthly != null ? { expected_monthly_usd: draft.expected_monthly } : {}) }, [],
+      summary || actions ? { ...(summary ? { Summary: summary } : {}), ...(actions ? { Actions: actions } : {}) } : undefined)
       .then(() => setState('created'), (failure) => { setState('idle'); setError(errorText(failure)); });
   };
   return (
@@ -168,6 +172,12 @@ export function DraftButton({ customerId, pitch }: { customerId: string; pitch: 
                 <input type="text" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
               </label>
               <p className="azure-cost-note">{draft.summary}</p>
+              {draft.customer_view ? (
+                <details className="azure-cost-note">
+                  <summary>The use case for this customer goes into the opportunity's summary</summary>
+                  <NoteText text={draft.customer_view} />
+                </details>
+              ) : null}
               <p className="azure-cost-note">
                 Expected: <strong>{money(draft.expected_monthly)}</strong> a month -- the {draft.size} size of the
                 {' '}{draft.solution} note's sizing, at list price.

@@ -46,10 +46,17 @@ class Pipeline:
             return []
         return list(self._service().list_for_customer(customer["entity_customer"], include_affiliates=True))
 
-    def create(self, customer: dict, owner_stem: str, title: str, fields: dict, plan: list[dict]) -> dict:
+    def create(self, customer: dict, owner_stem: str, title: str, fields: dict, plan: list[dict],
+               sections: dict[str, str] | None = None) -> dict:
         if not customer.get("entity_customer"):
             raise ValueError("link this customer to its Customer note before adding opportunities")
-        return self._service().create(owner_stem, title, fields, plan)
+        if not sections:
+            return self._service().create(owner_stem, title, fields, plan)
+        try:
+            return self._service().create(owner_stem, title, fields, plan, sections)
+        except TypeError as exc:
+            # Entities before 1.14 writes no sections on create.
+            raise PipelineUnavailable("Writing the opportunity's summary needs the Entities plugin 1.14 or later.") from exc
 
     def update(self, opportunity_id: str, fields: dict, plan: list[dict] | None) -> dict:
         return self._service().update(opportunity_id, fields, plan)

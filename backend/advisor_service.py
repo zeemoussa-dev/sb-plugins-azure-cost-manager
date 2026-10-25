@@ -140,7 +140,9 @@ class Advisor:
         solution = next((pattern for pattern in self._service.solution_catalog()["patterns"]
                          if pattern["id"] == pitch.get("solution_id")), None)
         brief_facts = self._service.brief_facts(customer_id)
-        facts = advisor.use_case_facts(brief_facts, pitch, solution)
+        running = self._service.services_running(customer_id)
+        facts = advisor.use_case_facts(brief_facts, pitch, solution,
+                                       sorted(running, key=lambda name: -running[name])[:60])
         key, stamp = f"{customer_id}|{pitch_text}", self._stamp("use-case", facts)
         if write:
             self._answers.put("use-case", key, stamp, advisor.check_use_case(
@@ -151,9 +153,11 @@ class Advisor:
         if kept["value"] and industry:
             preview = use_cases.markdown(kept["value"]["note"], industry,
                                          [solution["note"]] if (solution or {}).get("note") else [], date.today().isoformat())
+        # Read against the bill each time, not kept: what the customer runs moves on its own.
+        status = use_cases.on_the_bill(kept["value"]["note"].get("expected_services") or [], running) if kept["value"] else {}
         return {**kept, "industry": industry, "industry_note": bool(industry and self._service.industry_note_path(industry)),
                 "use_case_note": pitch.get("use_case_note"), "solution_note": (solution or {}).get("note"),
-                "note_markdown": preview}
+                "note_markdown": preview, "on_the_bill": status}
 
     def publish_use_case(self, customer_id: str, pitch_text: str) -> dict:
         """Files the drafted use case as a note beside its Industry note (operator: "publish
@@ -200,7 +204,21 @@ class Advisor:
         running = next((item for item in view["solutions"] if item["name"] == pitch["solution"]), {})
         facts = advisor.draft_facts(self._service.brief_facts(customer_id), pitch, sizing, running.get("monthly"))
         return {**advisor.check_draft(self._ask("draft", advisor.draft_messages(facts)), facts),
-                "solution": pitch["solution"]}
+                "solution": pitch["solution"], "customer_view": self._customer_view(customer_id, pitch_text)}
+
+    def _customer_view(self, customer_id: str, pitch_text: str) -> str | None:
+        """The customer's side of the pitch's use case, when one was written: what the
+        opportunity drafted from it carries (operator, 2026-10-25: "the customer view
+        needs to be part of the opportunity if the seller converts it")."""
+        kept = (self._answers.get("pitches", customer_id) or {}).get("value") or []
+        if not any(item["pitch"] == pitch_text for item in kept):
+            return None
+        found = (self._answers.get("use-case", f"{customer_id}|{pitch_text}") or {}).get("value")
+        if not found:
+            return None
+        status = use_cases.on_the_bill(found["note"].get("expected_services") or [],
+                                       self._service.services_running(customer_id))
+        return use_cases.customer_view(found, status, self._service.customer(customer_id)["name"])
 
     # -- FinOps ---------------------------------------------------------------------
 
