@@ -2,6 +2,13 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.60.0] - 2026-10-25
+
+- feat: **the Pipeline review shows Azure's forecast to the end of the period** (operator, 2026-10-25: "a number for the Azure total forecast till end of year, so I can compare").
+  - **What it is:** Azure's forecast of Core42 revenue from the running month to the period's last month, with the growth in it above the baseline, against what the opportunities plan for those same months.
+  - **Where:** a KPI card, and a column in the account manager and customer tables.
+- fix: **an opportunity written through the plugin refreshes the review.** The running month's snapshot is marked out of date on every create or update, so stages changed to Committed no longer show as Qualified until the snapshot's six hours run out.
+
 ## [0.59.1] - 2026-10-25
 
 - fix: **the forecasts-only sync no longer stops at once.** Its progress was set to an enrollment's name instead of a step, so the first run ended "'str' object has no attribute 'items'" with nothing fetched.

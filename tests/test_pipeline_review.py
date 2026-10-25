@@ -21,6 +21,7 @@ def test_snapshots_are_monthly_and_the_running_one_is_refreshed_when_stale():
     now = datetime(2026, 10, 25, 12, tzinfo=timezone.utc)
     assert pipeline_review.stale({"taken_at": "2026-10-25T05:00:00+00:00"}, now)
     assert not pipeline_review.stale({"taken_at": "2026-10-25T09:00:00+00:00"}, now)
+    assert pipeline_review.stale({"taken_at": None}, now)     # an opportunity written since
     # The weekly snapshot taken first counts as its month; a retake replaces the month's.
     found = pipeline_review.normalized([{"week_end": "2026-10-18", "taken_at": "2026-10-25T13:00:00+00:00"}])
     assert found[0]["month"] == "2026-10"
@@ -133,7 +134,7 @@ def test_each_units_plan_against_its_growth_above_baseline():
     groups = {"c1": {"name": "Contoso", "baseline": 10000.0, "months": [
         {"month": "2026-07", "kind": "actual", "above": 800.0},
         {"month": "2026-08", "kind": "actual", "above": 1200.0},
-        {"month": "2026-09", "kind": "forecast", "above": 1500.0}]}}
+        {"month": "2026-09", "kind": "forecast", "above": 1500.0, "consumption": 11500.0}]}}
     rows = [_row("a", plan={"2026-07": 1000.0, "2026-08": 1000.0, "2026-09": 1000.0})]
 
     found = pipeline_review.growth_against_plan(groups, rows, {"a": "c1"}, customers, pipeline_review.settings(None),
@@ -143,6 +144,8 @@ def test_each_units_plan_against_its_growth_above_baseline():
     assert (row["growth_to_date"], row["planned_to_date"], row["verdict"]) == (2000.0, 2000.0, "landed")
     assert (row["growth_period"], row["planned_period"]) == (3500.0, 3000.0)
     assert found["months"]["2026-09"]["kind"] == "forecast"
+    # The rest of the period: Azure's forecast of consumption, its growth, and the plan for the same months.
+    assert (row["forecast_ahead"], row["growth_ahead"], row["planned_ahead"]) == (11500.0, 1500.0, 1000.0)
 
 
 def test_the_rollup_by_account_manager_drills_into_their_customers():
@@ -150,9 +153,9 @@ def test_the_rollup_by_account_manager_drills_into_their_customers():
                  "c2": {"name": "Fabrikam", "parent": None, "account_manager": None}}
     growth = {"rows": [
         {"id": "c1", "name": "Contoso", "opportunities": 1, "planned_period": 3000.0, "weighted_period": 750.0,
-         "planned_to_date": 2000.0, "growth_to_date": 2000.0, "growth_period": 3500.0, "verdict": "landed"},
+         "planned_to_date": 2000.0, "growth_to_date": 2000.0, "growth_period": 3500.0, "verdict": "landed", "forecast_ahead": 0.0, "growth_ahead": 0.0, "planned_ahead": 0.0},
         {"id": "c2", "name": "Fabrikam", "opportunities": 0, "planned_period": 0.0, "weighted_period": 0.0,
-         "planned_to_date": 0.0, "growth_to_date": 400.0, "growth_period": 900.0, "verdict": "growing without opportunities"}]}
+         "planned_to_date": 0.0, "growth_to_date": 400.0, "growth_period": 900.0, "verdict": "growing without opportunities", "forecast_ahead": 0.0, "growth_ahead": 0.0, "planned_ahead": 0.0}]}
 
     managers = pipeline_review.rollup([], growth, {}, customers, "all", pipeline_review.settings(None), [], set(), {}, 20)
     one = pipeline_review.rollup([], growth, {}, customers, "am:a@x", pipeline_review.settings(None), [], set(), {}, 20)

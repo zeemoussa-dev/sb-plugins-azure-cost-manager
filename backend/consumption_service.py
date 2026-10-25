@@ -364,6 +364,17 @@ class ConsumptionService:
             raise ValueError(f"no snapshot for {month}")
         return found
 
+    def pipeline_changed(self) -> None:
+        """An opportunity was written: the running month's snapshot is out of date, retaken on
+        the next read (2026-10-25: stages set to Committed still showed as Qualified for hours)."""
+        month = months.month_of(self._today())
+        state = self._store.pipeline_snapshots()
+        snapshots = pipeline_review.normalized(state.get("snapshots") or [])
+        running = next((row for row in snapshots if row["month"] == month), None)
+        if running and running.get("taken_at"):
+            running["taken_at"] = None
+            self._store.save_pipeline_snapshots({**state, "snapshots": snapshots})
+
     def pipeline_snapshot(self, force: bool = False) -> dict:
         """The running month's snapshot, taken when missing and retaken when stale (or,
         `force`, now): every opportunity of every customer as it stands, each customer's

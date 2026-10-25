@@ -314,6 +314,10 @@ def growth_against_plan(groups: dict[str, dict], rows: list[dict], units: dict[s
         by_month = {row["month"]: row for row in info["months"]}
         months_rows, closed = [], {"growth": 0.0, "planned": 0.0}
         whole = {"growth": 0.0, "planned": 0.0, "weighted": 0.0}
+        # The rest of the period, from the running month: Azure's forecast of consumption, the
+        # growth in it, and what the opportunities plan for those months -- to compare
+        # (operator, 2026-10-25: "a number for the Azure total forecast till end of year").
+        ahead = {"forecast": 0.0, "growth": 0.0, "planned": 0.0}
         for month in span:
             quota_row = by_month.get(month) or {}
             raw, weighted = (planned.get(group) or {}).get(month, [0.0, 0.0])
@@ -327,6 +331,10 @@ def growth_against_plan(groups: dict[str, dict], rows: list[dict], units: dict[s
             if kind == "actual":
                 closed["growth"] += growth
                 closed["planned"] += raw
+            else:
+                ahead["forecast"] += float(quota_row.get("consumption") or 0.0)
+                ahead["growth"] += growth
+                ahead["planned"] += raw
             totals[month]["growth"] += growth
             totals[month]["planned"] += raw
             totals[month]["weighted"] += weighted
@@ -337,6 +345,8 @@ def growth_against_plan(groups: dict[str, dict], rows: list[dict], units: dict[s
                       "growth_to_date": round(closed["growth"], 2), "planned_to_date": round(closed["planned"], 2),
                       "growth_period": round(whole["growth"], 2), "planned_period": round(whole["planned"], 2),
                       "weighted_period": round(whole["weighted"], 2),
+                      "forecast_ahead": round(ahead["forecast"], 2), "growth_ahead": round(ahead["growth"], 2),
+                      "planned_ahead": round(ahead["planned"], 2),
                       "verdict": verdict(closed["planned"], closed["growth"], tolerance_pct)})
     found.sort(key=lambda row: (-row["planned_period"], -row["growth_period"]))
     planned_to_date = sum(row["planned_to_date"] for row in found)
@@ -351,6 +361,7 @@ def growth_against_plan(groups: dict[str, dict], rows: list[dict], units: dict[s
             "growth_period": round(sum(row["growth_period"] for row in found), 2),
             "planned_period": round(sum(row["planned_period"] for row in found), 2),
             "weighted_period": round(sum(row["weighted_period"] for row in found), 2),
+            **{key: round(sum(row[key] for row in found), 2) for key in ("forecast_ahead", "growth_ahead", "planned_ahead")},
             "verdict": verdict(planned_to_date, growth_to_date, tolerance_pct)}
 
 
@@ -391,7 +402,8 @@ def rollup(rows: list[dict], growth: dict, units: dict[str, str], customers: dic
     if kind != "all":
         return [{"key": row["id"], "label": row["name"], "drill": f"customer:{row['id']}", "stem": None,
                  **{key: row[key] for key in ("opportunities", "planned_period", "weighted_period", "planned_to_date",
-                                              "growth_to_date", "growth_period", "verdict")},
+                                              "growth_to_date", "growth_period", "verdict", "forecast_ahead",
+                                              "growth_ahead", "planned_ahead")},
                  "slipped_months": slipped_by_group.get(row["id"], 0)} for row in growth["rows"]]
     managers: dict[str, dict] = {}
     for row in growth["rows"]:
@@ -400,13 +412,16 @@ def rollup(rows: list[dict], growth: dict, units: dict[str, str], customers: dic
         entry = managers.setdefault(key, {"key": key, "label": manager.get("name") or NO_MANAGER, "drill": f"am:{key}",
                                           "stem": None, "opportunities": 0, "planned_period": 0.0, "weighted_period": 0.0,
                                           "planned_to_date": 0.0, "growth_to_date": 0.0, "growth_period": 0.0,
+                                          "forecast_ahead": 0.0, "growth_ahead": 0.0, "planned_ahead": 0.0,
                                           "slipped_months": 0, "customers": 0})
         entry["customers"] += 1
-        for field in ("opportunities", "planned_period", "weighted_period", "planned_to_date", "growth_to_date", "growth_period"):
-            entry[field] += row[field]
+        for field in ("opportunities", "planned_period", "weighted_period", "planned_to_date", "growth_to_date", "growth_period",
+                      "forecast_ahead", "growth_ahead", "planned_ahead"):
+            entry[field] += row.get(field) or 0.0
         entry["slipped_months"] += slipped_by_group.get(row["id"], 0)
     for entry in managers.values():
-        for field in ("planned_period", "weighted_period", "planned_to_date", "growth_to_date", "growth_period"):
+        for field in ("planned_period", "weighted_period", "planned_to_date", "growth_to_date", "growth_period",
+                      "forecast_ahead", "growth_ahead", "planned_ahead"):
             entry[field] = round(entry[field], 2)
         entry["verdict"] = verdict(entry["planned_to_date"], entry["growth_to_date"], tolerance_pct)
     return sorted(managers.values(), key=lambda row: (-row["planned_period"], -row["growth_period"]))

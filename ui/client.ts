@@ -1082,6 +1082,9 @@ export interface GrowthRow {
   growth_period: number;
   planned_period: number;
   weighted_period: number;
+  forecast_ahead: number;
+  growth_ahead: number;
+  planned_ahead: number;
   verdict: string;
 }
 
@@ -1099,6 +1102,7 @@ export interface ReviewRow {
   growth_to_date: number | null;
   growth_period: number | null;
   verdict: string | null;
+  forecast_ahead?: number;
   slipped_months: number;
 }
 
@@ -1134,6 +1138,9 @@ export interface PipelineReview {
     growth_period: number;
     planned_period: number;
     weighted_period: number;
+    forecast_ahead: number;
+    growth_ahead: number;
+    planned_ahead: number;
     verdict: string;
   };
   rollup: ReviewRow[];

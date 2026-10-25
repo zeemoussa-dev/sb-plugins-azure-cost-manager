@@ -413,13 +413,17 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
 
     @router.post("/customers/{customer_id}/opportunities")
     def post_opportunity(customer_id: str, opportunity: dict = Body(...)) -> dict:
-        return _answered(lambda: pipeline.create(
+        found = _answered(lambda: pipeline.create(
             service.customer(customer_id), opportunity.get("owner_stem") or service.customer(customer_id)["entity_customer"],
             (opportunity.get("title") or "").strip(), opportunity.get("fields") or {}, opportunity.get("plan") or []))
+        service.pipeline_changed()
+        return found
 
     @router.put("/opportunities/{opportunity_id}")
     def put_opportunity(opportunity_id: str, change: dict = Body(...)) -> dict:
-        return _answered(lambda: pipeline.update(opportunity_id, change.get("fields") or {}, change.get("plan")))
+        found = _answered(lambda: pipeline.update(opportunity_id, change.get("fields") or {}, change.get("plan")))
+        service.pipeline_changed()
+        return found
 
     @router.get("/sign-in")
     def get_sign_in() -> dict:

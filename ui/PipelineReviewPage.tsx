@@ -33,7 +33,7 @@ function Rollup({ rows, level, onDrill }: { rows: ReviewRow[]; level: string; on
   return (
     <table className="azure-cost-table">
       <thead><tr><th>{first}</th>{byOpportunity ? <th>Stage</th> : <th>Opportunities</th>}<th>Planned, period</th><th>Weighted</th>
-        <th>Planned to date</th>{byOpportunity ? null : <><th>Growth to date</th><th>Plan vs growth</th><th>Growth, period</th></>}
+        <th>Planned to date</th>{byOpportunity ? null : <><th>Growth to date</th><th>Plan vs growth</th><th>Growth, period</th><th>Azure forecast, rest of period</th></>}
         <th>Months slipped</th></tr></thead>
       <tbody>
         {rows.map((row) => (
@@ -44,7 +44,8 @@ function Rollup({ rows, level, onDrill }: { rows: ReviewRow[]; level: string; on
             <td>{money(row.planned_period)}</td>
             <td>{money(row.weighted_period)}</td>
             <td>{money(row.planned_to_date)}</td>
-            {byOpportunity ? null : <><td>{money(row.growth_to_date)}</td><td><Verdict value={row.verdict} /></td><td>{money(row.growth_period)}</td></>}
+            {byOpportunity ? null : <><td>{money(row.growth_to_date)}</td><td><Verdict value={row.verdict} /></td><td>{money(row.growth_period)}</td>
+              <td>{money(row.forecast_ahead ?? null)}</td></>}
             <td>{row.slipped_months || '—'}</td>
           </tr>
         ))}
@@ -162,6 +163,10 @@ export function PipelineReviewPage() {
             <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Growth in the period</span>
               <strong>{money(growth.growth_period)}</strong>
               <span className="azure-cost-kpi-detail">to date plus the forecast for the rest</span></div>
+            <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Azure forecast to {formatMonth(found.period.last, true)}</span>
+              <strong>{money(growth.forecast_ahead)}</strong>
+              <span className="azure-cost-kpi-detail">this month on: {money(growth.growth_ahead)} above baseline against
+                {' '}{money(growth.planned_ahead)} planned for the same months</span></div>
             {found.landing.coverage ? (
               <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Coverage of the quota gap</span>
                 <strong>{found.landing.coverage.ratio == null ? '—' : `${found.landing.coverage.ratio}×`}</strong>
