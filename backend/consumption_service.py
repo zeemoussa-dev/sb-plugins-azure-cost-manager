@@ -743,6 +743,14 @@ class ConsumptionService:
         workbook = export_xlsx.build_marketplace(report, self._today())
         return f"Azure Marketplace - all customers - {self._today().isoformat()}.xlsx", workbook
 
+    @staticmethod
+    def _remainder_accounts(members: list[dict]) -> set[str]:
+        """The enrollments that burn an "own" parent's remainder: its own, and those of every
+        affiliate that signed no MACC of its own (operator, 2026-10-25: Mubadala's BMS, ADIC
+        and Masdar City Services consume HQ's $40.8M)."""
+        return {account["name"] for index, member in enumerate(members)
+                if index == 0 or not member.get("commitment") for account in member["accounts"]}
+
     def _allocations(self, parent: dict, affiliates: list[dict]) -> dict | None:
         """How the parent's MACC is carved up: each affiliate against its own MACC,
         and the unallocated rest against the parent's own enrollments."""
@@ -769,6 +777,8 @@ class ConsumptionService:
                          "burn": burn, "consumed_against_parent": against_parent})
         allocated = sum((row["commitment"] or {}).get("amount", 0.0) for row in rows)
         _, own_consumed = burn_of(parent, None)
+        # The remainder is burned by the parent's own enrollments and every affiliate without a MACC.
+        pool_consumed = own_consumed + sum(row["consumed_against_parent"] for row in rows if not row["commitment"])
         amount = (commitment or {}).get("amount")
         unallocated = None if amount is None else amount - allocated
         return {
@@ -776,8 +786,8 @@ class ConsumptionService:
             "allocated": round(allocated, 2),
             "unallocated": None if unallocated is None else round(unallocated, 2),
             "over_allocated": bool(amount is not None and allocated > amount),
-            "own": {"consumed": own_consumed,
-                    "remaining": None if unallocated is None else round(unallocated - own_consumed, 2)},
+            "own": {"consumed": round(pool_consumed, 2),
+                    "remaining": None if unallocated is None else round(unallocated - pool_consumed, 2)},
             "affiliates": rows,
             "consumed_total": round(own_consumed + sum(row["consumed_against_parent"] for row in rows), 2),
         }
@@ -846,7 +856,7 @@ class ConsumptionService:
         own_burn = len(members) > 1 and not consumption_analysis.affiliates_roll_up(customer.get("commitment"))
         # The MACC consumed is the commitment's, whichever enrollments are shown: a
         # selection must never make a MACC look less consumed than it is.
-        burn_merged = (self._merged(customer, rolled_up=False)[0] if own_burn
+        burn_merged = (self._merged(customer, only=self._remainder_accounts(members))[0] if own_burn
                        else self._merged(customer)[0] if only else None)
         synced = [account["synced_at"] for member in members for account in member["accounts"]]
         synced_at = min(synced) if synced and all(synced) else None
@@ -1226,8 +1236,8 @@ class ConsumptionService:
             closed = [month for month in trend if not month["partial"]]
             burning = trend
             if len(members) > 1 and not consumption_analysis.affiliates_roll_up(commitment):
-                own, _ = consumption_analysis.merge({account["name"]: entry(account["name"])
-                                                     for account in customer["accounts"]}, None, not_eligible)
+                own, _ = consumption_analysis.merge({name: entry(name) for name in self._remainder_accounts(members)},
+                                                    None, not_eligible)
                 burning = consumption_analysis.monthly_totals(own, current_month, measure)
             burn = (consumption_analysis.burn_down(consumption_analysis.carved(commitment, members[1:]), burning, today)
                     if commitment else None)

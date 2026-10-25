@@ -120,7 +120,7 @@ function CommitmentCard({ analysis }: { analysis: Analysis }) {
         <dd>Usage and all Marketplace (except offers marked as not eligible), less credits
           {analysis.group.affiliates.length
             ? commitment.affiliates === 'own'
-              ? ` — this customer's own enrollments only: each affiliate burns its own MACC, its part of the group's (totals above include them)`
+              ? ` — this customer's own enrollments and its affiliates without a MACC: each that signed one burns its own, its part of the group's (totals above include them)`
               : ` — including its ${analysis.group.affiliates.length} affiliate(s)`
             : ''}</dd>
         <dt>Consumed</dt><dd>{formatMoney(commitment.consumed, currency)} ({commitment.consumed_pct}%)</dd>
@@ -192,7 +192,7 @@ function AllocationsCard({ analysis }: { analysis: Analysis }) {
             );
           })}
           <tr>
-            <td>{analysis.customer.name} — unallocated, own enrollments</td>
+            <td>{analysis.customer.name} — unallocated: its own enrollments and affiliates without a MACC</td>
             <td>{allocations.unallocated != null ? formatMoney(allocations.unallocated, currency) : '—'}</td>
             <td>{formatMoney(allocations.own.consumed, currency)}</td>
             <td>{pct(allocations.own.consumed, allocations.unallocated)}</td>

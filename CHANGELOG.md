@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.62.1] - 2026-10-25
+
+- change: **an affiliate with no MACC of its own burns the parent's remainder** (operator, 2026-10-25: Mubadala's Business Management Solutions, ADIC and Masdar City Services consume HQ's $40.8M).
+  - **Where it applies:** the parent's burn-down, the portfolio, and the allocation card's "unallocated" row. The group total still counts each dollar once.
+
 ## [0.62.0] - 2026-10-25
 
 - change: **an affiliate's own MACC is its part of the parent's** (operator, 2026-10-25: "if Mubadala had only Masdar and Masdar signed 7M, the HQ has 51 - 7 left").

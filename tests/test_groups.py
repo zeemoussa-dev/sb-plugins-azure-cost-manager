@@ -168,6 +168,19 @@ def test_a_parent_whose_affiliates_signed_their_own_is_burned_by_its_own_enrollm
     assert service.analysis("northwind")["commitment"]["consumed"] == 4_500_000
 
 
+def test_an_affiliate_without_a_macc_burns_the_own_parents_remainder(fake_api):
+    """2026-10-25: Mubadala's affiliates that signed nothing consume HQ's $40.8M."""
+    book, service = _own_group(fake_api)
+    book.save("litware", {"name": "Litware", "accounts": ["3"], "parent": "holding"})
+
+    result = service.analysis("holding")
+
+    assert result["commitment"]["amount"] == 43_000_000                     # only Northwind's 7M carved out
+    assert result["commitment"]["consumed"] == 9 * (1_000_000 + 250_000)    # HQ plus Litware
+    assert result["allocations"]["own"] == {"consumed": 11_250_000, "remaining": 31_750_000}
+    assert result["allocations"]["consumed_total"] == 9 * 1_750_000         # nobody counted twice
+
+
 def test_the_portfolio_burns_an_own_parent_by_its_own_enrollments(fake_api):
     _, service = _own_group(fake_api)
 
