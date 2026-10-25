@@ -2,6 +2,11 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.56.1] - 2026-10-25
+
+- fix: **an opportunity with no technologies is no longer measured on the whole customer** (checked on real data, 2026-10-25). FAB's "Sentinel project" read $13.5M "added", which was September's Fortinet licence purchase, and such swings drove plan accuracy to 0%. Under the strict rule, an unscoped opportunity is listed as **no scope (add its technologies)**, never measured, and left out of accuracy.
+- fix: **coverage of the quota gap is bounded by the quota period** (`fy_last`). It read no end before.
+
 ## [0.56.0] - 2026-10-25
 
 - feat: **Pipeline review, release 2: the page** (PLAN.md; on the Azure Customer 360 home, under Quota and forecast).

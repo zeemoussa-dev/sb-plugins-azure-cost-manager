@@ -131,11 +131,12 @@ def test_verdicts_at_the_tolerance_edges():
 def test_planned_vs_actual_and_its_accuracy():
     rows = [_row("a", plan={"2026-08": 1000.0, "2026-09": 1000.0}), _row("b", plan={"2026-09": 500.0})]
     measured = {"a": {"months": ["2026-08", "2026-09"], "added": {"2026-08": 900.0, "2026-09": 1100.0}, "against": "scope"},
-                "b": {"months": ["2026-09"], "added": None, "against": "whole customer (no scope)"}}
+                "b": {"months": ["2026-09"], "added": None, "against": "no scope: add its technologies", "unscoped": True}}
 
     found = pipeline_review.planned_vs_actual(rows, measured, 20)
 
-    assert [(row["id"], row["verdict"]) for row in found["rows"]] == [("a", "landed"), ("b", "no trend")]
+    # Unscoped is listed, never measured on the whole customer, and stays out of accuracy.
+    assert [(row["id"], row["verdict"]) for row in found["rows"]] == [("a", "landed"), ("b", "no scope")]
     assert found["accuracy"] == 0.9
 
 

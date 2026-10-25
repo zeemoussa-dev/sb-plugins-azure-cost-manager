@@ -500,13 +500,17 @@ class ConsumptionService:
             baseline = baselines.get(row["id"])
             if not started or not baseline or row.get("customer_id") not in everyone:
                 continue
-            scoped = bool(row.get("scope") and baseline.get("scope_natural"))
-            natural = baseline["scope_natural"] if scoped else baseline.get("customer_natural")
-            entry = {"months": started, "estimated": baseline.get("estimated", False),
-                     "against": "scope" if scoped else "whole customer (no scope)", "added": None}
+            # Strict (PLAN.md): an opportunity is measured on the services it names, never on the
+            # whole customer -- FAB's "Sentinel project" read $13.5M "added" from a Fortinet
+            # licence purchase (2026-10-25). Unscoped, it is listed but not measured.
+            if not row.get("scope"):
+                measured[row["id"]] = {"months": started, "estimated": baseline.get("estimated", False),
+                                       "against": "no scope: add its technologies", "added": None, "unscoped": True}
+                continue
+            natural = baseline.get("scope_natural")
+            entry = {"months": started, "estimated": baseline.get("estimated", False), "against": "scope", "added": None}
             if natural:
-                trend = pipeline_review.scope_trend(merged(row["customer_id"]), row["scope"], current_month) if scoped \
-                    else consumption_analysis.monthly_totals(merged(row["customer_id"]), current_month)
+                trend = pipeline_review.scope_trend(merged(row["customer_id"]), row["scope"], current_month)
                 actual = {point["month"]: point["actual"] for point in trend}
                 entry["months"] = [month for month in started if month in natural["by_month"]]
                 entry["added"] = {month: actual.get(month, 0.0) - natural["by_month"][month] for month in entry["months"]}
@@ -526,7 +530,7 @@ class ConsumptionService:
         if level == "all":
             try:
                 gap = (self.quota_across() or {}).get("gap_to_quota")
-                period_last = self.quota_settings().get("period_last")
+                period_last = self.quota_settings().get("fy_last")
                 ahead = sum(value["weighted"] for month, value in pipeline_review.landing(
                     rows, chosen, first_month, horizon)["months"].items() if not period_last or month <= period_last)
                 coverage = {"gap_to_quota": gap, "weighted_in_period": round(ahead, 2), "period_last": period_last,

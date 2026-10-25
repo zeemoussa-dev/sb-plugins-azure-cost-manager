@@ -1080,7 +1080,7 @@ export interface ReviewChecked {
   months: string[];
   planned: number;
   added: number | null;
-  verdict: 'landed' | 'short' | 'over' | 'late' | 'no plan' | 'no trend';
+  verdict: 'landed' | 'short' | 'over' | 'late' | 'no plan' | 'no scope' | 'no trend';
   against: string;
   estimated: boolean;
 }

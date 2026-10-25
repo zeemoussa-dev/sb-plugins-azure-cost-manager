@@ -11,7 +11,7 @@ import { Loading } from './Loading';
 const STAGE_ORDER = ['Identified', 'Qualified', 'Proposed', 'Committed', 'Closed', 'Won'];
 const VERDICTS: { key: ReviewChecked['verdict']; label: string }[] = [
   { key: 'landed', label: 'Landed' }, { key: 'over', label: 'Over' }, { key: 'short', label: 'Short' },
-  { key: 'late', label: 'Late' }, { key: 'no trend', label: 'No trend' },
+  { key: 'late', label: 'Late' }, { key: 'no scope', label: 'No scope' }, { key: 'no trend', label: 'No trend' },
 ];
 const GAP_LABELS: Record<string, string> = {
   customers_without_account_manager: 'Customers with no account manager',
@@ -206,8 +206,9 @@ export function PipelineReviewPage() {
             <h3>Planned against what landed</h3>
             <p className="text-muted azure-cost-note">
               Each opportunity whose consumption has started: its plan in the closed months against what it added above its
-              natural trend, frozen before it could move anything. Within ±{found.settings.tolerance_pct}% is landed. Without technologies
-              it is measured on the whole customer, which is weaker; estimated means the trend was fitted from history after the fact.
+              natural trend, frozen before it could move anything. Within ±{found.settings.tolerance_pct}% is landed. One with no technologies
+              has no scope and is not measured: a whole customer's swings (a licence purchase, a migration) are not its doing. Estimated
+              means the trend was fitted from history after the fact.
             </p>
             {checked && checked.rows.length ? (
               <table className="azure-cost-table">

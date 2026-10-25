@@ -283,7 +283,8 @@ def planned_vs_actual(rows: list[dict], measured: dict[str, dict], tolerance_pct
                       "months": seen["months"], "planned": round(planned, 2),
                       "added": round(added, 2) if added is not None else None,
                       "error": round(error, 2) if error is not None else None,
-                      "verdict": verdict(planned, added, tolerance_pct) if added is not None else "no trend",
+                      "verdict": verdict(planned, added, tolerance_pct) if added is not None
+                      else "no scope" if seen.get("unscoped") else "no trend",
                       "against": seen["against"], "estimated": seen.get("estimated", False)})
     measurable = [row for row in found if row["added"] is not None and row["planned"] > 0]
     planned_total = sum(row["planned"] for row in measurable)
