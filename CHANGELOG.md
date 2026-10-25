@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.62.0] - 2026-10-25
+
+- change: **an affiliate's own MACC is its part of the parent's** (operator, 2026-10-25: "if Mubadala had only Masdar and Masdar signed 7M, the HQ has 51 - 7 left").
+  - **What changes:** a parent whose affiliates signed their own ("own") now burns the group's amount less every affiliate's MACC. Mubadala HQ: $51M less Masdar's $7M and Strata's $3.2M, so $40.8M.
+  - **Where it applies:** the Overview's burn-down and the portfolio. The Overview says what was carved out.
+  - **The allocation card** now shows for those groups too.
+- change: **a forecasts sync for everyone resumes rather than restarts.** It skips an enrollment fetched in the last six hours, so a backend restart no longer costs the enrollments already done.
+
 ## [0.61.1] - 2026-10-25
 
 - change: **the MACC allocation across the group folds, and starts folded** (operator, 2026-10-25). Folded, it names how many affiliates it covers, and it remembers how it was left.

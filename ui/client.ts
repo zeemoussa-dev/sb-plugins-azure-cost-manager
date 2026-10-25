@@ -34,6 +34,9 @@ export interface Commitment {
   subtract_credits?: boolean;
   /** A parent's affiliates: "roll up" (their consumption burns this MACC) or "own" (each signed its own). */
   affiliates?: 'roll up' | 'own';
+  /** An "own" parent: the group's signed amount, and what its affiliates signed out of it. */
+  group_amount?: number;
+  carved_out?: number;
 }
 
 export interface Measure {

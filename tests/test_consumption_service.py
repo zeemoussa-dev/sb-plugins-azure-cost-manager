@@ -324,3 +324,7 @@ def test_a_forecasts_only_sync_stores_the_whole_bill_and_the_usage_forecast(fake
     assert entry["forecast_usage"] == [{"month": "2026-12", "cost": 3500.0}]
     # ...and the running month's billing with it, so both reach the same day.
     assert entry["months"]["2026-10"]["fetched_at"]
+    # A second run for everyone skips what was just fetched: it resumes rather than restarts.
+    fetched = entry["months"]["2026-10"]["fetched_at"]
+    sync.run_forecasts()
+    assert store.account("1")["months"]["2026-10"]["fetched_at"] == fetched

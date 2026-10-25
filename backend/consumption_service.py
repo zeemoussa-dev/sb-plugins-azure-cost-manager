@@ -859,12 +859,13 @@ class ConsumptionService:
             "customer": customer,
             "group": self._group_info(customer, members),
             # Carving affiliates out of the parent's MACC applies only when they roll up into it.
-            "allocations": None if own_burn else self._allocations(customer, members[1:]),
+            "allocations": self._allocations(customer, members[1:]),
             "synced_at": synced_at,
             "stale": not synced_at or self._now() - datetime.fromisoformat(synced_at) > STALE_AFTER,
             "errors": {account: entry.get("errors") for account, entry in entries.items() if entry.get("errors")},
             "pipeline": pipeline,
-            **consumption_analysis.analyse(merged, currency, customer.get("commitment"),
+            **consumption_analysis.analyse(merged, currency,
+                                           consumption_analysis.carved(customer.get("commitment"), members[1:]),
                                            consumption_analysis.merge_forecasts(
                                                entries, (measure or {}).get("marketplace") in (False, "core42")), as_of,
                                            measure=measure, scenario=customer.get("scenario"),
@@ -1228,7 +1229,8 @@ class ConsumptionService:
                 own, _ = consumption_analysis.merge({account["name"]: entry(account["name"])
                                                      for account in customer["accounts"]}, None, not_eligible)
                 burning = consumption_analysis.monthly_totals(own, current_month, measure)
-            burn = consumption_analysis.burn_down(commitment, burning, today) if commitment else None
+            burn = (consumption_analysis.burn_down(consumption_analysis.carved(commitment, members[1:]), burning, today)
+                    if commitment else None)
             # A group whose affiliates are mid-sync still has something to show: its
             # oldest synced enrollment dates it, and the rest are counted.
             synced = [account["synced_at"] for member in members for account in member["accounts"]

@@ -54,6 +54,9 @@ DAILY_REFETCH_DAYS = SETTLING_DAYS
 # A sync of everyone skips an enrollment synced this recently: a restart resumes,
 # and the weekly job and the Sync button still bring every enrollment's delta.
 RESYNC_AFTER = timedelta(hours=20)
+# A forecasts sync for everyone resumes rather than restarts: an enrollment whose billing and
+# forecasts were fetched this recently is skipped (2026-10-25: a restart lost an hour of it).
+FORECASTS_FRESH = timedelta(hours=6)
 ENTERPRISE_AGREEMENT = "EnterpriseAgreement"
 
 
@@ -226,16 +229,24 @@ class ConsumptionSync:
         accounts = sorted({name for customer in customers for name in customer["accounts"]})
         current_month = months.month_of(self._today())
         visible = self._directory.by_name()
-        self._set(accounts_done=0, accounts_total=len(accounts))
+
+        def fresh(entry: dict) -> bool:
+            synced_at = entry.get("synced_at")
+            return (not customer_id and "forecast_usage" in entry and bool(synced_at)
+                    and self._now() - datetime.fromisoformat(synced_at) < FORECASTS_FRESH)
+
+        due = [account for account in accounts
+               if self._store.account(account).get("months") and not fresh(self._store.account(account))]
+        self._note_skipped(len(accounts) - len(due), "forecasts")
+        self._set(accounts_done=0, accounts_total=len(due))
         client = self._client_factory()
-        for done, account in enumerate(accounts, start=1):
-            if self._store.account(account).get("months"):
-                # The running month's billing comes with its forecast: Azure forecasts from today,
-                # so a forecast newer than the billing left the days between counted nowhere
-                # (2026-10-25: ADNOC's October fell $1.8M, below its baseline).
-                self._one_enrollment(account, lambda: self._sync_account(client, account, current_month,
-                                                                         visible.get(account) or {}))
-                self._store.flush()
+        for done, account in enumerate(due, start=1):
+            # The running month's billing comes with its forecast: Azure forecasts from today,
+            # so a forecast newer than the billing left the days between counted nowhere
+            # (2026-10-25: ADNOC's October fell $1.8M, below its baseline).
+            self._one_enrollment(account, lambda: self._sync_account(client, account, current_month,
+                                                                     visible.get(account) or {}))
+            self._store.flush()
             self._set(accounts_done=done)
 
     def start_this_month(self, customer_id: str | None = None) -> dict:

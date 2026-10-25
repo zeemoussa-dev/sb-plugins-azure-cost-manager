@@ -158,10 +158,13 @@ def test_a_parent_whose_affiliates_signed_their_own_is_burned_by_its_own_enrollm
 
     # The group is still shown (operator, 2026-10-18: "only the total consumption is affected")...
     assert result["months"][0]["actual"] == 1_750_000
-    # ...but only the parent's own enrollments burn its MACC, and nothing is carved out of it.
+    # ...but only the parent's own enrollments burn its MACC, and each affiliate's own MACC is its
+    # part of the pie (operator, 2026-10-25: "HQ has 51 - 7 left").
     assert result["commitment"]["consumed"] == 9 * 1_000_000
     assert result["commitment"]["affiliates"] == "own"
-    assert result["allocations"] is None
+    assert (result["commitment"]["amount"], result["commitment"]["group_amount"]) == (40_000_000, 50_000_000)
+    assert result["allocations"]["unallocated"] == 40_000_000
+    assert result["allocations"]["own"] == {"consumed": 9_000_000, "remaining": 31_000_000}
     assert service.analysis("northwind")["commitment"]["consumed"] == 4_500_000
 
 
@@ -170,7 +173,7 @@ def test_the_portfolio_burns_an_own_parent_by_its_own_enrollments(fake_api):
 
     holding = next(row for row in service.portfolio() if row["id"] == "holding")
 
-    assert holding["burn"]["consumed"] == 9 * 1_000_000
+    assert (holding["burn"]["consumed"], holding["burn"]["remaining"]) == (9 * 1_000_000, 31_000_000)
 
 
 def test_the_report_shows_only_the_enrollments_chosen_and_the_macc_stays_whole(fake_api):

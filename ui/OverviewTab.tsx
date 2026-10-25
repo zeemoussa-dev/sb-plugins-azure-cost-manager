@@ -113,12 +113,14 @@ function CommitmentCard({ analysis }: { analysis: Analysis }) {
       <h3>Consumption against the signed value</h3>
       <CommitmentGauge commitment={commitment} />
       <dl className="azure-cost-facts">
-        <dt>Signed</dt><dd>{formatMoney(commitment.amount, currency)} ({commitment.type})</dd>
+        <dt>Signed</dt><dd>{formatMoney(commitment.amount, currency)} ({commitment.type})
+          {commitment.group_amount != null ? <span className="text-muted"> — the group's {formatMoney(commitment.group_amount, currency)}
+            {' '}less {formatMoney(commitment.carved_out ?? 0, currency)} the affiliates signed as their own</span> : null}</dd>
         <dt>Counts</dt>
         <dd>Usage and all Marketplace (except offers marked as not eligible), less credits
           {analysis.group.affiliates.length
             ? commitment.affiliates === 'own'
-              ? ` — this customer's own enrollments only: each affiliate signed its own MACC (totals above include them)`
+              ? ` — this customer's own enrollments only: each affiliate burns its own MACC, its part of the group's (totals above include them)`
               : ` — including its ${analysis.group.affiliates.length} affiliate(s)`
             : ''}</dd>
         <dt>Consumed</dt><dd>{formatMoney(commitment.consumed, currency)} ({commitment.consumed_pct}%)</dd>

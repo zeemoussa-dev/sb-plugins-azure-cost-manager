@@ -278,6 +278,17 @@ def affiliates_roll_up(commitment: dict | None) -> bool:
     return (commitment or {}).get("affiliates") != "own"
 
 
+def carved(commitment: dict | None, affiliates: list[dict]) -> dict | None:
+    """An "own" parent's share of its MACC: the group's amount less every affiliate's own
+    MACC -- each takes its part of the pie (operator, 2026-10-25: "Mubadala had only
+    Masdar and Masdar signed 7M, then HQ has 51 - 7 left"). A roll-up parent keeps it whole."""
+    if not commitment or affiliates_roll_up(commitment) or commitment.get("amount") is None:
+        return commitment
+    taken = sum((affiliate.get("commitment") or {}).get("amount") or 0.0 for affiliate in affiliates)
+    return {**commitment, "amount": round(commitment["amount"] - taken, 2), "group_amount": commitment["amount"],
+            "carved_out": round(taken, 2)}
+
+
 def burn_down(commitment: dict | None, trend: list[dict], today: date,
               pipeline: dict[str, float] | None = None) -> dict | None:
     """Consumption since the term started against what the customer signed for:
