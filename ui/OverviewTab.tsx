@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
-import { BurnDownChart, Change, CommitmentGauge, SeriesChart, TrendChart } from './charts';
+import { BurnDownChart, Change, CommitmentGauge, SeriesChart, SharesPie, TrendChart } from './charts';
 import type { Analysis } from './client';
 import { useRememberedFold } from './CompassText';
 import { useDrillOpener } from './Drill';
@@ -209,12 +209,18 @@ function AllocationsCard({ analysis }: { analysis: Analysis }) {
           </tr>
         </tbody>
       </table>
-      <SeriesChart label="Signed against consumed, by affiliate" currency={currency} height={280}
-                   categories={[...rows.map((row) => row.name), 'Unallocated (own)']}
-                   series={[
-                     { name: 'Signed MACC', data: [...rows.map((row) => row.commitment?.amount ?? null), allocations.unallocated], color: 'other' },
-                     { name: 'Consumed', data: [...rows.map((row) => row.burn?.consumed ?? row.consumed_against_parent), allocations.own.consumed], color: 1 },
-                   ]} />
+      <div className="azure-cost-pies">
+        {allocations.parent_amount != null ? (
+          <SharesPie label="How the MACC is shared" currency={currency} height={300}
+                     slices={[...rows.filter((row) => row.commitment).map((row) => ({ name: row.name, value: row.commitment!.amount })),
+                       { name: `${analysis.customer.name} (unallocated)`, value: allocations.unallocated ?? 0 }]} />
+        ) : null}
+        {/* Each affiliate since the group's start, and the parent's own as the rest: the slices add up to the group's total. */}
+        <SharesPie label="Who consumed it" currency={currency} height={300}
+                   slices={[...rows.map((row) => ({ name: row.name, value: row.consumed_against_parent })),
+                     { name: `${analysis.customer.name} (own)`,
+                       value: allocations.consumed_total - rows.reduce((sum, row) => sum + row.consumed_against_parent, 0) }]} />
+      </div>
       <p className="text-muted azure-cost-note">
         Every affiliate dollar counts against its own MACC and the group's. Consumption here is since each MACC's own
         start; the group total counts from the group's start.

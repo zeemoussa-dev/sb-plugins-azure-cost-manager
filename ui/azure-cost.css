@@ -280,6 +280,17 @@
   font-size: var(--font-size-sm);
 }
 
+.azure-cost-pies {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.azure-cost-pie-title {
+  margin: 0;
+  text-align: center;
+}
+
 .azure-cost-check {
   display: inline-flex;
   align-items: center;

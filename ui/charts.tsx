@@ -1,7 +1,7 @@
 // `esm/`, not `lib/`: lib/core is CommonJS, and the Vite dev server hands its
 // default import over as the module object, which React refuses to render.
 import ReactEChartsCore from 'echarts-for-react/esm/core';
-import { BarChart, LineChart } from 'echarts/charts';
+import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -11,7 +11,7 @@ import { formatMoney, formatMonth } from './format';
 
 // The host provides echarts (framework_api 8); importing `echarts/core` plus the
 // pieces drawn here keeps the rest of the library out of the app's bundle.
-echarts.use([BarChart, LineChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent,
+echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent,
   CanvasRenderer]);
 
 const SERIES_VARIABLES = [
@@ -154,6 +154,43 @@ export function SeriesChart({ categories, series, currency, label, percent = fal
           : {}),
       })),
     }} />
+  );
+}
+
+export interface Slice {
+  name: string;
+  value: number;
+}
+
+/** Shares of one whole: the largest `most` slices, the rest as "Others" so a group of
+ *  49 affiliates still reads (operator, 2026-10-25: the allocation "makes more sense" as a pie). */
+export function SharesPie({ slices, currency, label, height = 280, most = 8 }: {
+  slices: Slice[]; currency: string | null; label: string; height?: number; most?: number;
+}) {
+  const { colors, option } = baseOption(currency);
+  const sorted = slices.filter((slice) => slice.value > 0).sort((a, b) => b.value - a.value);
+  const rest = sorted.slice(most).reduce((sum, slice) => sum + slice.value, 0);
+  const shown = [...sorted.slice(0, most), ...(rest > 0 ? [{ name: `Others (${sorted.length - most})`, value: rest }] : [])];
+  const total = shown.reduce((sum, slice) => sum + slice.value, 0);
+  return (
+    <div>
+    <h4 className="azure-cost-pie-title">{label}</h4>
+    <Chart label={label} height={height} option={{
+      backgroundColor: option.backgroundColor, textStyle: option.textStyle,
+      color: shown.map((slice, index) => (rest > 0 && index === shown.length - 1 ? colors.other
+        : colors.series[index % colors.series.length])),
+      legend: { type: 'scroll', bottom: 0, left: 'center', textStyle: { color: colors.muted }, icon: 'circle',
+        itemWidth: 8, itemHeight: 8 },
+      tooltip: { ...option.tooltip, trigger: 'item',
+        formatter: (item: { marker: string; name: string; value: number }) =>
+          `${item.marker}${item.name}: <b>${formatMoney(item.value, currency)}</b> (${total ? Math.round((item.value / total) * 1000) / 10 : 0}%)` },
+      series: [{
+        type: 'pie', radius: ['38%', '66%'], center: ['50%', '50%'], data: shown, avoidLabelOverlap: true,
+        itemStyle: { borderColor: colors.surface, borderWidth: 2 },
+        label: { color: colors.muted, formatter: (item: { percent: number }) => `${Math.round(item.percent)}%` },
+      }],
+    }} />
+    </div>
   );
 }
 

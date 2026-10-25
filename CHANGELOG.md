@@ -2,6 +2,13 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.64.1] - 2026-10-25
+
+- change: **the MACC allocation draws pies, not columns** (operator, 2026-10-25: "a pie chart will make more sense").
+  - **How the MACC is shared:** each affiliate's own MACC and the parent's unallocated rest.
+  - **Who consumed it:** each affiliate and the parent's own, adding up to the group's total.
+  - **Long lists:** past eight slices, the smallest are grouped as "Others", so a group of 49 still reads.
+
 ## [0.64.0] - 2026-10-25
 
 - change: **a parent whose affiliates signed their own MACCs is reported on its own share** (operator, 2026-10-25: Mubadala's figures were the group's while its MACC was HQ's -- "need consistency").
