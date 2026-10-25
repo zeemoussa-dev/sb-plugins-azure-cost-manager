@@ -2,7 +2,6 @@
 is the only thing that does (`consumption_sync`)."""
 from __future__ import annotations
 
-import calendar
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
@@ -205,10 +204,8 @@ class ConsumptionService:
         merged, currency, entries = self._merged(customer, only=only)
         trend = consumption_analysis.monthly_totals(merged, current_month, measure)
         pipeline = self.pipeline(customer["id"])
-        automatic = forecasting.automatic(trend, self._today(), pipeline["by_month"])
-        today = self._today()
-        factor = quota.month_end_factor(entries, current_month, calendar.monthrange(today.year, today.month)[1])
-        found = quota.analyse(trend, (automatic or {}).get("series"), chosen, current_month, factor)
+        found = quota.analyse(trend, self.standard_forecast(trend, entries, chosen["fy_last"]), chosen, current_month,
+                              pipeline["by_month"])
         return {**found, "currency": (currency or "").strip() or None,
                 "pipeline": quota.pipeline_against_actual(pipeline["opportunities"], found, current_month),
                 "pipeline_available": pipeline["available"]}
@@ -990,6 +987,17 @@ class ConsumptionService:
                            "accounts": sorted(group["accounts"], key=lambda account: account["display_name"].lower())})
         return sorted(listed, key=lambda group: (-group["last_twelve_months"], group["name"].lower()))
 
+    def standard_forecast(self, trend: list[dict], entries: dict[str, dict], through: str | None = None) -> dict[str, float]:
+        """Month -> cost from the running month to `through`: the plugin's one forecast
+        (`consumption_analysis.forecast`, the Overview's)."""
+        found = consumption_analysis.forecast(trend, consumption_analysis.merge_forecasts(entries), self._today(), through)
+        return {row["month"]: row["cost"] for row in found["months"]}
+
+    def own_entries(self, customer: str | dict) -> dict[str, dict]:
+        """A customer's OWN enrollments' stored data (a parent without its affiliates')."""
+        customer = self._customer(customer) if isinstance(customer, str) else customer
+        return self._merged(customer, rolled_up=False)[2]
+
     def own_monthly(self, customer: str | dict, measure: dict) -> tuple[list[dict], str | None, dict | None]:
         """`(monthly totals, currency, commitment)` of a customer's OWN enrollments --
         a parent without its affiliates' -- measured with `measure`. `customer` is an
@@ -1004,10 +1012,17 @@ class ConsumptionService:
         on-demand daily refresh: pace against last month, and what is new or moving."""
         customer = self._customer(customer_id)
         merged, currency, entries = self._merged(customer, only=self._only(customer, shown))
+        current = months.month_of(self._today())
+        trend = consumption_analysis.monthly_totals(merged, current)
+        found = this_month.analyse(entries, merged, self._today())
+        if found.get("has_data"):
+            # The month's end is the standard forecast's, as the Overview shows it -- not
+            # month-to-date times days, which counts early-month charges (Marketplace,
+            # monthly fees) as if they recurred daily (ADNOC: $7.34M against $6.62M).
+            found["projected_month_end"] = self.standard_forecast(trend, entries, current).get(current)
         return {"customer": {"id": customer["id"], "name": customer["name"],
                              "entity_customer": customer.get("entity_customer")},
-                "currency": (currency or "").strip() or None,
-                **this_month.analyse(entries, merged, self._today())}
+                "currency": (currency or "").strip() or None, **found}
 
     def finops_digest(self, top: int = 5) -> dict:
         """The week's FinOps in a few lines, for a Hermes job to send: who is over

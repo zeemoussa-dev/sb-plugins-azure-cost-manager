@@ -30,10 +30,10 @@ def test_the_fiscal_year_and_its_default_baseline():
 def test_above_the_line_is_net_closed_months_actual_and_the_rest_forecast():
     trend = [{"month": m, "actual": a, "partial": False} for m, a in
              (("2026-04", 100.0), ("2026-05", 100.0), ("2026-07", 150.0), ("2026-08", 50.0), ("2026-09", 120.0))]
-    series = [{"month": "2026-10", "forecast": 130.0, "pipeline": 25.0}, {"month": "2026-11", "forecast": 90.0, "pipeline": 0}]
+    projected = {"2026-10": 130.0, "2026-11": 90.0}   # the standard forecast, month -> cost
     chosen = quota.settings({}, "2026-10")         # baseline April-June; June missing counts as zero
 
-    found = quota.analyse(trend, series, chosen, "2026-10")
+    found = quota.analyse(trend, projected, chosen, "2026-10", {"2026-10": 25.0})
 
     assert found["baseline"] == round(200 / 3, 2) and found["baseline_covered"] == 2
     july = found["months"][0]
@@ -94,31 +94,18 @@ def test_a_period_needs_both_ends_in_order():
     assert quota.validated({"period_first": None, "period_last": None}) == {"period_first": None, "period_last": None}
 
 
-def test_the_running_month_is_its_billed_so_far_at_its_pace():
-    from backend import quota as quota_module
-    entries = {"a": {"months": {"2026-10": {"actual": {"service": {"VM": 2200.0}}, "fetched_at": "2026-10-23T12:00:00+00:00"}}},
-               "b": {"months": {"2026-10": {"actual": {"service": {"VM": 1000.0}}, "fetched_at": "2026-10-11T08:00:00+00:00"}}},
-               "c": {"months": {}}}
 
-    factor = quota_module.month_end_factor(entries, "2026-10", 31)
+def test_the_standard_forecast_is_billed_plus_azures_rest_then_azure_then_the_run_rate():
+    from datetime import date
 
-    # a covers 22 days (fetched a day behind), b covers 10; weighted by what each billed.
-    assert factor == (2200 * 31 / 22 + 1000 * 31 / 10) / 3200
-    assert quota_module.month_end_factor({"c": {"months": {}}}, "2026-10", 31) is None
-
-
-def test_a_month_billing_above_the_trend_is_not_read_as_a_fall():
-    from backend import quota as quota_module
-    chosen = {"baseline_start": "2026-04", "baseline_last": "2026-06", "fy_first": "2026-07", "fy_last": "2026-12"}
+    from backend import consumption_analysis
     trend = [{"month": f"2026-{m:02d}", "actual": 1000.0, "partial": False} for m in range(4, 10)]
-    trend.append({"month": "2026-10", "actual": 1100.0, "partial": True})        # 22 days billed already
-    forecast = [{"month": m, "forecast": 1000.0} for m in ("2026-10", "2026-11", "2026-12")]
+    trend.append({"month": "2026-10", "actual": 4180.0, "partial": True})
+    azure = [{"month": "2026-10", "cost": 2435.0}, {"month": "2026-11", "cost": 5531.0}]
 
-    found = quota_module.analyse(trend, forecast, chosen, "2026-10", 31 / 22)
-    october = next(row for row in found["months"] if row["month"] == "2026-10")
+    found = {row["month"]: (row["cost"], row["source"]) for row in
+             consumption_analysis.forecast(trend, azure, date(2026, 10, 25), "2027-01")["months"]}
 
-    assert october["consumption"] == round(1100 * 31 / 22, 2) and october["above"] > 0
-    # The months after carry the pace forward, not the model's 1000.
-    assert next(row for row in found["months"] if row["month"] == "2026-11")["consumption"] == round(1100 * 31 / 22, 2)
-    model_only = quota_module.analyse(trend[:-1] + [{**trend[-1], "actual": 0.0}], forecast, chosen, "2026-10", None)
-    assert next(row for row in model_only["months"] if row["month"] == "2026-11")["consumption"] == 1000.0
+    # October: billed plus Azure's forecast of the unbilled rest (ADNOC: $6.62M, not month-to-date x days).
+    assert found["2026-10"] == (6615.0, "azure") and found["2026-11"] == (5531.0, "azure")
+    assert found["2026-12"][1] == "run-rate" and "2027-01" in found          # the quota period may run past December

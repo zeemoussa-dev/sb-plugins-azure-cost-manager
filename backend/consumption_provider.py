@@ -104,9 +104,10 @@ class ConsumptionProvider:
         trend, currency, commitment = self._service.own_monthly(customer, measure)
         today = self._today()
         current = months.month_of(today)
-        rate = consumption_analysis.run_rate(trend)
         until = commitment["end"][:7] if commitment else f"{today.year:04d}-12"
-        forecast = [{"month": month, "total": rate} for month in months.span(current, until)] if rate is not None else []
+        # The plugin's one forecast (`consumption_analysis.forecast`), as the Overview shows it.
+        projected = self._service.standard_forecast(trend, self._service.own_entries(customer), until)
+        forecast = [{"month": month, "total": cost} for month, cost in projected.items()]
         return {
             "currency": currency or "USD",
             "months": [{"month": row["month"], "usage": row["usage"], "marketplace": row["marketplace"],

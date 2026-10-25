@@ -2,6 +2,23 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.58.0] - 2026-10-25
+
+- change: **one standard forecast everywhere, the Overview's** (operator, 2026-10-25: "can we have a standard forecasting model -- the Overview is more accurate based on my data"). ADNOC's October read $6.62M in the Overview, $7.34M in This month and $7.20M in Quota.
+  - **The model** (`consumption_analysis.forecast`):
+    - the running month is what is billed plus Azure's forecast of the unbilled rest;
+    - each later month is Azure's own forecast;
+    - where Azure has none, the run rate.
+  - **Why the others were off:** month-to-date times days counted early-month charges (Marketplace, monthly fees) as if they recurred daily.
+  - **Now read by:**
+    - the Overview (as before);
+    - This month's projected month end;
+    - Quota and the Pipeline review, for the running month and every later month of the quota period (the forecast now runs past December when the period does);
+    - FinOps' budget (as before);
+    - the consumption service other plugins read (it was a flat run rate).
+  - This replaces 0.57.1–0.57.2's pace scaling and pace carried forward.
+  - **Unchanged:** the Forecast tab's trend and scenarios, which are explicit what-ifs, and the Pipeline review's frozen natural trends, which are a counterfactual for team impact, not a forecast.
+
 ## [0.57.2] - 2026-10-25
 
 - change: **the months after the current one carry its pace forward** (operator, 2026-10-25: "forecast the months after the current one from the current month's pace, not the trend x seasonality model"). Once the running month has billed anything, each later month of the quota period is that month's projected amount. FAB no longer dips to $2.23M in November and jumps to $5.08M in December next to an October running at $3.49M. Before anything is billed in a month, the trend model still applies. The Pipeline review and the Quota reports read the same.

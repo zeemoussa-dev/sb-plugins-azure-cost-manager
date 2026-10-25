@@ -316,11 +316,15 @@ def burn_down(commitment: dict | None, trend: list[dict], today: date,
     }
 
 
-def forecast(trend: list[dict], azure_forecast: list[dict] | None, today: date) -> dict:
-    """The rest of the calendar year, month by month, and where the year lands.
-    Azure's own forecast wins where it has one; otherwise the run rate."""
+def forecast(trend: list[dict], azure_forecast: list[dict] | None, today: date, through: str | None = None) -> dict:
+    """THE forecast of the plugin (operator, 2026-10-25: one standard model, the Overview's,
+    "more accurate on my data"): the running month is what is billed plus Azure's forecast
+    of the rest, each later month Azure's own forecast, and where Azure has none the run
+    rate. Every report that forecasts a month -- the Overview, This month, Quota, the
+    Pipeline review, FinOps' budget -- reads it. `through`: the last month wanted (the
+    calendar year's end by default)."""
     current_month = months.month_of(today)
-    remaining_months = months.span(current_month, f"{today.year:04d}-12")
+    remaining_months = months.span(current_month, through or f"{today.year:04d}-12")
     from_azure = {row["month"]: row["cost"] for row in azure_forecast or []}
     rate = run_rate(trend)
     actual_so_far = {month["month"]: month["actual"] for month in trend}

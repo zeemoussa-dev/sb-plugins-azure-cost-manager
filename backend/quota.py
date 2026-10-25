@@ -117,52 +117,30 @@ def validated(changes: dict) -> dict:
     return clean
 
 
-def month_end_factor(entries: dict[str, dict], current_month: str, days_in_month: int) -> float | None:
-    """How much the running month's billed-so-far scales to a whole month: the days each
-    enrollment's month figures cover (fetched a day behind, as Cost Management lags),
-    weighted by what each has billed. None when nothing is billed yet."""
-    weighted, total = 0.0, 0.0
-    for entry in entries.values():
-        found = (entry.get("months") or {}).get(current_month) or {}
-        billed = sum(((found.get("actual") or {}).get("service") or {}).values())
-        if billed <= 0:
-            continue
-        fetched = str(found.get("fetched_at") or "")
-        covered = days_in_month if not fetched.startswith(current_month) else max(1, int(fetched[8:10]) - 1)
-        weighted += billed * days_in_month / min(covered, days_in_month)
-        total += billed
-    return weighted / total if total else None
-
-
-def analyse(trend: list[dict], forecast_series: list[dict] | None, chosen: dict, current_month: str,
-            month_end_factor: float | None = None) -> dict:
+def analyse(trend: list[dict], projected: dict[str, float] | None, chosen: dict, current_month: str,
+            pipeline: dict[str, float] | None = None) -> dict:
     """One customer's baseline, its fiscal year month by month, and what counts
     above the line: to date (closed months), and projected to the year's end.
 
-    The running month is what it has billed so far at its pace (`month_end_factor`), not
-    the trend's figure: the trend read a month already billing more than it predicted as
-    a fall (operator, 2026-10-25: "always a drop in the current month"). The months after
-    it carry that pace forward -- the run rate, not the trend x seasonality model
-    (operator, same day). Before anything is billed in the month, the model applies."""
+    The running month and the ones after are the plugin's standard forecast
+    (`consumption_analysis.forecast`: billed plus Azure's forecast, else the run rate),
+    `projected` month -> cost (operator, 2026-10-25). A month it does not cover is the
+    line itself, adding nothing."""
     actual = {row["month"]: row["actual"] for row in trend if not row["partial"]}
-    billed_now = next((row["actual"] for row in trend if row["month"] == current_month), 0.0)
-    pace = billed_now * month_end_factor if billed_now > 0 and month_end_factor else None
     baseline_months = months.span(chosen["baseline_start"], chosen["baseline_last"])
     baseline = sum(actual.get(month, 0.0) for month in baseline_months) / len(baseline_months)
-    forecast = {row["month"]: row for row in forecast_series or [] if row.get("forecast") is not None}
+    projected, pipeline = projected or {}, pipeline or {}
     rows, exact = [], []
     for month in months.span(chosen["fy_first"], chosen["fy_last"]):
         if month < current_month and month in actual:
-            value, kind, pipeline = actual[month], "actual", 0.0
+            value, kind, pipeline_month = actual[month], "actual", 0.0
         elif month < current_month:
-            value, kind, pipeline = 0.0, "actual", 0.0
+            value, kind, pipeline_month = 0.0, "actual", 0.0
         else:
-            projected = forecast.get(month) or {}
-            # No forecast (too little history): the line itself, adding nothing.
-            value = pace if pace is not None else projected.get("forecast", baseline)
-            kind, pipeline = "forecast", projected.get("pipeline", 0.0) or 0.0
+            value = projected.get(month, baseline)
+            kind, pipeline_month = "forecast", pipeline.get(month, 0.0) or 0.0
         rows.append({"month": month, "kind": kind, "consumption": round(value, 2), "baseline": round(baseline, 2),
-                     "above": round(value - baseline, 2), "pipeline": round(pipeline, 2)})
+                     "above": round(value - baseline, 2), "pipeline": round(pipeline_month, 2)})
         exact.append((kind, value - baseline))
     # Added up before rounding, so the year's figure is not twelve roundings off.
     to_date = sum(above for kind, above in exact if kind == "actual")
