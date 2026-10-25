@@ -292,3 +292,25 @@ def test_one_enrollment_failing_unexpectedly_does_not_stop_the_others(fake_api):
 
     assert store.account("20000001").get("synced_at")
     assert [error["account"] for error in sync.status()["errors"]] == ["10000002"]
+
+
+def test_a_forecasts_only_sync_stores_the_whole_bill_and_the_usage_forecast(fake_api):
+    """2026-10-25: the first run stopped at once -- its progress was a name, not a step."""
+    from backend.consumption_store import ConsumptionStore
+    from backend.consumption_sync import ConsumptionSync
+    from backend.customers import AccountDirectory
+
+    class Azure:
+        def forecast_monthly(self, account, first, last, azure_only=False):
+            return [{"month": "2026-12", "cost": 3500.0 if azure_only else 15000.0}]
+
+    store = ConsumptionStore(fake_api)
+    store.save_account("1", {"months": {"2026-10": {"actual": {"service": {"VM": 10.0}}}}})
+    sync = ConsumptionSync(store, AccountDirectory(lambda: []), lambda: Azure(),
+                           customers=lambda: [{"id": "c", "accounts": ["1"]}], today=lambda: date(2026, 10, 25))
+
+    sync.run_forecasts()
+
+    entry = store.account("1")
+    assert entry["forecast"] == [{"month": "2026-12", "cost": 15000.0}]
+    assert entry["forecast_usage"] == [{"month": "2026-12", "cost": 3500.0}]

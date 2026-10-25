@@ -228,7 +228,7 @@ class ConsumptionSync:
         self._set(accounts_done=0, accounts_total=len(accounts))
         client = self._client_factory()
         for done, account in enumerate(accounts, start=1):
-            self._set(current=account)
+            self._set(current={**self._named(account), "forecasts": True})
             entry = self._store.account(account)
             if entry.get("months"):
                 errors: dict[str, str] = {}

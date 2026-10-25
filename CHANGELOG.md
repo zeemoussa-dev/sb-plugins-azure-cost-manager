@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.59.1] - 2026-10-25
+
+- fix: **the forecasts-only sync no longer stops at once.** Its progress was set to an enrollment's name instead of a step, so the first run ended "'str' object has no attribute 'items'" with nothing fetched.
+
 ## [0.59.0] - 2026-10-25
 
 - change: **Quota and the Pipeline review count Core42 revenue, not MACC consumption** (operator, 2026-10-25: "Marketplace and SaaS are not part of the numbers"; "the pipeline review without any MACC, only Core42").
