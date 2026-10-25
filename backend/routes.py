@@ -233,6 +233,31 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
     def publish_use_case(customer_id: str, pitch: str) -> dict:
         return _compass(lambda: advisor.publish_use_case(customer_id, pitch))
 
+    @router.get("/pipeline/settings")
+    def get_pipeline_settings() -> dict:
+        return service.pipeline_review_settings()
+
+    @router.put("/pipeline/settings")
+    def put_pipeline_settings(changes: dict = Body(...)) -> dict:
+        return _answered(lambda: service.save_pipeline_review_settings(changes))
+
+    @router.get("/pipeline/snapshots")
+    def get_pipeline_snapshots() -> dict:
+        """The weeks snapshotted; opening it takes the last closed week's when missing."""
+        return _answered(lambda: service.pipeline_snapshots())
+
+    @router.get("/pipeline/snapshots/{week}")
+    def get_pipeline_snapshot(week: str) -> dict:
+        return _answered(lambda: service.pipeline_snapshot_of(week))
+
+    @router.post("/pipeline/snapshot")
+    def post_pipeline_snapshot(force: bool = False) -> dict:
+        """For a Hermes cron job on Sunday night, and Settings' "Take snapshot now"
+        (`force`: take this week's again)."""
+        found = service.pipeline_snapshot(force=force)
+        return {key: found.get(key) for key in ("week_end", "taken_at", "taken_late", "fitted_through", "gaps")} | {
+            "opportunities": len(found.get("opportunities") or [])}
+
     @router.get("/compass/personas")
     def get_personas() -> dict:
         return advisor.personas()

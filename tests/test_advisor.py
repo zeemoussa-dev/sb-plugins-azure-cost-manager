@@ -210,3 +210,41 @@ def test_publishing_links_the_pitch_to_its_note(fake_api, tmp_path, monkeypatch)
     assert (tmp_path / "Banking" / "Use Cases" / "AML alert triage.md").exists()
     assert found._answers.get("pitches", customer_id)["value"][0]["use_case_note"] == "AML alert triage"
     assert found._answers.get("pitches", customer_id)["fingerprint"] == "stamp"
+
+
+class _OnePipeline:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def opportunities(self, customer):
+        return self.rows
+
+
+def test_a_snapshot_freezes_a_baseline_before_the_opportunity_could_move_anything(fake_api):
+    fake_api.get_service = lambda name: None
+    store = ConsumptionStore(fake_api)
+    book = CustomerBook(store, AccountDirectory(lambda: [{"name": "1", "display_name": "Contoso",
+                                                          "agreement_type": "EnterpriseAgreement"}]))
+    book.save(None, {"name": "Contoso", "accounts": ["1"], "entity_customer": "Contoso"})
+    store.save_account("1", {"months": {f"2026-{month:02d}": {"actual": {"service": {"VM": 100.0 * month, "SQL": 50.0}}}
+                                        for month in range(1, 10)}})
+    service = ConsumptionService(store, book, today=lambda: date(2026, 10, 25),
+                                 now=lambda: datetime(2026, 10, 25, 9, tzinfo=timezone.utc))
+    # Entered today, consuming since July: the H2 forecast's shape.
+    service._pipeline = _OnePipeline([{"id": "o1", "stem": "Migration", "title": "Migration", "customer": "Contoso",
+                                       "affiliate": None, "status": "Open", "stage": "Committed",
+                                       "consumption_start": "2026-07", "expected_monthly_usd": 500,
+                                       "plan": [{"month": "2026-07", "usd": 500}], "created": "2026-10-25",
+                                       "technologies": ["vm"]}])
+
+    snapshot = service.pipeline_snapshot()
+    baseline = store.pipeline_snapshots()["baselines"]["o1"]
+
+    assert snapshot["week_end"] == "2026-10-18" and snapshot["taken_late"] and snapshot["fitted_through"] == "2026-09"
+    assert snapshot["opportunities"][0]["customer_id"] == book.list()[0]["id"]
+    assert snapshot["opportunities"][0]["scope"] == ["VM"]
+    assert baseline["fitted_through"] == "2026-06" and baseline["estimated"]
+    assert list(baseline["scope_natural"]["by_month"])[0] == "2026-07"
+    assert service.pipeline_snapshot() is not None and len(store.pipeline_snapshots()["snapshots"]) == 1
+    service.pipeline_snapshot(force=True)
+    assert store.pipeline_snapshots()["baselines"]["o1"] == baseline        # a baseline is never recomputed

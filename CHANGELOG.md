@@ -2,6 +2,25 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.55.0] - 2026-10-25
+
+- feat: **Pipeline review, release 1: its foundations** (PLAN.md, "Pipeline review"; operator, 2026-10-25). There is no screen yet; releases 2–4 add the report.
+  - **Who covers each customer:** the Customer note's `account_manager`, `segment` and `pss` (Entities 1.13.0 documents them), read through the vault index. A person shows by the link's alias, else by their Person note's name. An affiliate takes its parent's, field by field. They were filled for 72 customers from the team's H2 forecast.
+  - **Settings** (`Pipeline-Review.json`):
+    - stage weights: Identified 10%, Qualified 25%, Proposed 50%, Committed 80%, Closed and Won 100%;
+    - plan tolerance: ±20%;
+    - horizon: 12 months.
+  - **Weekly snapshots** (`Pipeline-Snapshots.json`, kept for two years). Weeks close on Sunday night. Each snapshot holds:
+    - every opportunity as it stands, mapped to its most specific customer, with its plan and its scope;
+    - each customer's natural trend, fitted on the months closed by then, with its fit;
+    - the gaps that weaken the review: customers with no account manager, and opportunities with no start, no amount or no scope.
+
+    The first open after a week closes takes the missing snapshot, marked late if after Monday. `POST /pipeline/snapshot` is for a Hermes cron job on Sunday night; `?force=true` retakes the week.
+  - **Baselines, frozen once:** the first time an opportunity is seen, its scope's and its customer's natural trend are frozen and never recomputed. They are fitted on the months before it was opened (when that predates the first snapshot) and before its consumption started, so an opportunity entered today for consumption since July does not carry July–September in its baseline. Such baselines are marked estimated.
+  - **Scope:** the services an opportunity's `technologies` name; none matched leaves it unscoped, and it will influence nothing.
+  - **Routes:** `GET|PUT /pipeline/settings`, `GET /pipeline/snapshots` (taking the missing week), `GET /pipeline/snapshots/{week}`, `POST /pipeline/snapshot`.
+  - **Requires Entities 1.13.0**, for an opportunity's `created` and `technologies`.
+
 ## [0.54.0] - 2026-10-24
 
 - feat: **Customer context: where the customer stands, as you know it** (operator, 2026-10-24: "the option to modify where the customer is in digitalization, how the data is looking now -- a good input before recommending a solution").

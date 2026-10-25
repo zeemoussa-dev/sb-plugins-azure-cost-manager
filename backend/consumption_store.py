@@ -51,8 +51,13 @@ CUSTOMER_MEMORY_FILE = "Azure-Cost-Manager/Customer-Memory.json"
 PERSONAS_FILE = "Azure-Cost-Manager/Compass-Personas.json"
 # Where each customer stands, as the seller knows it (`customer_profile`).
 CUSTOMER_CONTEXT_FILE = "Azure-Cost-Manager/Customer-Context.json"
+# The pipeline review's settings, and its weekly snapshots with each opportunity's frozen
+# baseline (`pipeline_review`): the honest base for the team's impact, never recomputed.
+PIPELINE_REVIEW_FILE = "Azure-Cost-Manager/Pipeline-Review.json"
+PIPELINE_SNAPSHOTS_FILE = "Azure-Cost-Manager/Pipeline-Snapshots.json"
 DATA_FILES = (CUSTOMERS_FILE, CONSUMPTION_CACHE_FILE, MARKETPLACE_SETTINGS_FILE, LEGACY_TRACKED_ACCOUNTS_FILE,
-              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE, CUSTOMER_MEMORY_FILE, PERSONAS_FILE, CUSTOMER_CONTEXT_FILE)
+              FINOPS_FILE, SOLUTION_PLAYS_FILE, QUOTA_FILE, CUSTOMER_MEMORY_FILE, PERSONAS_FILE, CUSTOMER_CONTEXT_FILE,
+              PIPELINE_REVIEW_FILE, PIPELINE_SNAPSHOTS_FILE)
 
 # Azure keeps adjusting a month's usage for a few days after it ends; a month
 # fetched before then is fetched again.
@@ -216,6 +221,22 @@ class ConsumptionStore:
     def save_customer_context(self, state: dict) -> None:
         with self._lock:
             _write_json(self._api, CUSTOMER_CONTEXT_FILE, state)
+
+    def pipeline_review_settings(self) -> dict:
+        with self._lock:
+            return dict(_read_json(self._api, PIPELINE_REVIEW_FILE, {}))
+
+    def save_pipeline_review_settings(self, state: dict) -> None:
+        with self._lock:
+            _write_json(self._api, PIPELINE_REVIEW_FILE, state)
+
+    def pipeline_snapshots(self) -> dict:
+        with self._lock:
+            return dict(_read_json(self._api, PIPELINE_SNAPSHOTS_FILE, {}))
+
+    def save_pipeline_snapshots(self, state: dict) -> None:
+        with self._lock:
+            _write_json(self._api, PIPELINE_SNAPSHOTS_FILE, state)
 
     def personas(self) -> dict:
         with self._lock:
