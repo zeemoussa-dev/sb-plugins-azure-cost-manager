@@ -47,6 +47,19 @@ def test_above_the_line_is_net_closed_months_actual_and_the_rest_forecast():
     assert found["above_with_pipeline"] == round(found["above_projected"] + 25.0, 2)
 
 
+def test_an_enrollment_left_out_of_the_baseline_still_counts_in_the_period():
+    """2026-10-25: Mubadala's new MACC replaced its old enrollment in August; the old one's
+    months are no part of its line, yet what it billed in the period still counts."""
+    every = [{"month": m, "actual": a, "partial": False} for m, a in (("2026-04", 600.0), ("2026-05", 600.0),
+                                                                      ("2026-06", 600.0), ("2026-07", 650.0))]
+    chosen = quota.settings({}, "2026-10")
+
+    found = quota.analyse(every, {}, chosen, "2026-10", baseline_trend=[])
+
+    assert (found["baseline"], found["baseline_covered"]) == (0.0, 0)
+    assert found["months"][0]["above"] == 650.0
+
+
 def test_the_pipeline_planned_for_closed_months_against_what_was_added():
     found = {"above_to_date": 1000.0, "months": [{"month": m, "kind": "actual"} for m in ("2026-07", "2026-08", "2026-09")]}
     opportunities = [
@@ -70,7 +83,9 @@ def test_settings_are_checked_and_kept(fake_api):
 
     assert (saved["quota"], saved["baseline_start"], saved["baseline_last"]) == (5_000_000.0, "2026-03", "2026-06")
     assert service.save_quota_settings({"baseline_start": None})["baseline_is_default"] is True
-    for bad in ({"fy_start_month": 13}, {"baseline_months": 0}, {"quota": -1}, {"baseline_start": "March"}):
+    assert service.save_quota_settings({"baseline_excluded": ["47218105 ", "47218105"]})["baseline_excluded"] == ["47218105"]
+    for bad in ({"fy_start_month": 13}, {"baseline_months": 0}, {"quota": -1}, {"baseline_start": "March"},
+                {"baseline_excluded": "47218105"}):
         with pytest.raises(ValueError):
             service.save_quota_settings(bad)
 

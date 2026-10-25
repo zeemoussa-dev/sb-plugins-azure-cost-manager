@@ -1440,6 +1440,8 @@ export interface QuotaSettings {
   baseline_last: string;
   quota: number | null;
   baseline_is_default: boolean;
+  /** Enrollments no baseline is averaged from, e.g. an old one a new MACC replaced. */
+  baseline_excluded: string[];
 }
 
 export interface QuotaOpportunity {
@@ -1460,6 +1462,7 @@ export interface CustomerQuota {
   currency: string | null;
   baseline: number;
   baseline_covered: number;
+  enrollments: { name: string; display_name: string; in_baseline: boolean }[];
   months: { month: string; kind: 'actual' | 'forecast'; consumption: number; baseline: number; above: number; pipeline: number }[];
   above_to_date: number;
   above_projected: number;
@@ -1488,7 +1491,8 @@ export const fetchQuota = (measure: Measure) => apiFetch<QuotaAcross>(`${BASE}/q
 export const fetchCustomerQuota = (id: string, measure: Measure, accounts?: string[]) =>
   apiFetch<CustomerQuota>(`${customer(id)}/quota?${measureQuery(measure)}${accountsQuery(accounts)}`);
 export const saveQuotaSettings = (changes: Partial<{ quota: number | null; baseline_start: string | null;
-  baseline_months: number; fy_start_month: number; period_first: string | null; period_last: string | null }>) =>
+  baseline_months: number; fy_start_month: number; period_first: string | null; period_last: string | null;
+  baseline_excluded: string[] }>) =>
   apiFetch<QuotaSettings>(`${BASE}/quota/settings`, { method: 'PUT', body: JSON.stringify(changes) });
 
 /** Every data file, zipped, to carry this plugin's data to another machine. */

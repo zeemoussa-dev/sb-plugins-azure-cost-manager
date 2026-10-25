@@ -27,6 +27,7 @@ Format: `- **[date] Rule.** Reason.` Append; correct an entry by superseding it.
 
 - **[2026-10-18] Services other plugins depend on: `azure-cost-manager.portfolio` (Entities' Accounts page) and `azure-cost-manager.consumption` (Core42 Insight, own enrollments only, run-rate forecast).** Extend their shapes, never reshape them.
 - **[2026-10-17] Other plugins read this one through `azure-cost-manager.portfolio`** (`for_entity(customer_stem)`), never its HTTP routes. Its shape is the portfolio row plus `route`; changing it breaks Entities' customer page, so extend it, do not reshape it.
+- **[2026-10-25] Which enrollments a baseline is averaged from is data, never code.** When a new agreement replaces an enrollment (Mubadala's August MACC), the old enrollment is ticked out of the baseline on the Quota tab (`baseline_excluded` in the Quota settings). Its months leave the line while what it billed in the period still counts. `_quota_of` is the one place that applies it, so Quota and the Pipeline review agree.
 
 ## Patterns
 

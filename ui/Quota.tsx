@@ -69,12 +69,20 @@ function MeasureFilters({ measure, onChange }: { measure: Measure; onChange: (ne
 export function QuotaTab({ customerId, measure, accounts }: { customerId: string; measure: Measure; accounts?: string[] }) {
   const [found, setFound] = useState<CustomerQuota | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     fetchCustomerQuota(customerId, measure, accounts).then((result) => { setFound(result); setError(null); },
       (failure) => setError(errorText(failure)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId, measure, accounts?.join(',')]);
+  }, [customerId, measure, accounts?.join(','), reloads]);
+
+  function setInBaseline(name: string, inBaseline: boolean) {
+    const excluded = new Set(found?.settings.baseline_excluded ?? []);
+    if (inBaseline) excluded.delete(name); else excluded.add(name);
+    saveQuotaSettings({ baseline_excluded: [...excluded] }).then(() => setReloads((count) => count + 1),
+      (failure) => setError(errorText(failure)));
+  }
 
   if (error) return <div className="azure-cost-error">{error}</div>;
   if (!found) return <Loading />;
@@ -93,6 +101,20 @@ export function QuotaTab({ customerId, measure, accounts }: { customerId: string
         <Kpi label={`Projected, ${found.settings.fy}`} value={money(found.above_projected, currency)} />
         <Kpi label="With pipeline" value={money(found.above_with_pipeline, currency)} />
       </div>
+      {found.enrollments.length ? (
+        <section className="card azure-cost-card">
+          <h3>Enrollments the baseline is averaged from</h3>
+          <p className="text-muted">Untick an enrollment a new agreement replaced: its months leave the baseline, while what it
+            billed in {found.settings.fy} still counts.</p>
+          {found.enrollments.map((enrollment) => (
+            <label key={enrollment.name} className="azure-cost-check">
+              <input type="checkbox" checked={enrollment.in_baseline}
+                     onChange={(event) => setInBaseline(enrollment.name, event.target.checked)} />
+              {' '}{enrollment.display_name} ({enrollment.name})
+            </label>
+          ))}
+        </section>
+      ) : null}
       <section className="card azure-cost-card azure-cost-wide">
         <h3>{found.settings.fy}, month by month</h3>
         <SeriesChart label="Consumption against the baseline" currency={currency} height={300}

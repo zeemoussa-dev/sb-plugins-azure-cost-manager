@@ -73,7 +73,8 @@ def settings(stored: dict | None, current_month: str) -> dict:
             "period_is_default": not custom,
             "baseline_start": start, "baseline_months": count,
             "baseline_last": months.shift(start, count - 1), "quota": stored.get("quota"),
-            "baseline_is_default": not stored.get("baseline_start")}
+            "baseline_is_default": not stored.get("baseline_start"),
+            "baseline_excluded": sorted(stored.get("baseline_excluded") or [])}
 
 
 def validated(changes: dict) -> dict:
@@ -105,6 +106,13 @@ def validated(changes: dict) -> dict:
             if not 1 <= span <= LONGEST_PERIOD:
                 raise ValueError(f"a quota period ends after it starts and lasts at most {LONGEST_PERIOD} months")
         clean["period_first"], clean["period_last"] = first, last
+    if "baseline_excluded" in changes:
+        # Enrollments whose consumption is no part of any baseline: an agreement's old enrollment
+        # once a new MACC replaced it (operator, 2026-10-25: Mubadala's, signed with Core42 in August).
+        value = changes["baseline_excluded"] or []
+        if not isinstance(value, list) or not all(isinstance(name, str) and name.strip() for name in value):
+            raise ValueError("the enrollments left out of the baseline are a list of enrollment numbers")
+        clean["baseline_excluded"] = sorted({name.strip() for name in value})
     if "quota" in changes:
         value = changes["quota"]
         if value in (None, ""):
@@ -118,17 +126,20 @@ def validated(changes: dict) -> dict:
 
 
 def analyse(trend: list[dict], projected: dict[str, float] | None, chosen: dict, current_month: str,
-            pipeline: dict[str, float] | None = None) -> dict:
+            pipeline: dict[str, float] | None = None, baseline_trend: list[dict] | None = None) -> dict:
     """One customer's baseline, its fiscal year month by month, and what counts
     above the line: to date (closed months), and projected to the year's end.
 
     The running month and the ones after are the plugin's standard forecast
     (`consumption_analysis.forecast`: billed plus Azure's forecast, else the run rate),
     `projected` month -> cost (operator, 2026-10-25). A month it does not cover is the
-    line itself, adding nothing."""
+    line itself, adding nothing. `baseline_trend`: the consumption the line is averaged
+    from, when enrollments are left out of it."""
     actual = {row["month"]: row["actual"] for row in trend if not row["partial"]}
+    baseline_actual = actual if baseline_trend is None else {
+        row["month"]: row["actual"] for row in baseline_trend if not row["partial"]}
     baseline_months = months.span(chosen["baseline_start"], chosen["baseline_last"])
-    baseline = sum(actual.get(month, 0.0) for month in baseline_months) / len(baseline_months)
+    baseline = sum(baseline_actual.get(month, 0.0) for month in baseline_months) / len(baseline_months)
     projected, pipeline = projected or {}, pipeline or {}
     rows, exact = [], []
     for month in months.span(chosen["fy_first"], chosen["fy_last"]):
@@ -147,7 +158,7 @@ def analyse(trend: list[dict], projected: dict[str, float] | None, chosen: dict,
     projected = sum(above for _, above in exact)
     return {
         "baseline": round(baseline, 2),
-        "baseline_covered": sum(1 for month in baseline_months if month in actual),
+        "baseline_covered": sum(1 for month in baseline_months if month in baseline_actual),
         "months": rows,
         "above_to_date": round(to_date, 2),
         "above_projected": round(projected, 2),

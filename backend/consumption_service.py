@@ -204,10 +204,18 @@ class ConsumptionService:
         measure = measure if measure is not None else consumption_analysis.QUOTA_MEASURE
         merged, currency, entries = self._merged(customer, only=only)
         trend = consumption_analysis.monthly_totals(merged, current_month, measure)
+        excluded = set(chosen.get("baseline_excluded") or []) & set(entries)
+        baseline_trend = None
+        if excluded:
+            kept, _, _ = self._merged(customer, only=set(entries) - excluded)
+            baseline_trend = consumption_analysis.monthly_totals(kept, current_month, measure)
         pipeline = self.pipeline(customer["id"])
         found = quota.analyse(trend, self.standard_forecast(trend, entries, chosen["fy_last"], measure), chosen,
-                              current_month, pipeline["by_month"])
-        return {**found, "currency": (currency or "").strip() or None,
+                              current_month, pipeline["by_month"], baseline_trend)
+        enrollments = [{"name": account["name"], "display_name": account.get("display_name") or account["name"],
+                        "in_baseline": account["name"] not in excluded}
+                       for member in self._group(customer) for account in member["accounts"] if account["name"] in entries]
+        return {**found, "enrollments": enrollments, "currency": (currency or "").strip() or None,
                 "pipeline": quota.pipeline_against_actual(pipeline["opportunities"], found, current_month),
                 "pipeline_available": pipeline["available"]}
 

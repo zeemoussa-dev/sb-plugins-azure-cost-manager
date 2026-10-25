@@ -2,6 +2,12 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.61.0] - 2026-10-25
+
+- feat: **an enrollment can be left out of the baseline.** This is for when a new MACC replaces an old enrollment (operator, 2026-10-25: Mubadala signed with Core42 in August, and its old enrollment set its line).
+  - **Where:** the customer's Quota tab lists its enrollments, and unticking one takes its months out of the baseline. What it billed in the quota period still counts.
+  - **How it is kept:** as data in the Quota settings (`baseline_excluded`), so the next such customer needs no code change. Quota, the customer report and the Pipeline review all read it.
+
 ## [0.60.1] - 2026-10-25
 
 - fix: **the forecasts-only sync no longer leaves days out of the running month.** Azure forecasts from today, while the running month's billing was whatever the last full sync fetched, so the days between were counted nowhere. ADNOC's October fell from $6.6M to $4.8M, below its quota baseline, and its growth went negative (operator, 2026-10-25). That sync now fetches the running month's billing together with the forecast.
