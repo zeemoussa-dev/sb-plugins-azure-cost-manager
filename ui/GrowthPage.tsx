@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Breadcrumbs } from '../../pluginHost/breadcrumbs';
 import { apiUrl } from '../../pluginHost/api';
+import { ChangeBars } from './charts';
 import { fetchGrowth, type GrowthRow, reportExportPath } from './client';
 import { DrillLink } from './Drill';
 import { PopupRow } from './Popup';
@@ -60,6 +61,10 @@ export function GrowthPage() {
                       aria-pressed={filter === name} onClick={() => setFilter(name)}>{FILTERS[name]}</button>
             ))}
           </div>
+          <h4>Last 3 months against the 3 before</h4>
+          <ChangeBars label="Customers' change over three months" currency={null} percent most={10}
+                      rows={shown.filter((row) => row.change_3m_pct != null && !row.parent)
+                        .map((row) => ({ name: row.name, change: row.change_3m_pct as number }))} />
           <table className="azure-cost-table">
             <thead>
               <tr><th>Customer</th><th>Last month</th><th>Monthly, last 3</th><th>3 months</th><th>12 months</th>
@@ -92,6 +97,8 @@ export function GrowthPage() {
                         <div className="azure-cost-columns">
                           <div>
                             <h4>By solution play, last 3 months against the 3 before (monthly)</h4>
+                            <ChangeBars label="Change by solution play" currency={row.currency}
+                                        rows={(row.by_play ?? []).map((play) => ({ name: play.play, change: play.change }))} />
                             <table className="azure-cost-table">
                               <tbody>
                                 {(row.by_play ?? []).map((play) => (

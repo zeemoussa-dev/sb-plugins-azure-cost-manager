@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUrlState } from '../../pluginHost/state';
-import { SeriesChart } from './charts';
+import { ChangeBars, SeriesChart } from './charts';
 import {
   createOpportunity, fetchSyncStatus, fetchThisMonth, refreshThisMonth,
   type MonthRow, type ThisMonth, type View,
@@ -37,7 +37,53 @@ function NewWorkload({ found, kind, name, cost }: { found: ThisMonth; kind: stri
   );
 }
 
-/** A table that shows its first rows and offers the rest. */
+/** Up or down, how much and by what share, in green or red (operator, 2026-10-27). */
+function Ticker({ change, pct, currency }: { change: number; pct: number | null; currency: string | null }) {
+  const up = change >= 0;
+  return (
+    <span className={`azure-cost-ticker ${up ? 'up' : 'down'}`}>
+      {up ? '▲' : '▼'} {up ? '+' : '−'}{formatMoney(Math.abs(change), currency, true)}
+      {pct != null ? ` (${pct >= 0 ? '+' : ''}${pct}%)` : ''}
+    </span>
+  );
+}
+
+/** Who is driving the month's change: the services and subscriptions that moved the
+ *  most against last month's same days, each with its ticker. */
+function Drivers({ found }: { found: ThisMonth }) {
+  const dims = found.dimensions ?? {};
+  const columns = (['service', 'subscription'] as const).filter((key) => dims[key]);
+  if (!columns.length) return null;
+  const change = (found.month_to_date ?? 0) - (found.last_month_same_days ?? 0);
+  return (
+    <section className="card azure-cost-card azure-cost-wide">
+      <div className="azure-cost-card-head">
+        <h3>Who is driving the change</h3>
+        <Ticker change={change} pct={found.pace_pct ?? null} currency={found.currency} />
+      </div>
+      <div className="azure-cost-drivers">
+        {columns.map((key) => {
+          const movers = dims[key].rows.filter((row) => row.change !== 0)
+            .sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 5);
+          return (
+            <div key={key}>
+              <h4>{dims[key].label}</h4>
+              {movers.length ? movers.map((row) => (
+                <div key={row.name} className="azure-cost-driver">
+                  <DrillLink kind={key} name={row.name} />
+                  <Ticker change={row.change} pct={row.change_pct} currency={found.currency} />
+                </div>
+              )) : <p className="text-muted">Nothing moved.</p>}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-muted azure-cost-note">This month so far against last month's same days, the largest movers either way.</p>
+    </section>
+  );
+}
+
+/** A table that shows its first rows and offers the rest.
 function Rows({ rows, caption, found, view, drillKind }: {
   rows: MonthRow[]; caption: string; found: ThisMonth; view: View; drillKind?: DrillKind;
 }) {
@@ -169,7 +215,8 @@ export function ThisMonthTab({ customerId, view, accounts }: { customerId: strin
           <strong>{formatMoney(found.month_to_date ?? 0, currency)}</strong>
           <span className="azure-cost-kpi-detail">{found.days_elapsed} of {found.days_in_month} days</span></div>
         <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Against last month, same days</span>
-          <strong>{found.pace_pct == null ? '—' : `${found.pace_pct >= 0 ? '+' : ''}${found.pace_pct}%`}</strong>
+          <strong className={found.pace_pct == null ? undefined : found.pace_pct >= 0 ? 'azure-cost-up' : 'azure-cost-down'}>
+            {found.pace_pct == null ? '—' : `${found.pace_pct >= 0 ? '▲ +' : '▼ '}${found.pace_pct}%`}</strong>
           <span className="azure-cost-kpi-detail">{formatMoney(found.last_month_same_days ?? 0, currency)} then</span></div>
         <div className="azure-cost-kpi card"><span className="azure-cost-kpi-label">Projected month end</span>
           <strong>{found.projected_month_end == null ? '—' : formatMoney(found.projected_month_end, currency)}</strong>
@@ -180,6 +227,8 @@ export function ThisMonthTab({ customerId, view, accounts }: { customerId: strin
             {newByKind.map(([, item]) => `${item.new.length} ${item.label.toLowerCase()}`).join(' · ') || 'nothing new'}
           </span></div>
       </div>
+
+      <Drivers found={found} />
 
       <details className="card azure-cost-card azure-cost-fold" open>
         <summary><h3>Day by day, this month against last</h3></summary>
@@ -214,6 +263,8 @@ export function ThisMonthTab({ customerId, view, accounts }: { customerId: strin
           {chosen.startsWith('tag:') ? ' Tag values are folded as in the Tags report; untagged spend is left out.' : ''}
           {' '}Every new {dimension.label.toLowerCase()} is listed; you decide which is an opportunity.
         </p>
+        <ChangeBars label={`Change by ${dimension.label.toLowerCase()}, against last month's same days`} currency={currency}
+                    rows={rows.map((row) => ({ name: row.name, change: row.change }))} />
         <Rows key={`${chosen}|${filter}`} rows={rows} caption={dimension.label} found={found} view={view}
               drillKind={chosen === 'service' || chosen === 'subscription' ? chosen : undefined} />
       </details>

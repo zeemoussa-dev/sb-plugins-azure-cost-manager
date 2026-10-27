@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RankedBars, SeriesChart, StackedMonthsChart } from './charts';
+import { ChangeBars, RankedBars, SeriesChart, StackedMonthsChart } from './charts';
 import { fetchConsumption, type Analysis, type ConsumptionRow, type MixGroup } from './client';
 import { DrillLink, useDrillOpener } from './Drill';
 import { formatMoney, formatMonth } from './format';
@@ -17,6 +17,9 @@ function AnomalyList({ analysis }: { analysis: Analysis }) {
       {analysis.anomalies.length === 0 ? (
         <p className="text-muted">Nothing moved sharply against its last three months.</p>
       ) : (
+        <>
+        <ChangeBars label="Change against the 3-month baseline" currency={analysis.currency}
+                    rows={analysis.anomalies.map((anomaly) => ({ name: anomaly.service, change: anomaly.change }))} />
         <table className="azure-cost-table">
           <thead><tr><th>Service</th><th>Kind</th><th>Month</th><th>3-month baseline</th><th>Change</th></tr></thead>
           <tbody>
@@ -32,6 +35,7 @@ function AnomalyList({ analysis }: { analysis: Analysis }) {
             ))}
           </tbody>
         </table>
+        </>
       )}
     </section>
   );

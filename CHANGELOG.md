@@ -2,6 +2,16 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.65.0] - 2026-10-27
+
+- change: **drops and increases are drawn as bars, green up and red down** (operator, 2026-10-27). They are shown wherever a change is listed:
+  - This month's "What is changing", for whichever grouping is chosen.
+  - The Breakdown's anomalies.
+  - The Growth page's customers over three months, and each customer's solution plays.
+- feat: **This month shows who is driving the change.**
+  - **The card:** the five services and five subscriptions that moved the most against last month's same days, each with a green ▲ or red ▼ ticker giving the amount and the percentage.
+  - **The month's own ticker** heads the card, and the "Against last month" figure is coloured the same way.
+
 ## [0.64.1] - 2026-10-25
 
 - change: **the MACC allocation draws pies, not columns** (operator, 2026-10-25: "a pie chart will make more sense").

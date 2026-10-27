@@ -157,6 +157,48 @@ export function SeriesChart({ categories, series, currency, label, percent = fal
   );
 }
 
+export interface Move {
+  name: string;
+  change: number;
+}
+
+/** Drops and increases as bars: green up, red down, the largest of each (operator,
+ *  2026-10-27: "red means drop and green means increase", everywhere a change is shown).
+ *  `percent`: the changes are percentages, not money. */
+export function ChangeBars({ rows, currency, label, percent = false, most = 8, onPick }: {
+  rows: Move[]; currency: string | null; label: string; percent?: boolean; most?: number; onPick?: (name: string) => void;
+}) {
+  const { colors, option } = baseOption(currency);
+  const up = rows.filter((row) => row.change > 0).sort((a, b) => b.change - a.change).slice(0, most);
+  const down = rows.filter((row) => row.change < 0).sort((a, b) => a.change - b.change).slice(0, most);
+  if (!up.length && !down.length) return <p className="text-muted">Nothing moved.</p>;
+  // Largest increase on top, largest drop at the bottom.
+  const shown = [...up, ...down.reverse()].reverse();
+  const green = cssColor('--color-success', '#3fb950');
+  const red = cssColor('--color-danger', '#e5534b');
+  const value = (amount: number) => (percent ? `${amount > 0 ? '+' : ''}${amount}%`
+    : `${amount > 0 ? '+' : '−'}${formatMoney(Math.abs(amount), currency, true)}`);
+  return (
+    <Chart label={label} height={Math.max(160, shown.length * 26 + 40)}
+           onPick={onPick ? (name) => onPick(name) : undefined} option={{
+      ...option,
+      grid: { ...option.grid, top: 8, left: 8, right: 56 },
+      tooltip: { ...option.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (items: { name: string; value: number }[]) => `<b>${items[0].name}</b><br/>${value(items[0].value)}` },
+      xAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: (amount: number) => percent ? `${amount}%`
+        : formatMoney(amount, currency, true) }, splitLine: { lineStyle: { color: colors.border } } },
+      yAxis: { type: 'category', data: shown.map((row) => row.name),
+        axisLabel: { color: colors.muted, width: 180, overflow: 'truncate' }, axisLine: { lineStyle: { color: colors.border } } },
+      series: [{
+        type: 'bar', barMaxWidth: 18,
+        data: shown.map((row) => ({ value: row.change, itemStyle: { color: row.change >= 0 ? green : red } })),
+        label: { show: true, position: 'right', color: colors.muted, fontSize: 11,
+          formatter: (item: { value: number }) => value(item.value) },
+      }],
+    }} />
+  );
+}
+
 export interface Slice {
   name: string;
   value: number;
