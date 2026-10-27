@@ -83,7 +83,7 @@ function Drivers({ found }: { found: ThisMonth }) {
   );
 }
 
-/** A table that shows its first rows and offers the rest.
+/** A table that shows its first rows and offers the rest. */
 function Rows({ rows, caption, found, view, drillKind }: {
   rows: MonthRow[]; caption: string; found: ThisMonth; view: View; drillKind?: DrillKind;
 }) {
