@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.65.1] - 2026-10-27
+
+- fix: **a ticker caps its percentage at ±999%.** A service with almost nothing last month read +1,344,660% (ADNOC's SaaS).
+
 ## [0.65.0] - 2026-10-27
 
 - change: **drops and increases are drawn as bars, green up and red down** (operator, 2026-10-27). They are shown wherever a change is listed:

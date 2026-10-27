@@ -43,7 +43,8 @@ function Ticker({ change, pct, currency }: { change: number; pct: number | null;
   return (
     <span className={`azure-cost-ticker ${up ? 'up' : 'down'}`}>
       {up ? '▲' : '▼'} {up ? '+' : '−'}{formatMoney(Math.abs(change), currency, true)}
-      {pct != null ? ` (${pct >= 0 ? '+' : ''}${pct}%)` : ''}
+      {/* A near-zero base makes the share meaningless (ADNOC's SaaS: +1,344,660%). */}
+      {pct != null ? ` (${Math.abs(pct) > 999 ? (pct > 0 ? '>+999' : '<−999') : `${pct >= 0 ? '+' : ''}${pct}`}%)` : ''}
     </span>
   );
 }
