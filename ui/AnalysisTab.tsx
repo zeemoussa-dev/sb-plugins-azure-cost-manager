@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { NoteText } from '../../pluginHost/noteText';
-import { SeriesChart } from './charts';
+import { SeriesChart, type Series } from './charts';
 import {
   fetchFocus, fetchFocusOptions, fetchKeptFocus,
   type Focus, type FocusOptions, type FocusReport, type FocusRow, type KeptFocus,
@@ -225,11 +225,11 @@ export function AnalysisTab({ customerId, accounts, syncedVersion }: {
                 <h3>By month</h3>
                 <SeriesChart label={`${report.title} by month`} currency={currency} height={260}
                              categories={figures.months} categoryLabel={(month) => formatMonth(month, true)}
-                             series={(figures.services.length > 1 ? figures.services.slice(0, 6) : figures.services).map((row, index) => ({
+                             series={figures.services.slice(0, 6).map((row, index): Series => ({
                                name: row.name, stack: 'focus', color: index,
                                data: figures.months.map((month) => row.by_month[month] ?? 0),
                              })).concat(figures.services.length > 6 ? [{
-                               name: 'Other', stack: 'focus', color: 'other' as const,
+                               name: 'Other', stack: 'focus', color: 'other',
                                data: figures.months.map((month) => figures.services.slice(6).reduce((sum, row) => sum + (row.by_month[month] ?? 0), 0)),
                              }] : [])} />
                 {figures.current_month ? <p className="text-muted azure-cost-note">{formatMonth(figures.current_month)} is still being billed.</p> : null}
