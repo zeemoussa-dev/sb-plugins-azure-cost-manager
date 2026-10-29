@@ -3,6 +3,7 @@ import { ChangeBars, RankedBars, SeriesChart, StackedMonthsChart } from './chart
 import { fetchConsumption, type Analysis, type ConsumptionRow, type MixGroup } from './client';
 import { DrillLink, useDrillOpener } from './Drill';
 import { formatMoney, formatMonth } from './format';
+import { SubscriptionGroups } from './SubscriptionGroups';
 import { SubscriptionLabel } from './SubscriptionLabel';
 
 const MIX_LABELS: Record<MixGroup, string> = {
@@ -131,6 +132,7 @@ export function BreakdownTab({ analysis, syncedVersion }: { analysis: Analysis; 
                       renderName={(name) => <SubscriptionLabel name={name} />} />
         </section>
       </div>
+      <SubscriptionGroups customerId={customerId} accounts={shown} syncedVersion={syncedVersion} />
       <AnomalyList analysis={analysis} />
     </>
   );

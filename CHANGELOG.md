@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.66.0] - 2026-10-29
+
+- feat: **subscription groups on the Breakdown** (operator, 2026-10-29: "how much M42 and its subs spend on storage regarding Genome"). A customer's own named groups of subscriptions, each matched by fragments of their names (e.g. *Genome programme*: EGP, genom). Each group's spend per month is charted and tabled, on all services or one (Storage), and opens to its subscriptions. The groups are kept on the customer: `GET`/`PUT /customers/{id}/subscription-groups`.
+
 ## [0.65.1] - 2026-10-27
 
 - fix: **a ticker caps its percentage at ±999%.** A service with almost nothing last month read +1,344,660% (ADNOC's SaaS).

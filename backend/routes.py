@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, Body, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Body, File, HTTPException, Query, Response, UploadFile
 
 from .azure_token import AzureCliToken, AzureSignInError
 from .billing_client import AzureApiError, AzureThrottled
@@ -539,6 +539,16 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
                         group: str = "service", cost: str = "actual", accounts: str | None = None) -> dict:
         return _answered(lambda: service.consumption(customer_id, first_month, last_month, group, cost,
                                                      _account_list(accounts)))
+
+    @router.get("/customers/{customer_id}/subscription-groups")
+    def get_subscription_groups(customer_id: str, only_service: str | None = Query(None, alias="service"),
+                                accounts: str | None = None) -> dict:
+        """Each named group of subscriptions, per month -- all services or just `service`."""
+        return _answered(lambda: service.subscription_groups(customer_id, only_service, _account_list(accounts)))
+
+    @router.put("/customers/{customer_id}/subscription-groups")
+    def put_subscription_groups(customer_id: str, groups: list = Body(...)) -> list[dict]:
+        return _answered(lambda: book.set_subscription_groups(customer_id, groups))
 
     @router.get("/hygiene")
     def get_hygiene() -> list[dict]:

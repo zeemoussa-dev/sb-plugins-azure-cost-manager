@@ -835,6 +835,29 @@ export const updateOpportunity = (opportunityId: string, fields: Partial<Opportu
 export const fetchConsumption = (id: string, group: MixGroup, accounts?: string[]) =>
   apiFetch<{ rows: ConsumptionRow[] }>(`${customer(id)}/consumption?group=${group}&cost=actual${accountsQuery(accounts)}`);
 
+/** A customer's own named group of subscriptions, matched by fragments of their names. */
+export interface SubscriptionGroup {
+  name: string;
+  match: string[];
+}
+
+export interface SubscriptionGroupsReport {
+  currency: string | null;
+  months: string[];
+  service: string | null;
+  groups: (SubscriptionGroup & {
+    monthly: Record<string, number>;
+    subscriptions: { name: string; monthly: Record<string, number> }[];
+  })[];
+  services: string[];
+}
+
+export const fetchSubscriptionGroups = (id: string, service: string | null, accounts?: string[]) =>
+  apiFetch<SubscriptionGroupsReport>(`${customer(id)}/subscription-groups?service=${encodeURIComponent(service ?? '')}${accountsQuery(accounts)}`);
+
+export const saveSubscriptionGroups = (id: string, groups: SubscriptionGroup[]) =>
+  apiFetch<SubscriptionGroup[]>(`${customer(id)}/subscription-groups`, { method: 'PUT', body: JSON.stringify(groups) });
+
 export interface SolutionPlaysSettings {
   plays: string[];
   services: { service: string; spend: number; play: string; default: string | null; changed: boolean }[];

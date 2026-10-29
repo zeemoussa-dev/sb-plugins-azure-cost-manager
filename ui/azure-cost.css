@@ -280,6 +280,29 @@
   font-size: var(--font-size-sm);
 }
 
+.azure-cost-groups-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.azure-cost-groups-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.azure-cost-groups-row input[type="text"] {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.azure-cost-groups-sub {
+  padding-left: 28px;
+}
+
 .azure-cost-ticker {
   display: inline-block;
   padding: 2px 8px;

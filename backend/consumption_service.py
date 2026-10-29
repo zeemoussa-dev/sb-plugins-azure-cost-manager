@@ -9,7 +9,8 @@ from typing import Callable
 from . import (account_owners, brief, consumption_analysis, customer_profile, finops_extra, industry, memory,
                personas, pipeline_review, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
-               marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, tag_gaps, tags,
+               marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, subscription_groups,
+               tag_gaps, tags,
                this_month,
                whitespace)
 from .consumption_store import ConsumptionStore
@@ -1402,6 +1403,14 @@ class ConsumptionService:
                  "subscriptions": sorted(row["subscriptions"])} for row in found.values()
                 if row["cost"] / max(1, len(recent)) >= 0.5]
         return sorted(rows, key=lambda row: -row["monthly"])
+
+    def subscription_groups(self, customer_id: str, service: str | None = None,
+                            accounts: list[str] | None = None) -> dict:
+        """The customer's named subscription groups and what each spent per month."""
+        customer = self._customer(customer_id)
+        merged, currency, _ = self._merged(customer, only=self._only(customer, accounts))
+        found = subscription_groups.report(merged, customer.get("subscription_groups") or [], service or None)
+        return {"customer": customer_id, "currency": currency, **found}
 
     def consumption(self, customer_id: str, first_month: str | None, last_month: str | None,
                     group_by: str, cost_kind: str, accounts: list[str] | None = None) -> dict:

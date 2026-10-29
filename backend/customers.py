@@ -12,6 +12,7 @@ import threading
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
+from . import subscription_groups
 from .commitment_notes import CommitmentNotes
 from .consumption_store import ConsumptionStore, slug
 from .forecasting import DEFAULT_SCENARIO
@@ -290,7 +291,8 @@ class CustomerBook:
                  "entity_customer": entity_customer,
                  # The group this customer is an affiliate of: its MACC is carved out of the parent's.
                  "parent": parent,
-                 "scenario": existing.get("scenario")}
+                 "scenario": existing.get("scenario"),
+                 "subscription_groups": existing.get("subscription_groups") or []}
         replaced = [saved if customer["id"] == customer_id else customer for customer in customers]
         if not any(customer["id"] == customer_id for customer in customers):
             replaced.append(saved)
@@ -306,6 +308,15 @@ class CustomerBook:
         customer["scenario"] = _valid_scenario(settings)
         self._store.save_customers(customers)
         return customer["scenario"]
+
+    def set_subscription_groups(self, customer_id: str, groups) -> list[dict]:
+        customers = self._store.customers()
+        customer = next((candidate for candidate in customers if candidate["id"] == customer_id), None)
+        if customer is None:
+            raise CustomerError(f"no customer {customer_id!r}")
+        customer["subscription_groups"] = subscription_groups.validated(groups)
+        self._store.save_customers(customers)
+        return customer["subscription_groups"]
 
     @staticmethod
     def _check_parent(customer_id: str, parent: str | None, customers: list[dict]) -> None:
