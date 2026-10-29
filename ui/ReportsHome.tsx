@@ -7,7 +7,7 @@ import { AskBox } from './Advisor';
 
 export const REPORT_PATH = '/azure-cost-manager/report';
 
-export const REPORTS = ['Overview', 'This month', 'Forecast', 'Quota', 'Pipeline', 'Solutions', 'Marketplace', 'FinOps', 'Tags', 'Breakdown'] as const;
+export const REPORTS = ['Overview', 'This month', 'Forecast', 'Quota', 'Pipeline', 'Solutions', 'Marketplace', 'FinOps', 'Tags', 'Breakdown', 'Analysis'] as const;
 export type Report = typeof REPORTS[number];
 
 const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
@@ -21,6 +21,7 @@ const REPORT_SUMMARIES: Record<Report, { title: string; summary: string }> = {
   Solutions: { title: 'Solutions', summary: 'What each subscription looks like it is used for -- a data platform, a GenAI app, a SOC -- and what to pitch: the piece the customer runs nowhere.' },
   Tags: { title: 'Tags', summary: 'Cost by environment, project, application, business unit, owner and cost centre tags.' },
   Breakdown: { title: 'Breakdown', summary: 'Consumption by service, subscription and resource group.' },
+  Analysis: { title: 'Analysis', summary: 'Any mix of services, subscriptions and subscription groups: its figures, and Compass on the cost story, the workload, optimisation and what to pitch.' },
 };
 
 type ThemeItem = { report: Report } | { to: string; title: string; summary: string };
@@ -29,7 +30,7 @@ type ThemeItem = { report: Report } | { to: string; title: string; summary: stri
 // across all customers (operator, 2026-10-21: "the reports need a different grouping").
 const THEMES: { title: string; items: ThemeItem[] }[] = [
   { title: 'Consumption and MACC', items: [
-    { report: 'Overview' }, { report: 'This month' }, { report: 'Forecast' }, { report: 'Breakdown' },
+    { report: 'Overview' }, { report: 'This month' }, { report: 'Forecast' }, { report: 'Breakdown' }, { report: 'Analysis' },
     { to: '/azure-cost-manager/growth', title: 'Growth and churn',
       summary: 'Who is growing and who is falling away: three and twelve months against the ones before, services that stopped or started, and each solution play\'s move.' },
   ] },

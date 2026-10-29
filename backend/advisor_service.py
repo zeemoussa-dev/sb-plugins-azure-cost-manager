@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 from datetime import date
 
-from . import advisor, compass, customer_profile, personas, use_cases
+from . import advisor, compass, customer_profile, focus_analysis, personas, use_cases
 
 ACTIONS_FOR = 30
 MARKETPLACE_BATCH = 40
@@ -56,6 +56,39 @@ class Advisor:
             self._answers.put("explain", key, stamp, text.strip())
         return {**self._kept("explain", key, stamp),
                 "notes": [line for line in self._service.memory.of(customer_id) if line.get("source") == about]}
+
+    # -- one slice of the bill, analysed ---------------------------------------------
+
+    def focus(self, customer_id: str, focus: dict, write: bool = False, accounts: list[str] | None = None) -> dict:
+        """The Analysis tab (operator, 2026-10-29): the figures for the chosen services,
+        subscriptions and groups, and Compass's reading of them -- kept per customer
+        and choice until what it was written from changes."""
+        found = self._service.focus(customer_id, focus, accounts)
+        candidates = [{"meter": item["meter"], "monthly_on_demand": item["monthly_on_demand"],
+                       "savings_monthly_by_option": item.get("savings")}
+                      for item in self._service.finops(customer_id, accounts, waste=False).get("candidates") or []]
+        facts = focus_analysis.facts(found["customer"]["name"], found["currency"], found["focus"], found["groups"],
+                                     found["figures"], found["built_from"], found["tags"],
+                                     self._service.brief_facts(customer_id), candidates, found["solutions"],
+                                     self._service.industry_of(customer_id))
+        key = f"{customer_id}|{','.join(accounts or [])}|{found['key']}"
+        stamp = self._stamp("focus", facts)
+        if write:
+            answer = focus_analysis.check(self._ask("focus", focus_analysis.messages(
+                facts, advisor.RULES, advisor.INDUSTRY_RULE, advisor.CONTEXT_RULE)))
+            self._answers.put("focus", key, stamp, {**answer, "title": found["title"], "focus": found["focus"]})
+        return {**{name: found[name] for name in ("customer", "currency", "focus", "title", "figures", "built_from",
+                                                  "tags", "solutions")},
+                "industry": (self._service.industry_of(customer_id) or {}).get("industry"),
+                "answer": self._kept("focus", key, stamp)}
+
+    def focus_kept(self, customer_id: str) -> list[dict]:
+        """The analyses kept for a customer, newest first: what the tab offers to reopen."""
+        kept = self._answers.listed("focus")
+        return sorted(({"title": item["value"].get("title"), "focus": item["value"].get("focus"), "at": item["at"],
+                        "accounts": [name for name in key.split("|")[1].split(",") if name]}
+                       for key, item in kept.items() if key.split("|")[0] == customer_id and item.get("value")),
+                      key=lambda row: row["at"] or "", reverse=True)
 
     # -- next best actions --------------------------------------------------------
 

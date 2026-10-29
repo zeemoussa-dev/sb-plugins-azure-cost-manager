@@ -81,6 +81,9 @@ class Answers:
     def get(self, kind: str, key: str) -> dict | None:
         return ((self._read() or {}).get(kind) or {}).get(key)
 
+    def listed(self, kind: str) -> dict[str, dict]:
+        return dict((self._read() or {}).get(kind) or {})
+
     def put(self, kind: str, key: str, stamp: str, value) -> dict:
         state = self._read() or {}
         kept = {"fingerprint": stamp, "value": value, "at": self._now().isoformat()}

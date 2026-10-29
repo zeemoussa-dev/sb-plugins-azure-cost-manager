@@ -2,6 +2,14 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.67.0] - 2026-10-29
+
+- feat: **an Analysis tab: any slice of a customer's bill, analysed by Compass** (operator, 2026-10-29: "subscription and service analysis per customer, based on the industry and the tags"). Tick any mix of subscription groups, subscriptions and services.
+  - **The plugin's figures:** the slice's monthly cost against the three months before, its share of the bill, by month, by service and by subscription.
+  - **Compass's reading, four ways:** the cost story, what the workload likely is (with its evidence), optimisation moves with what to check first, and what to pitch, in the customer's industry.
+  - **Compass also reads:** the slice's meters and resource groups, the tag values naming it, savings candidates and the solutions its subscriptions look like.
+  - **Kept** per customer and slice, and reopened from the tab. Seller's view only.
+
 ## [0.66.0] - 2026-10-29
 
 - feat: **subscription groups on the Breakdown** (operator, 2026-10-29: "how much M42 and its subs spend on storage regarding Genome"). A customer's own named groups of subscriptions, each matched by fragments of their names (e.g. *Genome programme*: EGP, genom). Each group's spend per month is charted and tabled, on all services or one (Storage), and opens to its subscriptions. The groups are kept on the customer: `GET`/`PUT /customers/{id}/subscription-groups`.

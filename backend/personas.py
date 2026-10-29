@@ -99,6 +99,7 @@ FEATURES = {
     "use-case": "industry-solution-advisor", "context": "account-strategist",
     "finops-plan": "finops-advisor", "tagging-plan": "governance-advisor",
     "finops-report": "customer-advisor", "tagging-guide": "customer-advisor", "ask": "data-analyst",
+    "focus": "analyst",
 }
 
 

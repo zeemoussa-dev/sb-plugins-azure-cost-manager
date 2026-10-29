@@ -9,7 +9,8 @@ from typing import Callable
 from . import (account_owners, brief, consumption_analysis, customer_profile, finops_extra, industry, memory,
                personas, pipeline_review, data_transfer, drill, placement, export_reports, export_xlsx, finops, forecasting, growth, hygiene,
                marketplace,
-               marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions, subscription_groups,
+               focus_analysis, marketplace_whitespace, months, pricing, quota, renewals, solution_plays, solutions,
+               subscription_groups,
                tag_gaps, tags,
                this_month,
                whitespace)
@@ -23,6 +24,7 @@ class BriefUnavailable(RuntimeError):
 
 # Cost Management bills every Marketplace offer under these service names.
 MARKETPLACE_SERVICES = ("SaaS", "Azure Applications")
+TOP_FOCUS_SOLUTIONS = 15
 
 # The weekly job keeps data at most a week old; past this the page says it is stale.
 STALE_AFTER = timedelta(days=8)
@@ -1411,6 +1413,35 @@ class ConsumptionService:
         merged, currency, _ = self._merged(customer, only=self._only(customer, accounts))
         found = subscription_groups.report(merged, customer.get("subscription_groups") or [], service or None)
         return {"customer": customer_id, "currency": currency, **found}
+
+    def focus_options(self, customer_id: str, accounts: list[str] | None = None) -> dict:
+        """What the Analysis tab can be pointed at: groups, subscriptions, services."""
+        customer = self._customer(customer_id)
+        merged, currency, _ = self._merged(customer, only=self._only(customer, accounts))
+        return {"currency": currency, **focus_analysis.options(merged, customer.get("subscription_groups") or [],
+                                                                months.month_of(self._today()))}
+
+    def focus(self, customer_id: str, focus: dict, accounts: list[str] | None = None) -> dict:
+        """One slice of the bill -- services, subscriptions, subscription groups -- with what
+        Compass reads beside the figures: footprint, tags naming it, savings, solutions."""
+        customer = self._customer(customer_id)
+        groups = customer.get("subscription_groups") or []
+        chosen = focus_analysis.validated(focus, groups)
+        only = self._only(customer, accounts)
+        merged, currency, entries = self._merged(customer, only=only)
+        current = months.month_of(self._today())
+        found = focus_analysis.figures(merged, chosen, groups, current)
+        subscriptions = [row["name"] for row in found["subscriptions"]]
+        closed = [month for month in found["months"] if month != found.get("current_month")]
+        solutions_rows = [{"subscription": row["subscription"],
+                           "looks_like": [item["name"] for item in row["solutions"] + row["also"]]}
+                          for row in self.solutions_of(customer_id, accounts)["subscriptions"]
+                          if row["subscription"] in set(subscriptions) and (row["solutions"] or row["also"])]
+        return {"customer": {"id": customer["id"], "name": customer["name"]}, "currency": currency,
+                "focus": chosen, "title": focus_analysis.title_of(chosen), "key": focus_analysis.key_of(chosen),
+                "figures": found, "built_from": focus_analysis.footprint(entries, subscriptions),
+                "tags": focus_analysis.tag_hints(entries, chosen, groups, closed[-1] if closed else None),
+                "solutions": solutions_rows[:TOP_FOCUS_SOLUTIONS], "groups": groups}
 
     def consumption(self, customer_id: str, first_month: str | None, last_month: str | None,
                     group_by: str, cost_kind: str, accounts: list[str] | None = None) -> dict:

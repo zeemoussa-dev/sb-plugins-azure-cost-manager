@@ -540,6 +540,21 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
         return _answered(lambda: service.consumption(customer_id, first_month, last_month, group, cost,
                                                      _account_list(accounts)))
 
+    @router.get("/customers/{customer_id}/focus/options")
+    def get_focus_options(customer_id: str, accounts: str | None = None) -> dict:
+        return _answered(lambda: service.focus_options(customer_id, _account_list(accounts)))
+
+    @router.get("/customers/{customer_id}/focus/kept")
+    def get_focus_kept(customer_id: str) -> list[dict]:
+        return _answered(lambda: advisor.focus_kept(customer_id))
+
+    @router.post("/customers/{customer_id}/focus")
+    def post_focus(customer_id: str, request: dict = Body(...), accounts: str | None = None) -> dict:
+        """`{focus: {groups, subscriptions, services}, write}`: the slice's figures and the kept
+        analysis; `write` asks Compass for a new one."""
+        return _compass(lambda: advisor.focus(customer_id, request.get("focus") or {}, bool(request.get("write")),
+                                              _account_list(accounts)))
+
     @router.get("/customers/{customer_id}/subscription-groups")
     def get_subscription_groups(customer_id: str, only_service: str | None = Query(None, alias="service"),
                                 accounts: str | None = None) -> dict:

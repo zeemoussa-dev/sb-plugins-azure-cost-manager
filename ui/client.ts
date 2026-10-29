@@ -858,6 +858,79 @@ export const fetchSubscriptionGroups = (id: string, service: string | null, acco
 export const saveSubscriptionGroups = (id: string, groups: SubscriptionGroup[]) =>
   apiFetch<SubscriptionGroup[]>(`${customer(id)}/subscription-groups`, { method: 'PUT', body: JSON.stringify(groups) });
 
+/** The Analysis tab's choice: any mix of subscription groups, subscriptions and services. */
+export interface Focus {
+  groups: string[];
+  subscriptions: string[];
+  services: string[];
+}
+
+export interface FocusOptions {
+  currency: string | null;
+  groups: SubscriptionGroup[];
+  subscriptions: { name: string; monthly: number; group: string | null }[];
+  services: { name: string; monthly: number }[];
+}
+
+export interface FocusRow {
+  name: string;
+  monthly_recent: number;
+  monthly_before: number;
+  change_pct: number | null;
+  by_month: Record<string, number>;
+}
+
+export interface FocusAnswer {
+  headline: string;
+  cost_story: string;
+  architecture: { workload: string; confidence: 'high' | 'medium' | 'low'; evidence: string[] };
+  optimisation: { move: string; why: string; check_first: string }[];
+  growth: { pitch: string; why: string }[];
+  questions: string[];
+  title: string;
+  focus: Focus;
+}
+
+export interface FocusReport {
+  customer: { id: string; name: string };
+  currency: string | null;
+  focus: Focus;
+  title: string;
+  industry: string | null;
+  figures: {
+    months: string[];
+    current_month: string | null;
+    by_month: { month: string; cost: number; share_of_bill_pct: number | null }[];
+    monthly_recent: number;
+    monthly_before: number;
+    change_pct: number | null;
+    share_of_bill_pct: number | null;
+    services: FocusRow[];
+    subscriptions: FocusRow[];
+  };
+  built_from: { meters: { name: string; monthly: number }[]; resource_groups: { name: string; monthly: number }[] };
+  tags: { tag: string; value: string; monthly: number }[];
+  solutions: { subscription: string; looks_like: string[] }[];
+  answer: Kept<FocusAnswer>;
+}
+
+export interface KeptFocus {
+  title: string;
+  focus: Focus;
+  at: string;
+  accounts: string[];
+}
+
+export const fetchFocusOptions = (id: string, accounts?: string[]) =>
+  apiFetch<FocusOptions>(`${customer(id)}/focus/options${onlyAccounts(accounts)}`);
+
+export const fetchKeptFocus = (id: string) => apiFetch<KeptFocus[]>(`${customer(id)}/focus/kept`);
+
+/** `write`: ask Compass for a new analysis; otherwise the figures and the kept one. */
+export const fetchFocus = (id: string, focus: Focus, write: boolean, accounts?: string[]) =>
+  apiFetch<FocusReport>(`${customer(id)}/focus${onlyAccounts(accounts)}`,
+    { method: 'POST', body: JSON.stringify({ focus, write }) });
+
 export interface SolutionPlaysSettings {
   plays: string[];
   services: { service: string; spend: number; play: string; default: string | null; changed: boolean }[];
