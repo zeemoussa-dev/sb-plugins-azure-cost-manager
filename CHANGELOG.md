@@ -2,6 +2,10 @@
 
 All notable changes to the Azure Cost Manager plugin.
 
+## [0.68.0] - 2026-10-29
+
+- feat: **the Analysis takes a prompt** (operator, 2026-10-29: "so I can refine or tell what I am looking for"). An optional "What are you looking for?" box sits beside Analyse with Compass. Compass answers the prompt first, from the facts only (or says what data would answer it), and lets it steer the four parts. The prompt is kept with the analysis and comes back pre-filled, so it can be refined rather than retyped.
+
 ## [0.67.0] - 2026-10-29
 
 - feat: **an Analysis tab: any slice of a customer's bill, analysed by Compass** (operator, 2026-10-29: "subscription and service analysis per customer, based on the industry and the tags"). Tick any mix of subscription groups, subscriptions and services.

@@ -320,6 +320,25 @@
   margin: 16px 0 8px;
 }
 
+.azure-cost-analysis-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.azure-cost-analysis-prompt .field-labeled,
+.azure-cost-analysis-prompt textarea {
+  width: 100%;
+}
+
+.azure-cost-analysis-asked {
+  border-left: 3px solid var(--color-primary, currentColor);
+  padding: 4px 0 4px 12px;
+  margin-bottom: 12px;
+}
+
 .azure-cost-analysis-answer {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

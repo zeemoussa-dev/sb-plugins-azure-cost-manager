@@ -18,6 +18,7 @@ TOP = 15
 PURPOSE_KEYS = ("application", "applicationname", "application name", "project", "projectname", "projectcode",
                 "workload", "department", "businessunit", "costcenter", "cost center", "environment", "service")
 LENSES = ("cost_story", "optimisation", "growth", "architecture")
+LONGEST_PROMPT = 1000
 
 
 def _closed(merged: dict, current_month: str) -> list[str]:
@@ -65,6 +66,17 @@ def validated(focus, groups: list[dict]) -> dict:
     if not any(cleaned.values()):
         raise ValueError("choose at least one service, subscription or subscription group")
     return cleaned
+
+
+def validated_prompt(prompt) -> str | None:
+    if prompt is None:
+        return None
+    if not isinstance(prompt, str):
+        raise ValueError("the prompt is text")
+    prompt = prompt.strip()
+    if len(prompt) > LONGEST_PROMPT:
+        raise ValueError(f"keep the prompt under {LONGEST_PROMPT} characters")
+    return prompt or None
 
 
 def key_of(focus: dict) -> str:
@@ -179,10 +191,12 @@ def tag_hints(entries: dict[str, dict], focus: dict, groups: list[dict], month: 
 
 def facts(customer_name: str, currency: str | None, focus: dict, groups: list[dict], found: dict, built_from: dict,
           tags: list[dict], brief_facts: dict | None, finops_candidates: list[dict], solutions: list[dict],
-          industry: dict | None) -> dict:
+          industry: dict | None, prompt: str | None = None) -> dict:
     meters = {item["name"].lower() for item in built_from["meters"]}
     return {key: value for key, value in {
         "customer": customer_name, "currency": currency,
+        # What the seller is looking for: steers the whole analysis.
+        "seller_asks": prompt,
         "slice": {"title": title_of(focus), "services": focus["services"] or "all",
                   "subscription_groups": [group for group in groups if group["name"] in focus["groups"]],
                   "subscriptions": focus["subscriptions"]},
@@ -216,6 +230,9 @@ def facts(customer_name: str, currency: str | None, focus: dict, groups: list[di
 def messages(facts_given: dict, rules: str, industry_rule: str, context_rule: str) -> list[dict]:
     return [{"role": "system", "content": (
         "Analyse this slice of a customer's Azure bill for a Core42 seller, four ways. "
+        "When 'seller_asks' is given it is what the seller is looking for: answer it first and directly in "
+        "'answer_to_ask', and let it decide what each of the four parts dwells on (a part it makes irrelevant "
+        "stays short). Answer it from the facts only; where they cannot answer it, say what data would. "
         "1. cost_story: what it costs, how it moved and where (which services and subscriptions), the likely reason. "
         "A month marked partial is still being billed: never read it as a fall. "
         "2. architecture: what the workload most likely is, from its services, meters, resource groups, subscription "
@@ -227,7 +244,8 @@ def messages(facts_given: dict, rules: str, industry_rule: str, context_rule: st
         "4. growth: what to pitch next given the industry, the customer's stage and this workload (Core42's offers "
         "included), each with why it fits. "
         + industry_rule + " " + context_rule + "\n"
-        'Answer with one JSON object: {"headline": <one sentence>, "cost_story": <markdown, at most 120 words>, '
+        'Answer with one JSON object: {"answer_to_ask": <markdown, at most 200 words, or null when seller_asks '
+        'is not given>, "headline": <one sentence>, "cost_story": <markdown, at most 120 words>, '
         '"architecture": {"workload": <one sentence>, "confidence": "high"|"medium"|"low", "evidence": [<up to 5>]}, '
         '"optimisation": [{"move": <short>, "why": <one sentence>, "check_first": <one sentence>}], '
         '"growth": [{"pitch": <short>, "why": <one sentence>}], "questions": [<up to 3 for the customer>]}. '
@@ -245,6 +263,7 @@ def check(reply: str) -> dict:
                 for item in (found.get(name) or []) if isinstance(item, dict) and item.get(keys[0])][:most]
 
     return {
+        "answer_to_ask": str(found.get("answer_to_ask") or "")[:2000] or None,
         "headline": str(found.get("headline") or "")[:300],
         "cost_story": str(found.get("cost_story") or "")[:1200],
         "architecture": {"workload": str(architecture.get("workload") or "")[:300],

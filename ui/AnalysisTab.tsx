@@ -69,23 +69,40 @@ function Rows({ rows, kind, currency }: { rows: FocusRow[]; kind: 'service' | 's
 }
 
 /** Compass's reading of the slice, the four ways the operator asked for. */
-function CompassReading({ report, writing, onWrite }: { report: FocusReport; writing: boolean; onWrite: () => void }) {
+function CompassReading({ report, writing, onWrite }: {
+  report: FocusReport; writing: boolean; onWrite: (prompt: string) => void;
+}) {
   const kept = report.answer;
   const answer = kept.value;
+  // Starts from what the kept analysis was asked, so it can be refined rather than retyped.
+  const [prompt, setPrompt] = useState(answer?.prompt ?? '');
+  useEffect(() => { setPrompt(answer?.prompt ?? ''); }, [answer?.prompt, report.title]);
   return (
     <section className="card azure-cost-card azure-cost-wide">
       <div className="azure-cost-card-head">
         <h3>Compass's analysis</h3>
-        <button type="button" className="btn btn-primary" disabled={writing || !kept.available} onClick={onWrite}
-                title={kept.available ? 'Compass reads the figures below with the industry, the tags and what you told it' : 'Compass is not available to plugins on this install'}>
+      </div>
+      <form className="azure-cost-analysis-prompt" onSubmit={(event) => { event.preventDefault(); onWrite(prompt); }}>
+        <label className="field-labeled">What are you looking for? <span className="text-muted">(optional)</span>
+          <textarea rows={3} value={prompt} maxLength={1000} onChange={(event) => setPrompt(event.target.value)}
+                    placeholder="e.g. Is backup growing faster than the data it protects? What would a sovereign AI pitch on this data look like?" />
+        </label>
+        <button type="submit" className="btn btn-primary" disabled={writing || !kept.available}
+                title={kept.available ? 'Compass reads the figures below with the industry, the tags, what you told it and your prompt' : 'Compass is not available to plugins on this install'}>
           {answer ? 'Analyse again' : 'Analyse with Compass'}
         </button>
-      </div>
+      </form>
       {writing ? <Loading label="Compass is reading the slice: its months, services, meters, tags and the industry…" />
         : !answer ? <p className="text-muted">Not analysed yet. The figures below are the plugin's; Compass reads them{report.industry ? ` with ${report.industry} in mind` : ''}.</p>
           : (
             <>
               {kept.stale ? <p className="azure-cost-warning">The figures have changed since this was written.</p> : null}
+              {answer.prompt && answer.answer_to_ask ? (
+                <div className="azure-cost-analysis-asked">
+                  <span className="azure-cost-kpi-label">You asked: {answer.prompt}</span>
+                  <NoteText text={answer.answer_to_ask} />
+                </div>
+              ) : null}
               <p><strong>{answer.headline}</strong></p>
               <div className="azure-cost-analysis-answer">
                 <div>
@@ -159,9 +176,9 @@ export function AnalysisTab({ customerId, accounts, syncedVersion }: {
     ...focus, [kind]: focus[kind].includes(name) ? focus[kind].filter((other) => other !== name) : [...focus[kind], name],
   });
 
-  const write = () => {
+  const write = (prompt: string) => {
     setWriting(true); setError(null);
-    fetchFocus(customerId, focus, true, shown)
+    fetchFocus(customerId, focus, true, shown, prompt)
       .then((found) => { setReport(found); fetchKeptFocus(customerId).then(setKept, () => undefined); },
         (failure) => setError(errorText(failure)))
       .finally(() => setWriting(false));
@@ -183,7 +200,9 @@ export function AnalysisTab({ customerId, accounts, syncedVersion }: {
             <span className="azure-cost-kpi-label">Kept analyses</span>
             {kept.map((item) => (
               <button key={`${item.title}|${item.at}`} type="button" className="btn azure-cost-link-button"
-                      onClick={() => setFocus(item.focus)} title={`Written ${new Date(item.at).toLocaleString()}`}>
+                      onClick={() => setFocus(item.focus)}
+                      title={`${item.prompt ? `Asked: ${item.prompt}
+` : ''}Written ${new Date(item.at).toLocaleString()}`}>
                 {item.title}
               </button>
             ))}

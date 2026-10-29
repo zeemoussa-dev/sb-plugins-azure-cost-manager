@@ -59,24 +59,30 @@ class Advisor:
 
     # -- one slice of the bill, analysed ---------------------------------------------
 
-    def focus(self, customer_id: str, focus: dict, write: bool = False, accounts: list[str] | None = None) -> dict:
+    def focus(self, customer_id: str, focus: dict, write: bool = False, accounts: list[str] | None = None,
+              prompt: str | None = None) -> dict:
         """The Analysis tab (operator, 2026-10-29): the figures for the chosen services,
         subscriptions and groups, and Compass's reading of them -- kept per customer
-        and choice until what it was written from changes."""
+        and choice until what it was written from changes. `prompt`: what the seller is
+        looking for ("the analysis should take a prompt so I can refine it"), kept with it."""
         found = self._service.focus(customer_id, focus, accounts)
+        key = f"{customer_id}|{','.join(accounts or [])}|{found['key']}"
+        # Read back with the prompt it was written from, so its stamp still matches.
+        asked = focus_analysis.validated_prompt(prompt) if write else \
+            ((self._answers.get("focus", key) or {}).get("value") or {}).get("prompt")
         candidates = [{"meter": item["meter"], "monthly_on_demand": item["monthly_on_demand"],
                        "savings_monthly_by_option": item.get("savings")}
                       for item in self._service.finops(customer_id, accounts, waste=False).get("candidates") or []]
         facts = focus_analysis.facts(found["customer"]["name"], found["currency"], found["focus"], found["groups"],
                                      found["figures"], found["built_from"], found["tags"],
                                      self._service.brief_facts(customer_id), candidates, found["solutions"],
-                                     self._service.industry_of(customer_id))
-        key = f"{customer_id}|{','.join(accounts or [])}|{found['key']}"
+                                     self._service.industry_of(customer_id), asked)
         stamp = self._stamp("focus", facts)
         if write:
             answer = focus_analysis.check(self._ask("focus", focus_analysis.messages(
                 facts, advisor.RULES, advisor.INDUSTRY_RULE, advisor.CONTEXT_RULE)))
-            self._answers.put("focus", key, stamp, {**answer, "title": found["title"], "focus": found["focus"]})
+            self._answers.put("focus", key, stamp, {**answer, "title": found["title"], "focus": found["focus"],
+                                                    "prompt": asked})
         return {**{name: found[name] for name in ("customer", "currency", "focus", "title", "figures", "built_from",
                                                   "tags", "solutions")},
                 "industry": (self._service.industry_of(customer_id) or {}).get("industry"),
@@ -86,6 +92,7 @@ class Advisor:
         """The analyses kept for a customer, newest first: what the tab offers to reopen."""
         kept = self._answers.listed("focus")
         return sorted(({"title": item["value"].get("title"), "focus": item["value"].get("focus"), "at": item["at"],
+                        "prompt": item["value"].get("prompt"),
                         "accounts": [name for name in key.split("|")[1].split(",") if name]}
                        for key, item in kept.items() if key.split("|")[0] == customer_id and item.get("value")),
                       key=lambda row: row["at"] or "", reverse=True)

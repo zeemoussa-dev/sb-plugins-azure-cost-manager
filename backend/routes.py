@@ -550,10 +550,10 @@ def build_router(service: ConsumptionService, book: CustomerBook, directory: Acc
 
     @router.post("/customers/{customer_id}/focus")
     def post_focus(customer_id: str, request: dict = Body(...), accounts: str | None = None) -> dict:
-        """`{focus: {groups, subscriptions, services}, write}`: the slice's figures and the kept
-        analysis; `write` asks Compass for a new one."""
+        """`{focus: {groups, subscriptions, services}, write, prompt}`: the slice's figures and the
+        kept analysis; `write` asks Compass for a new one, steered by `prompt`."""
         return _compass(lambda: advisor.focus(customer_id, request.get("focus") or {}, bool(request.get("write")),
-                                              _account_list(accounts)))
+                                              _account_list(accounts), request.get("prompt")))
 
     @router.get("/customers/{customer_id}/subscription-groups")
     def get_subscription_groups(customer_id: str, only_service: str | None = Query(None, alias="service"),

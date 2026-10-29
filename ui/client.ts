@@ -881,6 +881,9 @@ export interface FocusRow {
 }
 
 export interface FocusAnswer {
+  /** Compass's direct answer to the seller's prompt, when one was given. */
+  answer_to_ask: string | null;
+  prompt: string | null;
   headline: string;
   cost_story: string;
   architecture: { workload: string; confidence: 'high' | 'medium' | 'low'; evidence: string[] };
@@ -916,6 +919,7 @@ export interface FocusReport {
 
 export interface KeptFocus {
   title: string;
+  prompt: string | null;
   focus: Focus;
   at: string;
   accounts: string[];
@@ -926,10 +930,10 @@ export const fetchFocusOptions = (id: string, accounts?: string[]) =>
 
 export const fetchKeptFocus = (id: string) => apiFetch<KeptFocus[]>(`${customer(id)}/focus/kept`);
 
-/** `write`: ask Compass for a new analysis; otherwise the figures and the kept one. */
-export const fetchFocus = (id: string, focus: Focus, write: boolean, accounts?: string[]) =>
+/** `write`: ask Compass for a new analysis, steered by `prompt`; otherwise the figures and the kept one. */
+export const fetchFocus = (id: string, focus: Focus, write: boolean, accounts?: string[], prompt?: string) =>
   apiFetch<FocusReport>(`${customer(id)}/focus${onlyAccounts(accounts)}`,
-    { method: 'POST', body: JSON.stringify({ focus, write }) });
+    { method: 'POST', body: JSON.stringify({ focus, write, ...(write ? { prompt: prompt ?? '' } : {}) }) });
 
 export interface SolutionPlaysSettings {
   plays: string[];

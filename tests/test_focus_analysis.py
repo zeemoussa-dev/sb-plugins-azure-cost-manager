@@ -83,3 +83,19 @@ def test_compass_answer_is_trimmed_to_its_shape():
     assert found["architecture"]["confidence"] == "low"
     assert [item["move"] for item in found["optimisation"]] == ["Tier to cool"]
     assert found["growth"] == [{"pitch": "Compass for genomics", "why": "in-country AI"}]
+
+
+def test_the_seller_prompt_steers_the_analysis_and_is_answered_first():
+    assert focus_analysis.validated_prompt("  ") is None
+    with pytest.raises(ValueError):
+        focus_analysis.validated_prompt("x" * 1001)
+    focus = focus_analysis.validated({"groups": ["Genome programme"]}, GROUPS)
+    found = focus_analysis.figures(merged_months(), focus, GROUPS, CURRENT)
+    facts = focus_analysis.facts("M42", "USD", focus, GROUPS, found, {"meters": [], "resource_groups": []}, [],
+                                 None, [], [], None, "Is the backup growing faster than the data?")
+    assert facts["seller_asks"] == "Is the backup growing faster than the data?"
+    assert "seller_asks" not in focus_analysis.facts("M42", "USD", focus, GROUPS, found,
+                                                     {"meters": [], "resource_groups": []}, [], None, [], [], None)
+    reply = '{"answer_to_ask": "Yes: backup +10% against data +3.6%.", "headline": "h"}'
+    assert focus_analysis.check(reply)["answer_to_ask"] == "Yes: backup +10% against data +3.6%."
+    assert focus_analysis.check('{"headline": "h"}')["answer_to_ask"] is None
